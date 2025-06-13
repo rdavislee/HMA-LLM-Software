@@ -1,0 +1,2 @@
+# Simple calculator project for testing
+# Agents will implement basic math operations here

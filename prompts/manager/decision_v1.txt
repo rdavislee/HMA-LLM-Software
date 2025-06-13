@@ -1,0 +1,2 @@
+# Manager agent decision prompt template
+# Will contain the structured prompt for manager decisions
