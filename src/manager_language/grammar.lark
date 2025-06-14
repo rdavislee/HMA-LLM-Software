@@ -1,0 +1,46 @@
+// Manager Language Grammar for Lark
+// Based on the TypeScript parserlib grammar specification
+
+// Comments
+COMMENT: /\/\/.*/
+
+// Directives
+directive: delegate | finish | action | wait
+
+// Delegate directive
+delegate: "DELEGATE" delegate_item ("," delegate_item)*
+delegate_item: target prompt_field
+
+// Finish directive  
+finish: "FINISH" prompt_field
+
+// Action directive
+action: action_type target ("," target)*
+action_type: CREATE | DELETE | READ
+
+// Wait directive
+wait: "WAIT"
+
+// Targets
+target: "file" filename   -> file
+      | "folder" filename -> folder
+
+// Filename is a quoted string
+filename: string
+
+// Prompt field
+prompt_field: "PROMPT" "=" string
+
+// String literals as a terminal (preserve whitespace and escapes)
+string: STRING
+STRING: /"(\\.|[^\\"])*"/
+
+// Action type tokens
+CREATE: "CREATE"
+DELETE: "DELETE"
+READ: "READ"
+
+// Ignore whitespace and comments
+%import common.WS
+%ignore WS
+%ignore COMMENT 
