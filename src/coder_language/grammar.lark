@@ -1,0 +1,41 @@
+// Coder Language Grammar for Lark
+// Based on the manager language grammar but adapted for coder agents
+
+// Comments
+COMMENT: /\/\/.*/
+
+// Directives
+directive: read | run | change | finish
+
+// Read directive - read any file in the codebase
+read: "READ" filename
+
+// Run directive - run terminal commands
+run: "RUN" command
+
+// Change directive - replace entire file contents
+change: "CHANGE" "CONTENT" "=" content_string
+
+// Finish directive - complete the task
+finish: "FINISH" prompt_field
+
+// Filename is a quoted string
+filename: string
+
+// Command is a quoted string
+command: string
+
+// Prompt field
+prompt_field: "PROMPT" "=" string
+
+// Content string - uses regular quoted strings
+content_string: string
+
+// Regular string literals (for filenames, commands, prompts, content)
+string: STRING
+STRING: /"(\\.|[^\\"])*"/
+
+// Ignore whitespace and comments
+%import common.WS
+%ignore WS
+%ignore COMMENT 
