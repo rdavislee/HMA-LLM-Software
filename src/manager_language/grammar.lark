@@ -5,7 +5,7 @@
 COMMENT: /\/\/.*/
 
 // Directives
-directive: delegate | finish | action | wait
+directive: delegate | finish | action | wait | run
 
 // Delegate directive
 delegate: "DELEGATE" delegate_item ("," delegate_item)*
@@ -18,6 +18,9 @@ finish: "FINISH" prompt_field
 action: action_type target ("," target)*
 action_type: CREATE | DELETE | READ
 
+// Run directive
+run: RUN command
+
 // Wait directive
 wait: "WAIT"
 
@@ -27,6 +30,9 @@ target: "file" filename   -> file
 
 // Filename is a quoted string
 filename: string
+
+// Command is a quoted string
+command: string
 
 // Prompt field
 prompt_field: "PROMPT" "=" string
@@ -39,6 +45,7 @@ STRING: /"(\\.|[^\\"])*"/
 CREATE: "CREATE"
 DELETE: "DELETE"
 READ: "READ"
+RUN: "RUN"
 
 // Ignore whitespace and comments
 %import common.WS

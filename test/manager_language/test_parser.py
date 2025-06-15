@@ -26,6 +26,7 @@ from manager_language.ast import (
     FinishDirective,
     ActionDirective,
     WaitDirective,
+    RunDirective,
     DelegateItem,
     Target,
     PromptField
@@ -218,6 +219,47 @@ class TestManagerLanguageParser:
         result = self.parser.parse(directive)
         
         assert isinstance(result, WaitDirective)
+    
+    # RUN directive tests
+    def test_parse_run_simple_command(self):
+        """Test parsing RUN directive with simple command."""
+        directive = 'RUN "echo hello world"'
+        result = self.parser.parse(directive)
+        
+        assert isinstance(result, RunDirective)
+        assert result.command == "echo hello world"
+    
+    def test_parse_run_complex_command(self):
+        """Test parsing RUN directive with complex command."""
+        directive = 'RUN "npm install && npm run build"'
+        result = self.parser.parse(directive)
+        
+        assert isinstance(result, RunDirective)
+        assert result.command == "npm install && npm run build"
+    
+    def test_parse_run_command_with_quotes(self):
+        """Test parsing RUN directive with command containing quotes."""
+        directive = 'RUN "git commit -m \\"Initial commit\\""'
+        result = self.parser.parse(directive)
+        
+        assert isinstance(result, RunDirective)
+        assert result.command == "git commit -m \"Initial commit\""
+    
+    def test_parse_run_command_with_escaped_chars(self):
+        """Test parsing RUN directive with escaped characters."""
+        directive = 'RUN "echo \\"Hello\\nWorld\\""'
+        result = self.parser.parse(directive)
+        
+        assert isinstance(result, RunDirective)
+        assert result.command == "echo \"Hello\nWorld\""
+    
+    def test_parse_run_command_with_paths(self):
+        """Test parsing RUN directive with file paths."""
+        directive = 'RUN "python src/main.py --config config.json"'
+        result = self.parser.parse(directive)
+        
+        assert isinstance(result, RunDirective)
+        assert result.command == "python src/main.py --config config.json"
     
     # String escaping tests
     def test_parse_with_escaped_quotes(self):

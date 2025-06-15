@@ -26,6 +26,7 @@ from manager_language.ast import (
     FinishDirective,
     ActionDirective,
     WaitDirective,
+    RunDirective,
     DirectiveType,
     
     # AST Node classes
@@ -372,18 +373,93 @@ class TestWaitDirective:
         assert str(directive) == "WAIT"
     
     def test_wait_directive_context_preservation(self):
-        """Test that wait directive preserves existing context."""
+        """Test that WAIT directive preserves existing context."""
         directive = WaitDirective()
         
+        # Set up existing context
         context = {
-            'existing_data': 'value',
+            'actions': [{'type': 'CREATE', 'target': 'test.txt'}],
+            'delegations': [{'target': 'test.txt', 'prompt': 'Create file'}],
             'finished': False
         }
+        
         result = directive.execute(context)
         
-        assert result['existing_data'] == 'value'
+        # Check that existing context is preserved
+        assert 'actions' in result and len(result['actions']) == 1
+        assert 'delegations' in result and len(result['delegations']) == 1
         assert result['finished'] is False
+        
+        # Check that waiting is set
         assert result['waiting'] is True
+
+
+class TestRunDirective:
+    """Test suite for RunDirective class."""
+    
+    def test_run_directive_execution(self):
+        """Test RUN directive execution."""
+        directive = RunDirective(command="echo hello world")
+        
+        context = {}
+        result = directive.execute(context)
+        
+        assert 'commands' in result
+        assert len(result['commands']) == 1
+        assert result['commands'][0]['command'] == "echo hello world"
+        assert result['commands'][0]['status'] == "pending"
+    
+    def test_run_directive_multiple_execution(self):
+        """Test multiple RUN directives execution."""
+        directive1 = RunDirective(command="npm install")
+        directive2 = RunDirective(command="npm run build")
+        
+        context = {}
+        result1 = directive1.execute(context)
+        result2 = directive2.execute(result1)
+        
+        assert 'commands' in result2
+        assert len(result2['commands']) == 2
+        assert result2['commands'][0]['command'] == "npm install"
+        assert result2['commands'][1]['command'] == "npm run build"
+    
+    def test_run_directive_string_representation(self):
+        """Test RUN directive string representation."""
+        directive = RunDirective(command="python main.py")
+        
+        assert str(directive) == 'RUN "python main.py"'
+    
+    def test_run_directive_complex_command(self):
+        """Test RUN directive with complex command."""
+        complex_command = "git add . && git commit -m \"Update code\" && git push"
+        directive = RunDirective(command=complex_command)
+        
+        context = {}
+        result = directive.execute(context)
+        
+        assert result['commands'][0]['command'] == complex_command
+    
+    def test_run_directive_context_preservation(self):
+        """Test that RUN directive preserves existing context."""
+        directive = RunDirective(command="echo test")
+        
+        # Set up existing context
+        context = {
+            'actions': [{'type': 'CREATE', 'target': 'test.txt'}],
+            'delegations': [{'target': 'test.txt', 'prompt': 'Create file'}],
+            'finished': False
+        }
+        
+        result = directive.execute(context)
+        
+        # Check that existing context is preserved
+        assert 'actions' in result and len(result['actions']) == 1
+        assert 'delegations' in result and len(result['delegations']) == 1
+        assert result['finished'] is False
+        
+        # Check that command is added
+        assert 'commands' in result and len(result['commands']) == 1
+        assert result['commands'][0]['command'] == "echo test"
 
 
 class TestActionNode:

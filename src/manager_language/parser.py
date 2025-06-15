@@ -7,7 +7,7 @@ import os
 from typing import List, Union
 from lark import Lark, Transformer, v_args
 from .ast import (
-    Directive, DelegateDirective, FinishDirective, ActionDirective, WaitDirective,
+    Directive, DelegateDirective, FinishDirective, ActionDirective, WaitDirective, RunDirective,
     DelegateItem, Target, PromptField, DirectiveType
 )
 
@@ -64,6 +64,11 @@ class ManagerLanguageTransformer(Transformer):
         return "READ"
     
     @v_args(inline=True)
+    def RUN(self, token):
+        """Transform RUN token."""
+        return "RUN"
+    
+    @v_args(inline=True)
     def wait(self):
         """Transform wait directive."""
         return WaitDirective()
@@ -86,6 +91,11 @@ class ManagerLanguageTransformer(Transformer):
     @v_args(inline=True)
     def filename(self, value):
         """Transform filename."""
+        return value
+    
+    @v_args(inline=True)
+    def command(self, value):
+        """Transform command."""
         return value
     
     @v_args(inline=True)
@@ -131,6 +141,11 @@ class ManagerLanguageTransformer(Transformer):
                 i += 1
         
         return ''.join(result)
+    
+    @v_args(inline=True)
+    def run(self, run_token, command):
+        """Transform run directive."""
+        return RunDirective(command=command)
 
 
 class ManagerLanguageParser:

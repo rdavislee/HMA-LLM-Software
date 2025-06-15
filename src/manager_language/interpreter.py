@@ -7,7 +7,7 @@ import os
 import json
 from typing import Dict, List, Any, Optional
 from pathlib import Path
-from .ast import DirectiveType, DelegateDirective, FinishDirective, ActionDirective, WaitDirective
+from .ast import DirectiveType, DelegateDirective, FinishDirective, ActionDirective, WaitDirective, RunDirective
 from .parser import ManagerLanguageParser
 
 
@@ -29,6 +29,7 @@ class ManagerLanguageInterpreter:
         self.context: Dict[str, Any] = {
             'actions': [],
             'delegations': [],
+            'commands': [],
             'finished': False,
             'waiting': False,
             'completion_prompt': None
@@ -88,6 +89,8 @@ class ManagerLanguageInterpreter:
             return self._execute_action(directive)
         elif isinstance(directive, WaitDirective):
             return self._execute_wait(directive)
+        elif isinstance(directive, RunDirective):
+            return self._execute_run(directive)
         else:
             raise ValueError(f"Unknown directive type: {type(directive)}")
     
@@ -137,6 +140,69 @@ class ManagerLanguageInterpreter:
         """Execute a WAIT directive."""
         self.context['waiting'] = True
         return self.context
+    
+    def _execute_run(self, directive: RunDirective) -> Dict[str, Any]:
+        """Execute a RUN directive."""
+        if 'commands' not in self.context:
+            self.context['commands'] = []
+        
+        command_result = self._execute_command(directive.command)
+        command_info = {
+            'command': directive.command,
+            'result': command_result,
+            'status': 'completed' if command_result['success'] else 'failed'
+        }
+        if not command_result['success'] and 'error' in command_result:
+            command_info['error'] = command_result['error']
+        
+        self.context['commands'].append(command_info)
+        return self.context
+    
+    def _execute_command(self, command: str) -> Dict[str, Any]:
+        """
+        Execute a command prompt command.
+        
+        Args:
+            command: The command string to execute
+            
+        Returns:
+            Dictionary with command execution result
+        """
+        import subprocess
+        import sys
+        
+        try:
+            # Execute the command and capture output
+            result = subprocess.run(
+                command,
+                shell=True,
+                capture_output=True,
+                text=True,
+                cwd=self.base_path,
+                timeout=300  # 5 minute timeout
+            )
+            
+            res = {
+                'success': result.returncode == 0,
+                'returncode': result.returncode,
+                'stdout': result.stdout,
+                'stderr': result.stderr,
+                'message': f"Command executed: {command}"
+            }
+            if result.returncode != 0:
+                # Always include an 'error' key for failed commands
+                res['error'] = result.stderr.strip() or f"Command failed with return code {result.returncode}"
+            return res
+        except subprocess.TimeoutExpired:
+            return {
+                'success': False,
+                'error': f"Command timed out after 5 minutes: {command}"
+            }
+        except Exception as e:
+            return {
+                'success': False,
+                'error': f"Failed to execute command '{command}': {str(e)}"
+            }
     
     def _perform_file_action(self, action_type: str, target) -> Dict[str, Any]:
         """
@@ -270,6 +336,7 @@ class ManagerLanguageInterpreter:
         self.context = {
             'actions': [],
             'delegations': [],
+            'commands': [],
             'finished': False,
             'waiting': False,
             'completion_prompt': None

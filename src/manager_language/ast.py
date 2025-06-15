@@ -196,8 +196,29 @@ class WaitDirective(Directive):
         return "WAIT"
 
 
+@dataclass
+class RunDirective(Directive):
+    """Represents a RUN directive for executing command prompt commands."""
+    command: str
+    
+    def execute(self, context: dict) -> dict:
+        """Execute run directive by adding command execution to context."""
+        if 'commands' not in context:
+            context['commands'] = []
+        
+        context['commands'].append({
+            'command': self.command,
+            'status': 'pending'
+        })
+        
+        return context
+    
+    def __str__(self) -> str:
+        return f'RUN "{self.command}"'
+
+
 # Type alias for any directive
-DirectiveType = Union[DelegateDirective, FinishDirective, ActionDirective, WaitDirective]
+DirectiveType = Union[DelegateDirective, FinishDirective, ActionDirective, WaitDirective, RunDirective]
 
 
 @dataclass

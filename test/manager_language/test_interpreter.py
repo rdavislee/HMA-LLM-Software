@@ -25,6 +25,7 @@ from manager_language.ast import (
     FinishDirective,
     ActionDirective,
     WaitDirective,
+    RunDirective,
     DelegateItem,
     Target,
     PromptField
@@ -165,18 +166,86 @@ class TestManagerLanguageInterpreter:
         result = self.interpreter.execute(directive)
         assert result['waiting'] is True
     
+    # RUN
+    def test_execute_run_simple_command(self):
+        """Test executing a simple RUN directive."""
+        directive = 'RUN "echo hello world"'
+        result = self.interpreter.execute(directive)
+        
+        assert 'commands' in result
+        assert len(result['commands']) == 1
+        assert result['commands'][0]['command'] == "echo hello world"
+        assert result['commands'][0]['status'] == "completed"
+        assert result['commands'][0]['result']['success'] is True
+        assert "hello world" in result['commands'][0]['result']['stdout']
+    
+    def test_execute_run_complex_command(self):
+        """Test executing a complex RUN directive."""
+        # Use a cross-platform command that does not rely on complex quoting
+        directive = 'RUN "echo hello world again"'
+        result = self.interpreter.execute(directive)
+
+        assert 'commands' in result
+        assert len(result['commands']) == 1
+        assert result['commands'][0]['command'] == "echo hello world again"
+        assert result['commands'][0]['status'] == "completed"
+        assert result['commands'][0]['result']['success'] is True
+        assert "hello world again" in result['commands'][0]['result']['stdout']
+    
+    def test_execute_run_failing_command(self):
+        """Test executing a RUN directive that fails."""
+        directive = 'RUN "nonexistent_command_that_fails"'
+        result = self.interpreter.execute(directive)
+        
+        assert 'commands' in result
+        assert len(result['commands']) == 1
+        assert result['commands'][0]['command'] == "nonexistent_command_that_fails"
+        assert result['commands'][0]['status'] == "failed"
+        assert result['commands'][0]['result']['success'] is False
+        assert 'error' in result['commands'][0]['result']
+    
+    def test_execute_run_multiple_commands(self):
+        """Test executing multiple RUN directives."""
+        directives = '''
+        RUN "echo first"
+        RUN "echo second"
+        '''
+        result = self.interpreter.execute_multiple(directives)
+        
+        assert 'commands' in result
+        assert len(result['commands']) == 2
+        assert result['commands'][0]['command'] == "echo first"
+        assert result['commands'][1]['command'] == "echo second"
+        assert result['commands'][0]['status'] == "completed"
+        assert result['commands'][1]['status'] == "completed"
+    
+    def test_execute_run_with_file_operations(self):
+        """Test RUN directive combined with file operations."""
+        directives = '''
+        CREATE file "test.txt"
+        RUN "echo content > test.txt"
+        READ file "test.txt"
+        '''
+        result = self.interpreter.execute_multiple(directives)
+        
+        assert 'actions' in result and len(result['actions']) == 2
+        assert 'commands' in result and len(result['commands']) == 1
+        assert result['commands'][0]['status'] == "completed"
+    
     # Multiple directives
     def test_execute_multiple(self):
         directives = '''
         CREATE folder "proj"
         CREATE file "proj/readme.md"
         DELEGATE file "proj/readme.md" PROMPT="Write documentation"
+        RUN "echo 'Project created'"
         WAIT
         FINISH PROMPT="Done"
         '''
         result = self.interpreter.execute_multiple(directives)
         assert 'actions' in result and len(result['actions']) == 2
         assert 'delegations' in result and len(result['delegations']) == 1
+        assert 'commands' in result and len(result['commands']) == 1
         assert result['waiting'] is True or result['finished'] is True
     
     # Error handling
