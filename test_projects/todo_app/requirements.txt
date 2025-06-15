@@ -1,2 +1,0 @@
-# Simple todo app project for testing
-# Agents will implement CRUD operations here
