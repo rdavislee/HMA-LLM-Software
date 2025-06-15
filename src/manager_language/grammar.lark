@@ -5,7 +5,7 @@
 COMMENT: /\/\/.*/
 
 // Directives
-directive: delegate | finish | action | wait | run
+directive: delegate | finish | action | wait | run | update_readme
 
 // Delegate directive
 delegate: "DELEGATE" delegate_item ("," delegate_item)*
@@ -17,6 +17,9 @@ finish: "FINISH" prompt_field
 // Action directive
 action: action_type target ("," target)*
 action_type: CREATE | DELETE | READ
+
+// Update readme directive
+update_readme: "UPDATE_README" content_string
 
 // Run directive
 run: RUN command
@@ -37,6 +40,9 @@ command: string
 // Prompt field
 prompt_field: "PROMPT" "=" string
 
+// File content field (completely replaces current file contents)
+content_string: "CONTENT_STRING" "=" string
+
 // String literals as a terminal (preserve whitespace and escapes)
 string: STRING
 STRING: /"(\\.|[^\\"])*"/
@@ -45,6 +51,7 @@ STRING: /"(\\.|[^\\"])*"/
 CREATE: "CREATE"
 DELETE: "DELETE"
 READ: "READ"
+UPDATE_README: "UPDATE_README"
 RUN: "RUN"
 
 // Ignore whitespace and comments

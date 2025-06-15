@@ -16,6 +16,7 @@ class TokenType(Enum):
     DELEGATE = "DELEGATE"
     FINISH = "FINISH"
     WAIT = "WAIT"
+    UPDATE_README = "UPDATE_README"
     FILE = "FILE"
     FOLDER = "FOLDER"
     IDENTIFIER = "IDENTIFIER"
@@ -217,8 +218,29 @@ class RunDirective(Directive):
         return f'RUN "{self.command}"'
 
 
+@dataclass
+class UpdateReadmeDirective(Directive):
+    """Represents an UPDATE_README directive for updating agent's personal readme."""
+    content: str
+    
+    def execute(self, context: dict) -> dict:
+        """Execute update readme directive by adding readme update to context."""
+        if 'readme_updates' not in context:
+            context['readme_updates'] = []
+        
+        context['readme_updates'].append({
+            'content': self.content,
+            'status': 'pending'
+        })
+        
+        return context
+    
+    def __str__(self) -> str:
+        return f'UPDATE_README CONTENT_STRING="{self.content}"'
+
+
 # Type alias for any directive
-DirectiveType = Union[DelegateDirective, FinishDirective, ActionDirective, WaitDirective, RunDirective]
+DirectiveType = Union[DelegateDirective, FinishDirective, ActionDirective, WaitDirective, RunDirective, UpdateReadmeDirective]
 
 
 @dataclass

@@ -14,6 +14,7 @@ The Manager Language is a domain-specific language designed for autonomous agent
 - **Delegation Support**: Delegate tasks to other agents with prompts
 - **Error Handling**: Comprehensive error handling and reporting
 - **Context Management**: Maintain execution context across multiple directives
+- **Readme Update Support**: Agents can update and maintain a personal README for future instances of themselves using the `UPDATE_README` directive
 
 ## Installation
 
@@ -78,6 +79,14 @@ Wait for other operations to complete:
 WAIT
 ```
 
+### UPDATE_README Directive
+Update or maintain a personal README for the agent:
+```
+UPDATE_README CONTENT_STRING="This is the new README content for the agent."
+```
+- The `CONTENT_STRING` field completely replaces the current README content for the agent.
+- This directive allows agents to persist important information for future instances of themselves.
+
 ## API Reference
 
 ### Parser
@@ -109,6 +118,8 @@ Main interpreter class for advanced usage.
 - `FinishDirective`: Represents FINISH directives
 - `ActionDirective`: Represents CREATE, DELETE, READ directives
 - `WaitDirective`: Represents WAIT directives
+- `RunDirective`: Represents RUN directives
+- `UpdateReadmeDirective`: Represents UPDATE_README directives
 - `Target`: Represents file or folder targets
 - `PromptField`: Represents prompt values
 - `DelegateItem`: Represents individual delegation items
@@ -143,6 +154,18 @@ result = execute_directive(directive)
 print(result)
 ```
 
+### Update Agent README
+
+```python
+from manager_language import execute_directive
+
+# Update the agent's personal README
+directive = 'UPDATE_README CONTENT_STRING="Document the agent\'s new capabilities and usage."'
+result = execute_directive(directive)
+print(result)
+# The result context will include a 'readme_updates' key with the new content
+```
+
 ### Using the Interpreter Class
 
 ```python
@@ -156,6 +179,7 @@ directives = [
     'CREATE folder "project"',
     'CREATE file "project/config.json"',
     'DELEGATE file "project/config.json" PROMPT="Create a JSON configuration"',
+    'UPDATE_README CONTENT_STRING="Project initialized with config."',
     'FINISH PROMPT="Project setup complete"'
 ]
 
@@ -205,6 +229,8 @@ The interpreter maintains an execution context that includes:
 
 - `actions`: List of performed file operations
 - `delegations`: List of delegation tasks
+- `commands`: List of executed commands
+- `readme_updates`: List of README update operations (from UPDATE_README directives)
 - `finished`: Whether the agent has finished
 - `waiting`: Whether the agent is waiting
 - `completion_prompt`: Final completion message

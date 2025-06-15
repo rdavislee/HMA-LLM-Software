@@ -27,6 +27,7 @@ from manager_language.ast import (
     ActionDirective,
     WaitDirective,
     RunDirective,
+    UpdateReadmeDirective,
     DelegateItem,
     Target,
     PromptField
@@ -260,6 +261,103 @@ class TestManagerLanguageParser:
         
         assert isinstance(result, RunDirective)
         assert result.command == "python src/main.py --config config.json"
+    
+    # UPDATE_README directive tests
+    def test_parse_update_readme_simple(self):
+        """Test parsing simple UPDATE_README directive."""
+        directive = 'UPDATE_README CONTENT_STRING="This is the new README content"'
+        result = self.parser.parse(directive)
+        
+        assert isinstance(result, UpdateReadmeDirective)
+        assert result.content == "This is the new README content"
+    
+    def test_parse_update_readme_with_escaped_quotes(self):
+        """Test parsing UPDATE_README directive with escaped quotes."""
+        directive = 'UPDATE_README CONTENT_STRING="README with \\"quotes\\" inside"'
+        result = self.parser.parse(directive)
+        
+        assert isinstance(result, UpdateReadmeDirective)
+        assert result.content == 'README with "quotes" inside'
+    
+    def test_parse_update_readme_with_newlines(self):
+        """Test parsing UPDATE_README directive with newlines."""
+        directive = 'UPDATE_README CONTENT_STRING="README\\nwith\\nmultiple\\nlines"'
+        result = self.parser.parse(directive)
+        
+        assert isinstance(result, UpdateReadmeDirective)
+        assert result.content == "README\nwith\nmultiple\nlines"
+    
+    def test_parse_update_readme_with_tabs(self):
+        """Test parsing UPDATE_README directive with tabs."""
+        directive = 'UPDATE_README CONTENT_STRING="README\\twith\\ttabs"'
+        result = self.parser.parse(directive)
+        
+        assert isinstance(result, UpdateReadmeDirective)
+        assert result.content == "README\twith\ttabs"
+    
+    def test_parse_update_readme_empty_content(self):
+        """Test parsing UPDATE_README directive with empty content."""
+        directive = 'UPDATE_README CONTENT_STRING=""'
+        result = self.parser.parse(directive)
+        
+        assert isinstance(result, UpdateReadmeDirective)
+        assert result.content == ""
+    
+    def test_parse_update_readme_complex_content(self):
+        """Test parsing UPDATE_README directive with complex markdown content."""
+        complex_content = """# Agent Documentation
+
+This agent is responsible for:
+- File operations (CREATE, DELETE, READ)
+- Task delegation to child agents
+- Documentation updates
+
+## Usage Examples
+```bash
+CREATE file "config.json"
+DELEGATE file "src/main.py" PROMPT="Create main function"
+UPDATE_README CONTENT_STRING="Updated documentation"
+```
+
+## Configuration
+The agent uses the following directives:
+- CREATE: Create files and folders
+- DELETE: Remove files and folders
+- READ: Read file contents or list folder contents
+- DELEGATE: Assign tasks to child agents
+- FINISH: Mark task completion
+- WAIT: Wait for child agents
+- RUN: Execute shell commands
+- UPDATE_README: Update agent's personal README
+"""
+        # Escape the content for the directive
+        escaped_content = complex_content.replace('"', '\\"').replace('\n', '\\n')
+        directive = f'UPDATE_README CONTENT_STRING="{escaped_content}"'
+        result = self.parser.parse(directive)
+        
+        assert isinstance(result, UpdateReadmeDirective)
+        assert "# Agent Documentation" in result.content
+        assert "File operations" in result.content
+        assert "UPDATE_README" in result.content
+    
+    def test_parse_update_readme_with_special_chars(self):
+        """Test parsing UPDATE_README directive with various special characters."""
+        directive = 'UPDATE_README CONTENT_STRING="README with \\n newlines, \\t tabs, \\"quotes\\", and \\\\ backslashes"'
+        result = self.parser.parse(directive)
+        
+        assert isinstance(result, UpdateReadmeDirective)
+        assert result.content == "README with \n newlines, \t tabs, \"quotes\", and \\ backslashes"
+    
+    def test_parse_update_readme_malformed(self):
+        """Test parsing malformed UPDATE_README directive."""
+        with pytest.raises(Exception):
+            self.parser.parse('UPDATE_README')
+        
+        with pytest.raises(Exception):
+            self.parser.parse('UPDATE_README CONTENT_STRING')
+        
+        with pytest.raises(Exception):
+            self.parser.parse('UPDATE_README CONTENT_STRING=')
     
     # String escaping tests
     def test_parse_with_escaped_quotes(self):

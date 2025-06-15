@@ -26,6 +26,7 @@ from manager_language.ast import (
     ActionDirective,
     WaitDirective,
     RunDirective,
+    UpdateReadmeDirective,
     DelegateItem,
     Target,
     PromptField
@@ -232,6 +233,133 @@ class TestManagerLanguageInterpreter:
         assert 'commands' in result and len(result['commands']) == 1
         assert result['commands'][0]['status'] == "completed"
     
+    # UPDATE_README
+    def test_execute_update_readme_simple(self):
+        """Test executing a simple UPDATE_README directive."""
+        directive = 'UPDATE_README CONTENT_STRING="This is the new README content"'
+        result = self.interpreter.execute(directive)
+        
+        assert 'readme_updates' in result
+        assert len(result['readme_updates']) == 1
+        assert result['readme_updates'][0]['content'] == "This is the new README content"
+        assert result['readme_updates'][0]['status'] == "pending"
+    
+    def test_execute_update_readme_multiple(self):
+        """Test executing multiple UPDATE_README directives."""
+        directives = '''
+        UPDATE_README CONTENT_STRING="First README update"
+        UPDATE_README CONTENT_STRING="Second README update"
+        '''
+        result = self.interpreter.execute_multiple(directives)
+        
+        assert 'readme_updates' in result
+        assert len(result['readme_updates']) == 2
+        assert result['readme_updates'][0]['content'] == "First README update"
+        assert result['readme_updates'][1]['content'] == "Second README update"
+        assert result['readme_updates'][0]['status'] == "pending"
+        assert result['readme_updates'][1]['status'] == "pending"
+    
+    def test_execute_update_readme_with_escaped_chars(self):
+        """Test executing UPDATE_README directive with escaped characters."""
+        directive = 'UPDATE_README CONTENT_STRING="README with \\"quotes\\" and \\n newlines"'
+        result = self.interpreter.execute(directive)
+        
+        assert 'readme_updates' in result
+        assert len(result['readme_updates']) == 1
+        assert result['readme_updates'][0]['content'] == 'README with "quotes" and \n newlines'
+    
+    def test_execute_update_readme_empty_content(self):
+        """Test executing UPDATE_README directive with empty content."""
+        directive = 'UPDATE_README CONTENT_STRING=""'
+        result = self.interpreter.execute(directive)
+        
+        assert 'readme_updates' in result
+        assert len(result['readme_updates']) == 1
+        assert result['readme_updates'][0]['content'] == ""
+        assert result['readme_updates'][0]['status'] == "pending"
+    
+    def test_execute_update_readme_complex_content(self):
+        """Test executing UPDATE_README directive with complex markdown content."""
+        complex_content = """# Agent Documentation
+
+This agent is responsible for:
+- File operations (CREATE, DELETE, READ)
+- Task delegation to child agents
+- Documentation updates
+
+## Usage Examples
+```bash
+CREATE file "config.json"
+DELEGATE file "src/main.py" PROMPT="Create main function"
+UPDATE_README CONTENT_STRING="Updated documentation"
+```
+
+## Configuration
+The agent uses the following directives:
+- CREATE: Create files and folders
+- DELETE: Remove files and folders
+- READ: Read file contents or list folder contents
+- DELEGATE: Assign tasks to child agents
+- FINISH: Mark task completion
+- WAIT: Wait for child agents
+- RUN: Execute shell commands
+- UPDATE_README: Update agent's personal README
+"""
+        # Escape the content for the directive
+        escaped_content = complex_content.replace('"', '\\"').replace('\n', '\\n')
+        directive = f'UPDATE_README CONTENT_STRING="{escaped_content}"'
+        result = self.interpreter.execute(directive)
+        
+        assert 'readme_updates' in result
+        assert len(result['readme_updates']) == 1
+        assert result['readme_updates'][0]['content'] == complex_content
+        assert "# Agent Documentation" in result['readme_updates'][0]['content']
+        assert "File operations" in result['readme_updates'][0]['content']
+        assert "UPDATE_README" in result['readme_updates'][0]['content']
+    
+    def test_execute_update_readme_context_preservation(self):
+        """Test UPDATE_README directive preserves existing context."""
+        # Set up existing context
+        self.interpreter.execute('CREATE file "test.txt"')
+        self.interpreter.execute('DELEGATE file "child.txt" PROMPT="Do something"')
+        self.interpreter.execute('RUN "echo test"')
+        
+        # Execute UPDATE_README
+        directive = 'UPDATE_README CONTENT_STRING="Updated README"'
+        result = self.interpreter.execute(directive)
+        
+        # Check that existing context is preserved
+        assert 'actions' in result and len(result['actions']) == 1
+        assert 'delegations' in result and len(result['delegations']) == 1
+        assert 'commands' in result and len(result['commands']) == 1
+        
+        # Check that readme_updates is added
+        assert 'readme_updates' in result
+        assert len(result['readme_updates']) == 1
+        assert result['readme_updates'][0]['content'] == "Updated README"
+        assert result['readme_updates'][0]['status'] == "pending"
+    
+    def test_execute_update_readme_with_other_directives(self):
+        """Test UPDATE_README directive combined with other directives."""
+        directives = '''
+        CREATE file "config.json"
+        UPDATE_README CONTENT_STRING="Created config file"
+        DELEGATE file "src/main.py" PROMPT="Create main function"
+        UPDATE_README CONTENT_STRING="Delegated main.py creation"
+        FINISH PROMPT="All done"
+        '''
+        result = self.interpreter.execute_multiple(directives)
+        
+        assert 'actions' in result and len(result['actions']) == 1
+        assert 'delegations' in result and len(result['delegations']) == 1
+        assert 'readme_updates' in result and len(result['readme_updates']) == 2
+        assert result['finished'] is True
+        assert result['completion_prompt'] == "All done"
+        
+        # Check README updates
+        assert result['readme_updates'][0]['content'] == "Created config file"
+        assert result['readme_updates'][1]['content'] == "Delegated main.py creation"
+    
     # Multiple directives
     def test_execute_multiple(self):
         directives = '''
@@ -273,6 +401,7 @@ class TestManagerLanguageInterpreter:
         context2 = self.interpreter.get_context()
         assert context2['actions'] == []
         assert context2['delegations'] == []
+        assert context2['readme_updates'] == []
         assert context2['finished'] is False
         assert context2['waiting'] is False
         assert context2['completion_prompt'] is None

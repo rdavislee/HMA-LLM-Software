@@ -7,7 +7,7 @@ import os
 import json
 from typing import Dict, List, Any, Optional
 from pathlib import Path
-from .ast import DirectiveType, DelegateDirective, FinishDirective, ActionDirective, WaitDirective, RunDirective
+from .ast import DirectiveType, DelegateDirective, FinishDirective, ActionDirective, WaitDirective, RunDirective, UpdateReadmeDirective
 from .parser import ManagerLanguageParser
 
 
@@ -30,6 +30,7 @@ class ManagerLanguageInterpreter:
             'actions': [],
             'delegations': [],
             'commands': [],
+            'readme_updates': [],
             'finished': False,
             'waiting': False,
             'completion_prompt': None
@@ -91,6 +92,8 @@ class ManagerLanguageInterpreter:
             return self._execute_wait(directive)
         elif isinstance(directive, RunDirective):
             return self._execute_run(directive)
+        elif isinstance(directive, UpdateReadmeDirective):
+            return self._execute_update_readme(directive)
         else:
             raise ValueError(f"Unknown directive type: {type(directive)}")
     
@@ -156,6 +159,19 @@ class ManagerLanguageInterpreter:
             command_info['error'] = command_result['error']
         
         self.context['commands'].append(command_info)
+        return self.context
+    
+    def _execute_update_readme(self, directive: UpdateReadmeDirective) -> Dict[str, Any]:
+        """Execute an UPDATE_README directive."""
+        if 'readme_updates' not in self.context:
+            self.context['readme_updates'] = []
+        
+        readme_update = {
+            'content': directive.content,
+            'status': 'pending'
+        }
+        self.context['readme_updates'].append(readme_update)
+        
         return self.context
     
     def _execute_command(self, command: str) -> Dict[str, Any]:
@@ -337,6 +353,7 @@ class ManagerLanguageInterpreter:
             'actions': [],
             'delegations': [],
             'commands': [],
+            'readme_updates': [],
             'finished': False,
             'waiting': False,
             'completion_prompt': None
