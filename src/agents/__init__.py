@@ -1,1 +1,5 @@
-# Agents package - contains all agent types
+"""
+Agent module exports
+"""
+
+from .base_agent import BaseAgent
