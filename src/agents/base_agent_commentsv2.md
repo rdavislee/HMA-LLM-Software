@@ -34,7 +34,7 @@ Deactivate is very similar, but we need to have a normal error thrown if a child
 
 Process task should take in a prompt and will add the prompt to the prompts rep. If stall is false, calls API call. Returns nothing.
 
-There should be an API call function. This is going to be complicated as fuck. It first loads context/memory and sets the stall rep to true. Then it does the API call with all the prompts from the prompt field concatenated (perhaps numbered?) and with context/memory. Then, it calls the prompter recieve function with its output as an input. The prompter, after parsing the output, will process the call, and then update the agents memory and context. After being sure there are no dependencies, the prompter will set stall to false. If there is nothing else in the queue after a self prompting action, the prompter will add another prompt such as "Action complete!"
+There should be an API call function. This is going to be complicated as fuck. It first loads context/memory and sets the stall rep to true. Then it does the API call with all the prompts from the prompt field concatenated (perhaps numbered?) and with context/memory. Then, it calls the prompter recieve function with its output as an input. The prompter, after parsing the output, will process the call, and then update the agents memory and context. After being sure there are no dependencies, the prompter will set stall to false. If there is nothing else in the queue after a self prompting action, the prompter will add another prompt such as "Action complete!" After allat, if there is something in the prompting queue, it will call the API call.
 
 Read file should be adding a pointer to the file to read to the memory.
 
