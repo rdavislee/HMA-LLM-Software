@@ -12,13 +12,13 @@ from ..manager_language.ast import (
     WaitDirective, RunDirective, UpdateReadmeDirective
 )
 
-async def manager_prompt(
+async def manager_prompt_stage(
     agent: ManagerAgent, 
     prompt: str, 
     message: Optional[Message] = None
 ) -> None:
     """
-    Recursive function that handles the prompting loop for the hierarchical agent system.
+    First stage of the hierarchical agent prompting system - handles prompting and getting LLM response.
     
     PSEUDOCODE:
     
@@ -33,14 +33,37 @@ async def manager_prompt(
            - remove child from agent's active_children list
     
     3. LLM RESPONSE PHASE:
-       - call agent.api_call(prompt) to get manager language response
+       - call await agent.api_call(prompt) to get manager language response
        - response should contain manager language directives
+       - call manager_receive_stage(agent, response_string)
+    
+    ERROR HANDLING:
+       - catch all exceptions in try/catch
+       - if error occurs:
+           - reprompt with error message.
+       - return
+    """
+    pass
+
+
+async def manager_receive_stage(
+    agent: ManagerAgent,
+    directive_string: str
+) -> None:
+    """
+    Second stage of the hierarchical agent prompting system - handles parsing and execution of directives.
+    
+    Args:
+        agent: The manager agent executing the directives
+        directive_string: Unparsed manager language directive string from LLM response
+    
+    PSEUDOCODE:
     
     4. PARSING PHASE:
-       - use ManagerLanguageParser to parse the response
+       - use ManagerLanguageParser to parse the directive_string
        - if parsing fails:
            - create error prompt with parsing error
-           - recursively call manager_prompt(agent, error_prompt, message)
+           - recursively call manager_prompt_stage(agent, error_prompt, message)
            - return early
     
     5. EXECUTION & ROUTING PHASE:
@@ -51,7 +74,7 @@ async def manager_prompt(
                - for each delegation target:
                    - get/create child agent
                    - create TaskMessage with delegation prompt
-                   - if child is manager: call manager_prompt(child, prompt, task_msg)
+                   - if child is manager: call manager_prompt_stage(child, prompt, task_msg)
                    - if child is coder: call coder_prompt(child, prompt, task_msg)
                - return (delegation started, wait for children)
            
@@ -60,7 +83,7 @@ async def manager_prompt(
                - get parent agent
                - try to deactivate agent
                - if agent has active children, this will cause an error, will be caught by exception handler and agent will be reprompted
-               - call manager_prompt(parent, continuation_prompt, result_msg)
+               - call manager_prompt_stage(parent, continuation_prompt, result_msg)
                - return (task complete, control returned to parent)
            
            elif ACTION (CREATE/DELETE/READ):
@@ -80,17 +103,17 @@ async def manager_prompt(
            elif UPDATE_README:
                - interpreter already queued readme update
                - execute the readme update to agent's personal file
-                               - continue to next directive (don't return)
+               - continue to next directive (don't return)
     
     6. CONTINUATION PHASE:
        - if we processed directives but didn't DELEGATE/FINISH/WAIT:
            - create continuation prompt: "Actions completed. What next?"
-           - recursively call manager_prompt(agent, continuation_prompt, message)
+           - recursively call manager_prompt_stage(agent, continuation_prompt, message)
     
     7. ERROR HANDLING:
        - catch all exceptions in try/catch
        - if error occurs:
-           - reprompt with error message.
+           - reprompt with error message by calling manager_prompt_stage.
        - return
     
     
