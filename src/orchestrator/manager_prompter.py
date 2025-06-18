@@ -132,7 +132,3 @@ async def manager_receive_stage(
     - Error propagation flows up the hierarchy
     """
     pass
-
-
-# TODO:
-# async def coder_prompt(agent, prompt, message) -> None
