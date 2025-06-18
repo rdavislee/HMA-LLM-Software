@@ -17,6 +17,8 @@ Memory should be files and results from running commands. Context should be prev
 
 I am a little bit worried about agents reading a file and then it changes and the old version is still in their cache. What if we somehow had a fileread command in the context and everytime the context is built into a prompt, the read file from before reads the current verion. So like we just have a pointer to a file to include in the context. 
 
+Memory should be a dictionary of filenames to paths to those files. ADD A FUNCTION THAT READS THE CONTENTS OF EVERY FILE IN THE DICTIONARY AND ASSEMBLES A DICTIONARY OF FILENAMES TO FILECONTENTS. We can call this everytime an API call is about to go, in order to have up-to-date memory.
+
 Context should be keys of prompts with values of answers. These represent every API call this agent has made since it was activated.
 
 Personal file should not be optional.
