@@ -6,11 +6,12 @@ Good global constants.
 
 Will agent ids simply be their path?
 
-If we are gonna have task ids, maybe we should keep a database of active tasks somewhere? Maybe thats stupid though, over complicating. TBH I dont even think we need task ids. Just task message objects.
+If we are gonna have task ids, maybe we should keep a database of active tasks somewhere? Maybe thats stupid though, over complicating. TBH I dont even think we need task ids. Just task message objects. [Good idea, we can use DynamoDb? - Ryan]
 
 Message queue is definitely still needed, call it prompt queue though, multiple children returning results at once is possible. We are going to need to figure out how that is going to work with api calls, but anything is possible-gonna have to have a way to indicate the agent is ready for the next input.
 
 Whats the activation lock?
+[Asyncio.Lock is meant to prevent race conditions, but it won't be necessary if we implement the idea you had in these comments - Ryan]
 
 Memory should be files and results from running commands. Context should be previous prompts and responses.
 
@@ -47,3 +48,5 @@ No need for send message, reveive message, or send result, prompter will handle 
 Load context should be adding the random shit to memory that it has at the beginning. Should be called before every api call.
 
 The getters at the bottom are good, will probably need to be changed with the other changes. Get context string should load all memory, all chat history in context, and put it into a readable string format. This should make it so the first prompt which explains its entire purpose only ever has to be sent on the first time, as itll be in the context from then on. We could explain how file reads and codebase structure in memory are automatically updated.
+
+- David Idea: Stall rep value in agent class -> boolean that manages API calls coming in, allowing prompts to build up in prompt queue without being processed. Keeps API costs low

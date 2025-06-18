@@ -84,7 +84,7 @@ class BaseAgent(ABC):
         # Agent State
         self.is_active = False
         self.current_task_id: Optional[str] = None
-        self.message_queue: List[Message] = []
+        self.prompt_queue: List[Message] = []
         self._activation_lock = asyncio.Lock()
 
         # Short-term Memory (cleared after task completion)
@@ -331,7 +331,7 @@ class BaseAgent(ABC):
             recipient_id: ID of the recipient agent
             message: The message to send
         '''
-        self.message_queue.append(message)
+        self.prompt_queue.append(message)
     
     async def receive_messages(self) -> List[Message]:
         '''
@@ -340,8 +340,8 @@ class BaseAgent(ABC):
         Returns:
             List[Message]: List of pending messages
         '''
-        messages = self.message_queue.copy()
-        self.message_queue.clear()
+        messages = self.prompt_queue.copy()
+        self.prompt_queue.clear()
         return messages
     
     async def _send_result(self, task: TaskMessage, result: Any, success: bool) -> None:
