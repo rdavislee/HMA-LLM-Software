@@ -84,7 +84,7 @@ class ManagerAgent(BaseAgent):
             raise ValueError(f"Agent {child} is not a child of this manager.")
         self.active_children[child] = task_description
 
-    async def receive_child_result(self, child: "BaseAgent", result: Any) -> None:
+    def receive_child_result(self, child: "BaseAgent", result: Any) -> None:
         """
         Receive and process a result from a child agent.
 

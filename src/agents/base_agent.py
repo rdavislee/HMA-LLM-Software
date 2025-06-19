@@ -135,7 +135,7 @@ class BaseAgent(ABC):
         '''
         return self.path.is_file() or not self.path.exists()
 
-    async def activate(self, task: TaskMessage) -> None:
+    def activate(self, task: TaskMessage) -> None:
         '''
         Activate the agent to work on a task.
         Only works when there is no active task and agent is not active.
@@ -199,15 +199,15 @@ class BaseAgent(ABC):
         '''
         pass
 
-    async def get_context_string(self) -> str:
+    def get_context_string(self) -> str:
         '''
         Get context string for LLM by combining codebase structure and memory contents.
         
         Returns:
             str: Formatted context string containing structure and memory files
         '''
-        memory_contents = await self._get_memory_contents()
-        structure = await self._get_codebase_structure_string()
+        memory_contents = self._get_memory_contents()
+        structure = self._get_codebase_structure_string()
         
         context_parts = [
             f"Codebase Structure:\n{structure}",
@@ -233,7 +233,7 @@ class BaseAgent(ABC):
         filename = full_path.name
         self.memory[filename] = full_path
 
-    async def _get_memory_contents(self) -> Dict[str, str]:
+    def _get_memory_contents(self) -> Dict[str, str]:
         '''
         Read the contents of every file in memory and assemble a dictionary.
         This is called before every API call to ensure up-to-date memory.
@@ -255,7 +255,7 @@ class BaseAgent(ABC):
         
         return contents
 
-    async def _get_codebase_structure_string(self) -> str:
+    def _get_codebase_structure_string(self) -> str:
         '''
         Gets a string representation of the codebase structure that LLMs can understand.
         
