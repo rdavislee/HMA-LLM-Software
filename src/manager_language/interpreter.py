@@ -5,6 +5,7 @@ Executes parsed manager language directives and performs the described actions.
 
 import os
 import json
+import subprocess
 from typing import Dict, List, Any, Optional
 from pathlib import Path
 from .ast import DirectiveType, DelegateDirective, FinishDirective, ActionDirective, WaitDirective, RunDirective, UpdateReadmeDirective
@@ -17,15 +18,17 @@ class ManagerLanguageInterpreter:
     Executes directives and performs file system operations.
     """
     
-    def __init__(self, base_path: str = "."):
+    def __init__(self, base_path: str = ".", agent=None):
         """
         Initialize the interpreter.
         
         Args:
             base_path: Base directory for file operations (default: current directory)
+            agent: The agent that sent the command
         """
         self.base_path = Path(base_path).resolve()
         self.parser = ManagerLanguageParser()
+        self.agent = agent
         self.context: Dict[str, Any] = {
             'actions': [],
             'delegations': [],
@@ -36,7 +39,7 @@ class ManagerLanguageInterpreter:
             'completion_prompt': None
         }
     
-    def execute(self, directive_text: str) -> Dict[str, Any]:
+    def execute(self, directive_text: str) -> str:
         """
         Parse and execute a manager language directive.
         
@@ -44,16 +47,15 @@ class ManagerLanguageInterpreter:
             directive_text: The directive string to execute
             
         Returns:
-            Updated context after execution
+            String result of the execution
         """
         try:
             directive = self.parser.parse(directive_text)
             return self._execute_directive(directive)
         except Exception as e:
-            self.context['error'] = str(e)
-            return self.context
+            return f"Error executing directive: {str(e)}"
     
-    def execute_multiple(self, directives_text: str) -> Dict[str, Any]:
+    def execute_multiple(self, directives_text: str) -> str:
         """
         Parse and execute multiple manager language directives.
         
@@ -61,18 +63,20 @@ class ManagerLanguageInterpreter:
             directives_text: Text containing multiple directives (one per line)
             
         Returns:
-            Updated context after execution
+            Combined string result of all executions
         """
         try:
             directives = self.parser.parse_multiple(directives_text)
+            results = []
             for directive in directives:
-                self._execute_directive(directive)
-            return self.context
+                result = self._execute_directive(directive)
+                if result:
+                    results.append(result)
+            return "\n".join(results) if results else None
         except Exception as e:
-            self.context['error'] = str(e)
-            return self.context
+            return f"Error executing directives: {str(e)}"
     
-    def _execute_directive(self, directive: DirectiveType) -> Dict[str, Any]:
+    def _execute_directive(self, directive: DirectiveType) -> str:
         """
         Execute a single directive.
         
@@ -80,7 +84,7 @@ class ManagerLanguageInterpreter:
             directive: The directive to execute
             
         Returns:
-            Updated context
+            String result of the execution
         """
         if isinstance(directive, DelegateDirective):
             return self._execute_delegate(directive)
@@ -95,97 +99,63 @@ class ManagerLanguageInterpreter:
         elif isinstance(directive, UpdateReadmeDirective):
             return self._execute_update_readme(directive)
         else:
-            raise ValueError(f"Unknown directive type: {type(directive)}")
+            return f"Unknown directive type: {type(directive)}"
     
-    def _execute_delegate(self, directive: DelegateDirective) -> Dict[str, Any]:
+    def _execute_delegate(self, directive: DelegateDirective) -> str:
         """Execute a DELEGATE directive."""
-        if 'delegations' not in self.context:
-            self.context['delegations'] = []
-        
-        for item in directive.items:
-            delegation = {
-                'target': item.target.name,
-                'is_folder': item.target.is_folder,
-                'prompt': item.prompt.value,
-                'status': 'pending'
-            }
-            self.context['delegations'].append(delegation)
-        
-        return self.context
+        # TODO: This will add the children that were delegated to the active children
+        # For now, just return None since base agent doesn't have the capacity for this
+        return None
     
-    def _execute_finish(self, directive: FinishDirective) -> Dict[str, Any]:
+    def _execute_finish(self, directive: FinishDirective) -> str:
         """Execute a FINISH directive."""
-        self.context['finished'] = True
-        self.context['completion_prompt'] = directive.prompt.value
-        return self.context
+        # Remove the agent from its parent's active children and deactivate the agent
+        if self.agent and hasattr(self.agent, 'parent_id') and self.agent.parent_id:
+            # TODO: Remove from parent's active children
+            pass
+        
+        if self.agent:
+            # TODO: Deactivate the agent
+            pass
+        
+        return directive.prompt.value
     
-    def _execute_action(self, directive: ActionDirective) -> Dict[str, Any]:
+    def _execute_action(self, directive: ActionDirective) -> str:
         """Execute a CREATE, DELETE, or READ action directive."""
-        if 'actions' not in self.context:
-            self.context['actions'] = []
+        results = []
         
         for target in directive.targets:
-            action_result = self._perform_file_action(directive.action_type, target)
-            action = {
-                'type': directive.action_type,
-                'target': target.name,
-                'is_folder': target.is_folder,
-                'result': action_result,
-                'status': 'completed' if action_result['success'] else 'failed'
-            }
-            if not action_result['success'] and 'error' in action_result:
-                action['error'] = action_result['error']
-            self.context['actions'].append(action)
-        
-        return self.context
-    
-    def _execute_wait(self, directive: WaitDirective) -> Dict[str, Any]:
-        """Execute a WAIT directive."""
-        self.context['waiting'] = True
-        return self.context
-    
-    def _execute_run(self, directive: RunDirective) -> Dict[str, Any]:
-        """Execute a RUN directive."""
-        if 'commands' not in self.context:
-            self.context['commands'] = []
-        
-        command_result = self._execute_command(directive.command)
-        command_info = {
-            'command': directive.command,
-            'result': command_result,
-            'status': 'completed' if command_result['success'] else 'failed'
-        }
-        if not command_result['success'] and 'error' in command_result:
-            command_info['error'] = command_result['error']
-        
-        self.context['commands'].append(command_info)
-        return self.context
-    
-    def _execute_update_readme(self, directive: UpdateReadmeDirective) -> Dict[str, Any]:
-        """Execute an UPDATE_README directive."""
-        if 'readme_updates' not in self.context:
-            self.context['readme_updates'] = []
-        
-        readme_update = {
-            'content': directive.content,
-            'status': 'pending'
-        }
-        self.context['readme_updates'].append(readme_update)
-        
-        return self.context
-    
-    def _execute_command(self, command: str) -> Dict[str, Any]:
-        """
-        Execute a command prompt command.
-        
-        Args:
-            command: The command string to execute
+            if directive.action_type == "CREATE":
+                result = self._create_target(target)
+            elif directive.action_type == "DELETE":
+                result = self._delete_target(target)
+            elif directive.action_type == "READ":
+                result = self._read_target(target)
+            else:
+                result = f"Unknown action type: {directive.action_type}"
             
-        Returns:
-            Dictionary with command execution result
-        """
-        import subprocess
-        import sys
+            results.append(result)
+        
+        return "\n".join(results)
+    
+    def _execute_wait(self, directive: WaitDirective) -> str:
+        """Execute a WAIT directive."""
+        # Wait doesn't need to do anything, just pass
+        return None
+    
+    def _execute_run(self, directive: RunDirective) -> str:
+        """Execute a RUN directive."""
+        command = directive.command
+        
+        # Check if command is allowed
+        allowed_commands = {
+            'ls', 'dir', 'cat', 'type', 'grep', 'find', 'git status', 'git log',
+            'python -m py_compile', 'npm test', 'pytest', 'flake8', 'black --check'
+        }
+        
+        command_start = command.split()[0]
+        if not any(command.startswith(allowed) for allowed in allowed_commands):
+            return "Invalid command"
         
         try:
             # Execute the command and capture output
@@ -198,150 +168,137 @@ class ManagerLanguageInterpreter:
                 timeout=300  # 5 minute timeout
             )
             
-            res = {
-                'success': result.returncode == 0,
-                'returncode': result.returncode,
-                'stdout': result.stdout,
-                'stderr': result.stderr,
-                'message': f"Command executed: {command}"
-            }
-            if result.returncode != 0:
-                # Always include an 'error' key for failed commands
-                res['error'] = result.stderr.strip() or f"Command failed with return code {result.returncode}"
-            return res
+            if result.returncode == 0:
+                return result.stdout
+            else:
+                return f"Command failed: {result.stderr}"
+                
         except subprocess.TimeoutExpired:
-            return {
-                'success': False,
-                'error': f"Command timed out after 5 minutes: {command}"
-            }
+            return f"Command timed out after 5 minutes: {command}"
         except Exception as e:
-            return {
-                'success': False,
-                'error': f"Failed to execute command '{command}': {str(e)}"
-            }
+            return f"Failed to execute command '{command}': {str(e)}"
     
-    def _perform_file_action(self, action_type: str, target) -> Dict[str, Any]:
-        """
-        Perform a file system action.
+    def _execute_update_readme(self, directive: UpdateReadmeDirective) -> str:
+        """Execute an UPDATE_README directive."""
+        if not self.agent or not hasattr(self.agent, 'path'):
+            return "No agent path available"
         
-        Args:
-            action_type: Type of action (CREATE, DELETE, READ)
-            target: Target object with name and is_folder attributes
+        agent_path = Path(self.agent.path)
+        if not agent_path.is_dir():
+            return "Agent path is not a directory"
+        
+        # Look for a file named *folder name*_readme.md in the folder of the agent
+        folder_name = agent_path.name
+        readme_filename = f"{folder_name}_readme.md"
+        readme_path = agent_path / readme_filename
+        
+        try:
+            # Create the readme file if it doesn't exist
+            readme_path.parent.mkdir(parents=True, exist_ok=True)
             
-        Returns:
-            Dictionary with action result
-        """
-        target_path = self.base_path / target.name
+            # Write the content to the readme
+            with open(readme_path, 'w', encoding='utf-8') as f:
+                f.write(directive.content)
+            
+            return f"Successfully updated {readme_filename}"
+            
+        except Exception as e:
+            return f"Failed to update readme: {str(e)}"
+    
+    def _create_target(self, target) -> str:
+        """Create a file or folder from the home directory of the agent's path."""
+        if not self.agent or not hasattr(self.agent, 'path'):
+            return "No agent path available"
+        
+        agent_path = Path(self.agent.path)
+        target_path = agent_path / target.name
+        
+        # Check if destination is out of scope (outside agent's directory)
+        try:
+            target_path.resolve().relative_to(agent_path.resolve())
+        except ValueError:
+            return f"Action failed: Destination {target.name} is out of scope"
         
         try:
-            if action_type == "CREATE":
-                return self._create_target(target_path, target.is_folder)
-            elif action_type == "DELETE":
-                return self._delete_target(target_path, target.is_folder)
-            elif action_type == "READ":
-                return self._read_target(target_path, target.is_folder)
-            else:
-                return {
-                    'success': False,
-                    'error': f"Unknown action type: {action_type}"
-                }
-        except Exception as e:
-            return {
-                'success': False,
-                'error': str(e)
-            }
-    
-    def _create_target(self, target_path: Path, is_folder: bool) -> Dict[str, Any]:
-        """Create a file or folder."""
-        try:
-            if is_folder:
+            if target.is_folder:
+                if target_path.exists():
+                    return f"Action failed: Folder {target.name} already exists"
                 target_path.mkdir(parents=True, exist_ok=True)
-                return {
-                    'success': True,
-                    'message': f"Created folder: {target_path}"
-                }
+                return f"Action succeeded: Created folder {target.name}"
             else:
-                # Create parent directories if they don't exist
+                if target_path.exists():
+                    return f"Action failed: File {target.name} already exists"
                 target_path.parent.mkdir(parents=True, exist_ok=True)
-                # Create empty file
-                target_path.touch(exist_ok=True)
-                return {
-                    'success': True,
-                    'message': f"Created file: {target_path}"
-                }
+                target_path.touch()
+                return f"Action succeeded: Created file {target.name}"
         except Exception as e:
-            return {
-                'success': False,
-                'error': f"Failed to create {target_path}: {str(e)}"
-            }
+            return f"Action failed: {str(e)}"
     
-    def _delete_target(self, target_path: Path, is_folder: bool) -> Dict[str, Any]:
-        """Delete a file or folder."""
+    def _delete_target(self, target) -> str:
+        """Delete a file or folder from the home directory of the agent's path."""
+        if not self.agent or not hasattr(self.agent, 'path'):
+            return "No agent path available"
+        
+        agent_path = Path(self.agent.path)
+        target_path = agent_path / target.name
+        
+        # Check if destination is out of scope (outside agent's directory)
+        try:
+            target_path.resolve().relative_to(agent_path.resolve())
+        except ValueError:
+            return f"Action failed: Destination {target.name} is out of scope"
+        
         try:
             if not target_path.exists():
-                return {
-                    'success': False,
-                    'error': f"Target does not exist: {target_path}"
-                }
+                return f"Action failed: {target.name} does not exist"
             
-            if is_folder:
+            if target.is_folder:
                 import shutil
                 shutil.rmtree(target_path)
-                return {
-                    'success': True,
-                    'message': f"Deleted folder: {target_path}"
-                }
+                return f"Action succeeded: Deleted folder {target.name}"
             else:
                 target_path.unlink()
-                return {
-                    'success': True,
-                    'message': f"Deleted file: {target_path}"
-                }
+                return f"Action succeeded: Deleted file {target.name}"
         except Exception as e:
-            return {
-                'success': False,
-                'error': f"Failed to delete {target_path}: {str(e)}"
-            }
+            return f"Action failed: {str(e)}"
     
-    def _read_target(self, target_path: Path, is_folder: bool) -> Dict[str, Any]:
-        """Read a file or list folder contents."""
+    def _read_target(self, target) -> str:
+        """Read a file and add it to the agent's memory."""
+        # Look for the file regardless of scope
+        target_path = Path(target.name)
+        
+        # Try to find the file in the current directory and subdirectories
+        found_path = None
+        if target_path.exists():
+            found_path = target_path
+        else:
+            # Search in subdirectories
+            for root, dirs, files in os.walk(self.base_path):
+                for file in files:
+                    if file == target.name:
+                        found_path = Path(root) / file
+                        break
+                if found_path:
+                    break
+        
+        if not found_path or not found_path.exists():
+            return f"File {target.name} was not added to memory: file not found"
+        
         try:
-            if not target_path.exists():
-                return {
-                    'success': False,
-                    'error': f"Target does not exist: {target_path}"
-                }
+            # Read the file content
+            with open(found_path, 'r', encoding='utf-8') as f:
+                content = f.read()
             
-            if is_folder:
-                # List folder contents
-                contents = []
-                for item in target_path.iterdir():
-                    item_info = {
-                        'name': item.name,
-                        'type': 'folder' if item.is_dir() else 'file',
-                        'size': item.stat().st_size if item.is_file() else None
-                    }
-                    contents.append(item_info)
-                
-                return {
-                    'success': True,
-                    'message': f"Listed folder contents: {target_path}",
-                    'contents': contents
-                }
-            else:
-                # Read file contents
-                content = target_path.read_text(encoding='utf-8')
-                return {
-                    'success': True,
-                    'message': f"Read file: {target_path}",
-                    'content': content,
-                    'size': len(content)
-                }
+            # Add to agent's memory
+            if self.agent and hasattr(self.agent, 'memory'):
+                if 'files' not in self.agent.memory:
+                    self.agent.memory['files'] = {}
+                self.agent.memory['files'][target.name] = content
+            
+            return f"File {target.name} was added to memory"
+            
         except Exception as e:
-            return {
-                'success': False,
-                'error': f"Failed to read {target_path}: {str(e)}"
-            }
+            return f"File {target.name} was not added to memory: {str(e)}"
     
     def get_context(self) -> Dict[str, Any]:
         """Get the current execution context."""
@@ -366,31 +323,33 @@ class ManagerLanguageInterpreter:
 
 
 # Convenience functions
-def execute_directive(directive_text: str, base_path: str = ".") -> Dict[str, Any]:
+def execute_directive(directive_text: str, base_path: str = ".", agent=None) -> str:
     """
     Convenience function to execute a single directive.
     
     Args:
         directive_text: The directive string to execute
         base_path: Base directory for file operations
+        agent: The agent that sent the command
         
     Returns:
-        Execution context
+        String result of the execution
     """
-    interpreter = ManagerLanguageInterpreter(base_path)
+    interpreter = ManagerLanguageInterpreter(base_path, agent)
     return interpreter.execute(directive_text)
 
 
-def execute_directives(directives_text: str, base_path: str = ".") -> Dict[str, Any]:
+def execute_directives(directives_text: str, base_path: str = ".", agent=None) -> str:
     """
     Convenience function to execute multiple directives.
     
     Args:
         directives_text: Text containing multiple directives
         base_path: Base directory for file operations
+        agent: The agent that sent the command
         
     Returns:
-        Execution context
+        String result of the execution
     """
-    interpreter = ManagerLanguageInterpreter(base_path)
+    interpreter = ManagerLanguageInterpreter(base_path, agent)
     return interpreter.execute_multiple(directives_text) 

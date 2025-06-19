@@ -4,6 +4,8 @@ Message queue is definitely still needed, call it prompt queue though, multiple 
 
 Memory should be files. Context should be previous prompts and responses.
 
+Memory should be a dictionary of filenames to paths to those files. ADD A FUNCTION THAT READS THE CONTENTS OF EVERY FILE IN THE DICTIONARY AND ASSEMBLES A DICTIONARY OF FILENAMES TO FILECONTENTS. We can call this everytime an API call is about to go, in order to have up-to-date memory.
+
 Context should be keys of prompts with values of answers. These represent every API call this agent has made since it was activated.
 
 Personal file should not be optional.

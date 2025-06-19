@@ -4,12 +4,17 @@ Executes parsed coder language directives and performs the described actions.
 """
 
 import os
-import json
-from typing import Dict, List, Any, Optional
+import subprocess
+from typing import Dict, Any, Optional
 from pathlib import Path
 from .ast import DirectiveType, ReadDirective, RunDirective, ChangeDirective, FinishDirective
 from .parser import CoderLanguageParser
 
+
+ALLOWED_COMMANDS = {
+    'ls', 'dir', 'cat', 'type', 'grep', 'find', 'git status', 'git log',
+    'python -m py_compile', 'npm test', 'pytest', 'flake8', 'black --check'
+}
 
 class CoderLanguageInterpreter:
     """
@@ -17,71 +22,43 @@ class CoderLanguageInterpreter:
     Executes directives and performs file system operations and command execution.
     """
     
-    def __init__(self, base_path: str = ".", own_file: str = None):
+    def __init__(self, base_path: str = ".", agent=None, own_file: str = None):
         """
         Initialize the interpreter.
         
         Args:
             base_path: Base directory for file operations (default: current directory)
+            agent: The agent that sent the command
             own_file: The file this coder agent is responsible for
         """
         self.base_path = Path(base_path).resolve()
+        self.agent = agent
         self.own_file = own_file
         self.parser = CoderLanguageParser()
-        self.context: Dict[str, Any] = {
-            'reads': [],
-            'commands': [],
-            'changes': [],
-            'finished': False,
-            'completion_prompt': None,
-            'own_file': own_file
-        }
-    
-    def execute(self, directive_text: str) -> Dict[str, Any]:
+
+    def execute(self, directive_text: str) -> str:
         """
         Parse and execute a coder language directive.
         
         Args:
             directive_text: The directive string to execute
-            
         Returns:
-            Updated context after execution
+            String result of the execution
         """
         try:
             directive = self.parser.parse(directive_text)
             return self._execute_directive(directive)
         except Exception as e:
-            self.context['error'] = str(e)
-            return self.context
-    
-    def execute_multiple(self, directives_text: str) -> Dict[str, Any]:
-        """
-        Parse and execute multiple coder language directives.
-        
-        Args:
-            directives_text: Text containing multiple directives (one per line)
-            
-        Returns:
-            Updated context after execution
-        """
-        try:
-            directives = self.parser.parse_multiple(directives_text)
-            for directive in directives:
-                self._execute_directive(directive)
-            return self.context
-        except Exception as e:
-            self.context['error'] = str(e)
-            return self.context
-    
-    def _execute_directive(self, directive: DirectiveType) -> Dict[str, Any]:
+            return f"Error executing directive: {str(e)}"
+
+    def _execute_directive(self, directive: DirectiveType) -> str:
         """
         Execute a single directive.
         
         Args:
             directive: The directive to execute
-            
         Returns:
-            Updated context
+            String result of the execution
         """
         if isinstance(directive, ReadDirective):
             return self._execute_read(directive)
@@ -92,159 +69,32 @@ class CoderLanguageInterpreter:
         elif isinstance(directive, FinishDirective):
             return self._execute_finish(directive)
         else:
-            raise ValueError(f"Unknown directive type: {type(directive)}")
-    
-    def _execute_read(self, directive: ReadDirective) -> Dict[str, Any]:
+            return f"Unknown directive type: {type(directive)}"
+
+    def _execute_read(self, directive: ReadDirective) -> str:
         """Execute a READ directive."""
-        if 'reads' not in self.context:
-            self.context['reads'] = []
-        
-        read_result = self._read_file(directive.filename)
-        read_info = {
-            'filename': directive.filename,
-            'result': read_result,
-            'status': 'completed' if read_result['success'] else 'failed'
-        }
-        if not read_result['success'] and 'error' in read_result:
-            read_info['error'] = read_result['error']
-        
-        self.context['reads'].append(read_info)
-        return self.context
-    
-    def _execute_run(self, directive: RunDirective) -> Dict[str, Any]:
-        """Execute a RUN directive."""
-        if 'commands' not in self.context:
-            self.context['commands'] = []
-        
-        command_result = self._execute_command(directive.command)
-        command_info = {
-            'command': directive.command,
-            'result': command_result,
-            'status': 'completed' if command_result['success'] else 'failed'
-        }
-        if not command_result['success'] and 'error' in command_result:
-            command_info['error'] = command_result['error']
-        
-        self.context['commands'].append(command_info)
-        return self.context
-    
-    def _execute_change(self, directive: ChangeDirective) -> Dict[str, Any]:
-        """Execute a CHANGE directive."""
-        if 'changes' not in self.context:
-            self.context['changes'] = []
-        
-        # Forbid all changes if own_file is None
-        if self.own_file is None:
-            change_info = {
-                'content': directive.content,
-                'status': 'failed',
-                'error': f"Cannot modify file. This agent has no assigned file."
-            }
-            self.context['changes'].append(change_info)
-            return self.context
-        
-        change_result = self._write_file(self.own_file, directive.content)
-        change_info = {
-            'filename': self.own_file,
-            'content': directive.content,
-            'result': change_result,
-            'status': 'completed' if change_result['success'] else 'failed'
-        }
-        if not change_result['success'] and 'error' in change_result:
-            change_info['error'] = change_result['error']
-        
-        self.context['changes'].append(change_info)
-        return self.context
-    
-    def _execute_finish(self, directive: FinishDirective) -> Dict[str, Any]:
-        """Execute a FINISH directive."""
-        self.context['finished'] = True
-        self.context['completion_prompt'] = directive.prompt.value
-        return self.context
-    
-    def _read_file(self, filename: str) -> Dict[str, Any]:
-        """
-        Read a file from the codebase.
-        
-        Args:
-            filename: The filename to read
-            
-        Returns:
-            Dictionary with file read result
-        """
+        filename = directive.filename
+        file_path = self.base_path / filename
         try:
-            file_path = self.base_path / filename
-            
-            # Check if file exists
             if not file_path.exists():
-                return {
-                    'success': False,
-                    'error': f"File not found: {filename}"
-                }
-            
-            # Read file content
-            with open(file_path, 'r', encoding='utf-8') as f:
-                content = f.read()
-            
-            return {
-                'success': True,
-                'content': content,
-                'filename': filename,
-                'message': f"Successfully read file: {filename}"
-            }
+                return f"READ failed: File not found: {filename}"
+            # Add file path to agent's memory for up-to-date reads
+            if self.agent and hasattr(self.agent, 'memory'):
+                if 'read_files' not in self.agent.memory:
+                    self.agent.memory['read_files'] = []
+                if filename not in self.agent.memory['read_files']:
+                    self.agent.memory['read_files'].append(filename)
+            return f"READ succeeded: {filename} was added to memory for future reads"
         except Exception as e:
-            return {
-                'success': False,
-                'error': f"Failed to read file {filename}: {str(e)}"
-            }
-    
-    def _write_file(self, filename: str, content: str) -> Dict[str, Any]:
-        """
-        Write content to a file.
-        
-        Args:
-            filename: The filename to write to
-            content: The content to write
-            
-        Returns:
-            Dictionary with file write result
-        """
+            return f"READ failed: {filename} could not be added to memory: {str(e)}"
+
+    def _execute_run(self, directive: RunDirective) -> str:
+        """Execute a RUN directive."""
+        command = directive.command
+        command_start = command.split()[0]
+        if not any(command.startswith(allowed) for allowed in ALLOWED_COMMANDS):
+            return f"RUN failed: Invalid command: {command}"
         try:
-            file_path = self.base_path / filename
-            
-            # Create parent directories if they don't exist
-            file_path.parent.mkdir(parents=True, exist_ok=True)
-            
-            # Write file content
-            with open(file_path, 'w', encoding='utf-8') as f:
-                f.write(content)
-            
-            return {
-                'success': True,
-                'filename': filename,
-                'message': f"Successfully wrote to file: {filename}"
-            }
-        except Exception as e:
-            return {
-                'success': False,
-                'error': f"Failed to write to file {filename}: {str(e)}"
-            }
-    
-    def _execute_command(self, command: str) -> Dict[str, Any]:
-        """
-        Execute a command prompt command.
-        
-        Args:
-            command: The command string to execute
-            
-        Returns:
-            Dictionary with command execution result
-        """
-        import subprocess
-        import sys
-        
-        try:
-            # Execute the command and capture output
             result = subprocess.run(
                 command,
                 shell=True,
@@ -253,83 +103,90 @@ class CoderLanguageInterpreter:
                 cwd=self.base_path,
                 timeout=300  # 5 minute timeout
             )
-            
-            res = {
-                'success': result.returncode == 0,
-                'returncode': result.returncode,
-                'stdout': result.stdout,
-                'stderr': result.stderr,
-                'message': f"Command executed: {command}"
-            }
-            if result.returncode != 0:
-                # Always include an 'error' key for failed commands
-                res['error'] = result.stderr.strip() or f"Command failed with return code {result.returncode}"
-            return res
+            if result.returncode == 0:
+                return f"RUN succeeded: Output:\n{result.stdout.strip()}"
+            else:
+                return f"RUN failed: {result.stderr.strip() or f'Command failed with return code {result.returncode}'}"
         except subprocess.TimeoutExpired:
-            return {
-                'success': False,
-                'error': f"Command timed out after 5 minutes: {command}"
-            }
+            return f"RUN failed: Command timed out after 5 minutes: {command}"
         except Exception as e:
-            return {
-                'success': False,
-                'error': f"Failed to execute command '{command}': {str(e)}"
-            }
-    
+            return f"RUN failed: {str(e)}"
+
+    def _execute_change(self, directive: ChangeDirective) -> str:
+        """Execute a CHANGE directive."""
+        if self.own_file is None:
+            return "CHANGE failed: This agent has no assigned file."
+        file_path = self.base_path / self.own_file
+        try:
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(directive.content)
+            # Optionally update agent's memory
+            if self.agent and hasattr(self.agent, 'memory'):
+                if 'files' not in self.agent.memory:
+                    self.agent.memory['files'] = {}
+                self.agent.memory['files'][str(self.own_file)] = directive.content
+            return f"CHANGE succeeded: {self.own_file} was replaced with new content"
+        except Exception as e:
+            return f"CHANGE failed: Could not write to {self.own_file}: {str(e)}"
+
+    def _execute_finish(self, directive: FinishDirective) -> str:
+        """Execute a FINISH directive."""
+        # Remove this agent from parent's active children and deactivate
+        msg = directive.prompt.value
+        # Remove from parent's active children if possible
+        if self.agent and hasattr(self.agent, 'parent_id') and hasattr(self.agent, 'agent_id'):
+            parent = getattr(self.agent, 'parent_id', None)
+            if parent and hasattr(parent, 'active_tasks'):
+                if self.agent.agent_id in parent.active_tasks:
+                    del parent.active_tasks[self.agent.agent_id]
+        # Deactivate this agent if possible
+        if self.agent and hasattr(self.agent, 'deactivate'):
+            try:
+                # If deactivate is async, call it properly
+                import asyncio
+                if asyncio.iscoroutinefunction(self.agent.deactivate):
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        import nest_asyncio
+                        nest_asyncio.apply()
+                        loop.create_task(self.agent.deactivate())
+                    else:
+                        loop.run_until_complete(self.agent.deactivate())
+                else:
+                    self.agent.deactivate()
+            except Exception:
+                pass
+        return f"FINISH: {msg}"
+
     def get_context(self) -> Dict[str, Any]:
         """Get the current execution context."""
-        return self.context.copy()
-    
+        # Not used in this refactor, but kept for compatibility
+        return {}
+
     def reset_context(self):
         """Reset the execution context."""
-        self.context = {
-            'reads': [],
-            'commands': [],
-            'changes': [],
-            'finished': False,
-            'completion_prompt': None,
-            'own_file': self.own_file
-        }
-    
+        # Not used in this refactor, but kept for compatibility
+        pass
+
     def export_context(self, file_path: str):
         """Export the current context to a JSON file."""
-        with open(file_path, 'w') as f:
-            json.dump(self.context, f, indent=2)
-    
-    def set_own_file(self, filename: str):
-        """Set the file this coder agent is responsible for."""
-        self.own_file = filename
-        self.context['own_file'] = filename
-
+        # Not used in this refactor, but kept for compatibility
+        pass
 
 # Convenience functions for easy execution
-def execute_directive(directive_text: str, base_path: str = ".", own_file: str = None) -> Dict[str, Any]:
+
+def execute_directive(directive_text: str, base_path: str = ".", agent=None, own_file: str = None) -> str:
     """
     Execute a single coder directive.
     
     Args:
         directive_text: The directive string to execute
         base_path: Base directory for file operations
+        agent: The agent that sent the command
         own_file: The file this coder agent is responsible for
-        
     Returns:
-        Updated context after execution
+        String result of the execution
     """
-    interpreter = CoderLanguageInterpreter(base_path=base_path, own_file=own_file)
-    return interpreter.execute(directive_text)
-
-
-def execute_directives(directives_text: str, base_path: str = ".", own_file: str = None) -> Dict[str, Any]:
-    """
-    Execute multiple coder directives.
-    
-    Args:
-        directives_text: Text containing multiple directives
-        base_path: Base directory for file operations
-        own_file: The file this coder agent is responsible for
-        
-    Returns:
-        Updated context after execution
-    """
-    interpreter = CoderLanguageInterpreter(base_path=base_path, own_file=own_file)
-    return interpreter.execute_multiple(directives_text) 
+    interpreter = CoderLanguageInterpreter(base_path=base_path, agent=agent, own_file=own_file)
+    return interpreter.execute(directive_text) 
