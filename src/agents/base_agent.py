@@ -46,8 +46,8 @@ class BaseAgent(ABC):
     Each agent has:
     - path: The path this agent is responsible for (file for coder, directory for manager)
     - personal_file: The one file this agent can modify (code file for coder, README for manager)
-    - parent_path: Path of the parent agent (None for root)
-    - children_paths: List of child agent paths (for managers)
+    - parent: Optional parent agent object
+    - children: List of child agent objects
     - llm_client: LLM client for generating responses
     
     The agent maintains:
@@ -61,8 +61,7 @@ class BaseAgent(ABC):
     def __init__(
         self,
         path: str,
-        parent_path: Optional[str] = None,
-        children_paths: Optional[List[str]] = None,
+        parent: Optional["BaseAgent"] = None,
         llm_client: Optional[BaseLLMClient] = None,
         max_context_size: int = DEFAULT_MAX_CONTEXT_SIZE
     ) -> None:
@@ -70,15 +69,12 @@ class BaseAgent(ABC):
         
         Args:
             path: Path this agent is responsible for
-            parent_path: Optional path of the parent agent
-            children_paths: Optional list of child agent paths
+            parent: Optional parent agent object
             llm_client: Optional LLM client for generating responses
             max_context_size: Maximum size of context to maintain
         """
         self.path = Path(path).resolve()
-        self.parent_path = Path(parent_path).resolve() if parent_path else None
-        self.children_paths = [Path(p).resolve() for p in (children_paths or [])]
-        self.active_children = []
+        self.parent = parent
 
         self.llm_client = llm_client
         self.max_context_size = max_context_size
@@ -105,7 +101,7 @@ class BaseAgent(ABC):
 
     def _set_personal_file(self) -> None:
         '''
-        Set the personal file this agent can modify.
+        Set the personal file this agent can modify and add it to memory.
         For coders: the code file they manage
         For managers: their README.md in the parent directory
         '''
@@ -115,6 +111,8 @@ class BaseAgent(ABC):
         else:
             # Manager agent - personal file is README in parent directory
             self.personal_file = self.path.parent / f"{self.path.name}_README.md"
+        if self.personal_file:
+            self.memory[self.personal_file.name] = self.personal_file
 
     @property
     def scope_path(self) -> Path:
@@ -152,11 +150,12 @@ class BaseAgent(ABC):
             raise RuntimeError(
                 f"Agent is already active or has an active task"
             )
-        
+        # Set personal file and add to memory
+        self._set_personal_file()
         self.is_active = True
         self.active_task = task
 
-    async def deactivate(self) -> None:
+    def deactivate(self) -> None:
         '''
         Deactivate the agent and clean up memory.
         Manager agents must ensure all children are deactivated first.
@@ -164,8 +163,11 @@ class BaseAgent(ABC):
         Raises:
             RuntimeError: If a child is still active
         '''
-        if self.active_children:
-            raise RuntimeError("Cannot deactivate agent with active children")
+        # Check if manager has active children
+        if hasattr(self, 'active_children') and self.active_children:
+            raise RuntimeError(
+                f"Cannot deactivate agent with active children: {list(self.active_children.keys())}"
+            )
         
         self.is_active = False
         self.active_task = None
@@ -188,56 +190,38 @@ class BaseAgent(ABC):
         if not self.stall:
             await self.api_call()
 
+    @abstractmethod
     async def api_call(self) -> None:
         '''
         Make an API call with current context and memory.
-        This is the core method that handles LLM interaction.
+        This method must be implemented by subclasses to handle
+        their specific Jinja templates and response processing.
         '''
-        # Set stall to true to prevent concurrent API calls
-        self.stall = True
-        
-        # Load context and memory
-        await self._load_context()
-        
-        # Concatenate all prompts in queue (numbered)
-        # NOTE: Use Jinja here!!
-        numbered_prompts = []
-        for i, prompt in enumerate(self.prompt_queue, 1):
-            numbered_prompts.append(f"{i}. {prompt}")
-        
-        full_prompt = "\n".join(numbered_prompts)
-        
-        # Get context string for LLM
-        context_string = await self.get_context_string()
-        
-        # Make API call
-        if self.llm_client:
-            response = await self.llm_client.generate_response(
-                prompt=full_prompt,
-                context=context_string
-            )
-            
-            # Add to context (prompt -> response)
-            self.context[full_prompt] = response
-            
-            # Process response through prompter
-            await self._process_response(response)
-        
-        # Clear prompt queue
-        self.prompt_queue.clear()
-
-    async def _process_response(self, response: str) -> None:
-        '''
-        Process the LLM response through the prompter.
-        This will be implemented by subclasses.
-        
-        Args:
-            response: The LLM response to process
-        '''
-        # This will be implemented by subclasses to handle specific response processing
         pass
 
-    async def read_file(self, file_path: str) -> None:
+    async def get_context_string(self) -> str:
+        '''
+        Get context string for LLM by combining codebase structure and memory contents.
+        
+        Returns:
+            str: Formatted context string containing structure and memory files
+        '''
+        memory_contents = await self._get_memory_contents()
+        structure = await self._get_codebase_structure_string()
+        
+        context_parts = [
+            f"Codebase Structure:\n{structure}",
+            f"Memory Files ({len(memory_contents)}):"
+        ]
+        
+        for filename, content in memory_contents.items():
+            context_parts.append(f"\n--- {filename} ---\n{content}")
+        
+        return "\n".join(context_parts)
+
+
+
+    def read_file(self, file_path: str) -> None:
         '''
         Add a file to memory for reading.
         The file contents will be automatically loaded during API calls.
@@ -248,15 +232,6 @@ class BaseAgent(ABC):
         full_path = Path(file_path).resolve()
         filename = full_path.name
         self.memory[filename] = full_path
-
-    async def _load_context(self) -> None:
-        '''
-        Load relevant context for the current task.
-        Always includes personal file and codebase structure.
-        '''
-        # Always add personal file to memory
-        if self.personal_file:
-            self.memory['personal_file'] = self.personal_file
 
     async def _get_memory_contents(self) -> Dict[str, str]:
         '''
@@ -375,7 +350,7 @@ class BaseAgent(ABC):
             'context_entries': len(self.context),
             'prompt_queue_size': len(self.prompt_queue),
             'stall': self.stall,
-            'active_children': len(self.active_children)
+            'active_children': getattr(self, 'active_children', {}).__len__() if hasattr(self, 'active_children') else 0,
         }
     
     def __repr__(self) -> str:

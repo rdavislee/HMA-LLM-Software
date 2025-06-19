@@ -7,12 +7,15 @@ import os
 import json
 import asyncio
 import subprocess
+import time
 from typing import Dict, List, Any, Optional
 from pathlib import Path
 from .ast import DirectiveType, DelegateDirective, FinishDirective, ActionDirective, WaitDirective, RunDirective, UpdateReadmeDirective
-from ..messages.protocol import TaskMessage, Task, MessageType
+from ..messages.protocol import TaskMessage, Task, MessageType, ResultMessage
 from ..orchestrator.manager_prompter import manager_prompt_stage
 from ..orchestrator.coder_prompter import coder_prompt_stage
+from .parser import parse_directive
+from src import ROOT_DIR
 
 # Global constants
 ALLOWED_COMMANDS = {
@@ -28,72 +31,62 @@ class ManagerLanguageInterpreter:
     Executes directives and performs file system operations.
     """
     
-    def __init__(self, base_path: str = ".", agent=None):
+    def __init__(self, agent=None):
         """
         Initialize the interpreter.
-        
         Args:
-            base_path: Base directory for file operations (default: current directory)
             agent: The agent that sent the command
         """
-        self.base_path = Path(base_path).resolve()
         self.agent = agent
-        
-        # Find project root for command execution
-        self.project_root = self._find_project_root()
+        if ROOT_DIR is None:
+            raise RuntimeError("ROOT_DIR is not set. Please call set_root_dir(path) before using the interpreter.")
+        self.root_dir = ROOT_DIR
     
-    def _find_project_root(self) -> Path:
-        """Find the project root directory."""
-        current = self.base_path
-        while current.parent != current:
-            if any((current / marker).exists() for marker in ['.git', 'requirements.txt', 'package.json', 'Cargo.toml']):
-                break
-            current = current.parent
-        return current
-    
-    def execute(self, directive: DirectiveType) -> Optional[str]:
+    def execute(self, directive: DirectiveType) -> None:
         """
         Execute a single directive.
         
         Args:
             directive: The directive to execute
-            
-        Returns:
-            String result of the execution, or None if no result
         """
         if isinstance(directive, DelegateDirective):
-            return self._execute_delegate(directive)
+            self._execute_delegate(directive)
         elif isinstance(directive, FinishDirective):
-            return self._execute_finish(directive)
+            self._execute_finish(directive)
         elif isinstance(directive, ActionDirective):
-            return self._execute_action(directive)
+            self._execute_action(directive)
         elif isinstance(directive, WaitDirective):
-            return self._execute_wait(directive)
+            self._execute_wait(directive)
         elif isinstance(directive, RunDirective):
-            return self._execute_run(directive)
+            self._execute_run(directive)
         elif isinstance(directive, UpdateReadmeDirective):
-            return self._execute_update_readme(directive)
+            self._execute_update_readme(directive)
         else:
-            return f"Unknown directive type: {type(directive)}"
-    
+            # Unknown directive type, reprompt self with error
+            if self.agent:
+                asyncio.create_task(manager_prompt_stage(self.agent, f"Unknown directive type: {type(directive)}"))
+
     def _execute_delegate(self, directive: DelegateDirective) -> None:
         """Execute a DELEGATE directive."""
         if not self.agent:
-            raise ValueError("No agent available for delegation")
-        
+            return
+        if not hasattr(self.agent, 'children'):
+            return
+
+        # Build a mapping from child name to child agent object
+        child_map = {str(child.path.name): child for child in self.agent.children}
+
         # Check if all children exist
         for item in directive.items:
             child_name = item.target.name
-            child_path = self.agent.path / child_name
-            
-            if not child_path.exists():
-                raise ValueError(f"Child '{child_name}' does not exist")
-        
-        # Add all delegated children to active children list
+            if child_name not in child_map:
+                return
+
+        # Call appropriate prompter based on child type
         for item in directive.items:
             child_name = item.target.name
-            child_path = self.agent.path / child_name
-            
+            child_agent = child_map[child_name]
+
             # Create TaskMessage for the child
             task = Task(
                 task_id=str(hash(child_name + item.prompt.value)),
@@ -102,44 +95,52 @@ class ManagerLanguageInterpreter:
             task_message = TaskMessage(
                 message_type=MessageType.DELEGATION,
                 sender_id=str(self.agent.path),
-                recipient_id=str(child_path),
+                recipient_id=str(child_agent.path),
                 timestamp=0,  # Will be set by the prompter
                 message_id=str(hash(task.task_id))
             )
             task_message.task = task
-            
-            # Add to active children
-            self.agent.active_children.append(child_path)
-            
             # Call appropriate prompter based on child type
-            if child_path.is_dir():
-                # Child is a manager
-                from ..agents.manager_agent import ManagerAgent
-                child_agent = ManagerAgent(str(child_path), parent_path=str(self.agent.path))
+            if hasattr(child_agent, 'is_manager') and child_agent.is_manager:
                 asyncio.create_task(manager_prompt_stage(child_agent, item.prompt.value, task_message))
             else:
-                # Child is a coder
-                from ..agents.coder_agent import CoderAgent
-                child_agent = CoderAgent(str(child_path), parent_path=str(self.agent.path))
                 asyncio.create_task(coder_prompt_stage(child_agent, item.prompt.value, task_message))
-        
+            # Track delegation in agent (call delegate_task)
+            self.agent.delegate_task(child_agent, item.prompt.value)
+
         return None
     
-    def _execute_finish(self, directive: FinishDirective) -> str:
+    def _execute_finish(self, directive: FinishDirective) -> None:
         """Execute a FINISH directive."""
         if not self.agent:
-            raise ValueError("No agent available for finish")
-        
-        # Try to deactivate the agent
-        # This will raise an error if there are still active children
-        asyncio.create_task(self.agent.deactivate())
-        
-        return directive.prompt.value
+            return
+        try:
+            self.agent.deactivate()
+            # Notify parent with ResultMessage
+            parent = getattr(self.agent, 'parent', None)
+            if parent:
+                task = getattr(self.agent, 'active_task', None)
+                if task is None:
+                    # Fallback: create a dummy task
+                    task = Task(task_id=str(hash(str(self.agent.path))), task_string="Task finished")
+                result_message = ResultMessage(
+                    message_type=MessageType.RESULT,
+                    sender_id=str(self.agent.path),
+                    recipient_id=str(parent.path),
+                    timestamp=time.time(),
+                    message_id=str(hash(str(self.agent.path) + str(time.time()))),
+                    task=task,
+                    result=directive.prompt.value
+                )
+                asyncio.create_task(manager_prompt_stage(parent, directive.prompt.value, result_message))
+        except Exception as e:
+            # Reprompt self with error
+            if self.agent:
+                asyncio.create_task(manager_prompt_stage(self.agent, f"Failed to finish: {str(e)}"))
     
-    def _execute_action(self, directive: ActionDirective) -> str:
+    def _execute_action(self, directive: ActionDirective) -> None:
         """Execute a CREATE, DELETE, or READ action directive."""
         results = []
-        
         for target in directive.targets:
             if directive.action_type == "CREATE":
                 result = self._create_target(target)
@@ -149,72 +150,68 @@ class ManagerLanguageInterpreter:
                 result = self._read_target(target)
             else:
                 result = f"Unknown action type: {directive.action_type}"
-            
             results.append(result)
-        
-        return "\n".join(results)
+        # Reprompt self with action results
+        if self.agent:
+            prompt = f"Action {directive.action_type} completed:\n" + "\n".join(results)
+            asyncio.create_task(manager_prompt_stage(self.agent, prompt))
     
     def _execute_wait(self, directive: WaitDirective) -> None:
         """Execute a WAIT directive."""
         # Wait doesn't need to do anything, just pass
         return None
     
-    def _execute_run(self, directive: RunDirective) -> str:
-        """Execute a RUN directive."""
+    def _execute_run(self, directive: RunDirective) -> None:
         command = directive.command
-        
-        # Check if command is allowed
         command_start = command.split()[0]
         if not any(command.startswith(allowed) for allowed in ALLOWED_COMMANDS):
-            return "Invalid command"
-        
-        try:
-            # Execute the command from project root
-            result = subprocess.run(
-                command,
-                shell=True,
-                capture_output=True,
-                text=True,
-                cwd=self.project_root,
-                timeout=300  # 5 minute timeout
-            )
-            
-            if result.returncode == 0:
-                return result.stdout
-            else:
-                return f"Command failed: {result.stderr}"
-                
-        except subprocess.TimeoutExpired:
-            return f"Command timed out after 5 minutes: {command}"
-        except Exception as e:
-            return f"Failed to execute command '{command}': {str(e)}"
+            result = "Invalid command"
+        else:
+            try:
+                result_obj = subprocess.run(
+                    command,
+                    shell=True,
+                    capture_output=True,
+                    text=True,
+                    cwd=self.root_dir,
+                    timeout=300
+                )
+                if result_obj.returncode == 0:
+                    result = result_obj.stdout
+                else:
+                    result = f"Command failed: {result_obj.stderr}"
+            except subprocess.TimeoutExpired:
+                result = f"Command timed out after 5 minutes: {command}"
+            except Exception as e:
+                result = f"Failed to execute command '{command}': {str(e)}"
+        # Reprompt self with run result
+        if self.agent:
+            prompt = f"Run command result:\n{result}"
+            asyncio.create_task(manager_prompt_stage(self.agent, prompt))
     
-    def _execute_update_readme(self, directive: UpdateReadmeDirective) -> str:
-        """Execute an UPDATE_README directive."""
+    def _execute_update_readme(self, directive: UpdateReadmeDirective) -> None:
         if not self.agent or not hasattr(self.agent, 'path'):
-            return "No agent path available"
-        
-        agent_path = Path(self.agent.path)
-        if not agent_path.is_dir():
-            return "Agent path is not a directory"
-        
-        # Look for a file named *folder name*_readme.md in the folder of the agent
-        folder_name = agent_path.name
-        readme_filename = f"{folder_name}_readme.md"
-        readme_path = agent_path / readme_filename
-        
-        try:
-            # Create the readme file if it doesn't exist
-            readme_path.parent.mkdir(parents=True, exist_ok=True)
-            
-            # Write the content to the readme
-            with open(readme_path, 'w', encoding='utf-8') as f:
-                f.write(directive.content)
-            
-            return f"Successfully updated {readme_filename}"
-            
-        except Exception as e:
-            return f"Failed to update readme: {str(e)}"
+            result = "No agent path available"
+        else:
+            agent_path = Path(self.agent.path)
+            agent_path = self.root_dir / agent_path.relative_to(self.root_dir)
+            if not agent_path.is_dir():
+                result = "Agent path is not a directory"
+            else:
+                folder_name = agent_path.name
+                readme_filename = f"{folder_name}_readme.md"
+                readme_path = agent_path / readme_filename
+                try:
+                    readme_path.parent.mkdir(parents=True, exist_ok=True)
+                    with open(readme_path, 'w', encoding='utf-8') as f:
+                        f.write(directive.content)
+                    result = f"Successfully updated {readme_filename}"
+                except Exception as e:
+                    result = f"Failed to update readme: {str(e)}"
+        # Reprompt self with update readme result
+        if self.agent:
+            prompt = f"Update README result:\n{result}"
+            asyncio.create_task(manager_prompt_stage(self.agent, prompt))
     
     def _create_target(self, target) -> str:
         """Create a file or folder from the home directory of the agent's path."""
@@ -222,6 +219,7 @@ class ManagerLanguageInterpreter:
             return "No agent path available"
         
         agent_path = Path(self.agent.path)
+        agent_path = self.root_dir / agent_path.relative_to(self.root_dir)
         target_path = agent_path / target.name
         
         # Check if destination is out of scope (outside agent's directory)
@@ -251,6 +249,7 @@ class ManagerLanguageInterpreter:
             return "No agent path available"
         
         agent_path = Path(self.agent.path)
+        agent_path = self.root_dir / agent_path.relative_to(self.root_dir)
         target_path = agent_path / target.name
         
         # Check if destination is out of scope (outside agent's directory)
@@ -274,56 +273,45 @@ class ManagerLanguageInterpreter:
             return f"Action failed: {str(e)}"
     
     def _read_target(self, target) -> str:
-        """Read a file and add it to the agent's memory."""
-        # Look for the file regardless of scope
-        target_path = Path(target.name)
+        """Read a file and add it to the agent's memory using the agent's read_file method."""
+        if not self.agent or not hasattr(self.agent, 'read_file'):
+            return "No agent or read_file method available"
         
-        # Try to find the file in the current directory and subdirectories
+        # Look for the file regardless of scope
+        target_path = self.root_dir / target.name
         found_path = None
         if target_path.exists():
             found_path = target_path
         else:
-            # Search in subdirectories
-            for root, dirs, files in os.walk(self.base_path):
+            for root, dirs, files in os.walk(self.root_dir):
                 for file in files:
                     if file == target.name:
                         found_path = Path(root) / file
                         break
                 if found_path:
                     break
-        
         if not found_path or not found_path.exists():
             return f"File {target.name} was not added to memory: file not found"
-        
         try:
-            # Read the file content
-            with open(found_path, 'r', encoding='utf-8') as f:
-                content = f.read()
-            
-            # Add to agent's memory
-            if self.agent and hasattr(self.agent, 'memory'):
-                if 'files' not in self.agent.memory:
-                    self.agent.memory['files'] = {}
-                self.agent.memory['files'][target.name] = content
-            
+            self.agent.read_file(str(found_path))
             return f"File {target.name} was added to memory"
-            
         except Exception as e:
             return f"File {target.name} was not added to memory: {str(e)}"
 
 
 # Convenience function
-def execute_directive(directive: DirectiveType, base_path: str = ".", agent=None) -> Optional[str]:
+def execute_directive(directive_text: str, agent=None) -> None:
     """
-    Convenience function to execute a single directive.
+    Convenience function to parse and execute a single directive string.
+    After execution, sets agent.stall to False if agent is provided.
     
     Args:
-        directive: The directive to execute
+        directive_text: The directive string to parse and execute
         base_path: Base directory for file operations
         agent: The agent that sent the command
-        
-    Returns:
-        String result of the execution, or None if no result
     """
-    interpreter = ManagerLanguageInterpreter(base_path, agent)
-    return interpreter.execute(directive) 
+    interpreter = ManagerLanguageInterpreter(agent)
+    directive = parse_directive(directive_text)
+    interpreter.execute(directive)
+    if agent is not None:
+        agent.stall = False 

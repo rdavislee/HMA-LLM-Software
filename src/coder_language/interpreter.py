@@ -75,13 +75,12 @@ class CoderLanguageInterpreter:
         try:
             if not file_path.exists():
                 return f"READ failed: File not found: {filename}"
-            # Add file path to agent's memory for up-to-date reads
-            if self.agent and hasattr(self.agent, 'memory'):
-                if 'read_files' not in self.agent.memory:
-                    self.agent.memory['read_files'] = []
-                if filename not in self.agent.memory['read_files']:
-                    self.agent.memory['read_files'].append(filename)
-            return f"READ succeeded: {filename} was added to memory for future reads"
+            # Use the agent's read_file method if available
+            if self.agent and hasattr(self.agent, 'read_file'):
+                self.agent.read_file(str(file_path))
+                return f"READ succeeded: {filename} was added to memory for future reads"
+            else:
+                return f"READ failed: No agent or read_file method available"
         except Exception as e:
             return f"READ failed: {filename} could not be added to memory: {str(e)}"
 
@@ -119,11 +118,6 @@ class CoderLanguageInterpreter:
             file_path.parent.mkdir(parents=True, exist_ok=True)
             with open(file_path, 'w', encoding='utf-8') as f:
                 f.write(directive.content)
-            # Optionally update agent's memory
-            if self.agent and hasattr(self.agent, 'memory'):
-                if 'files' not in self.agent.memory:
-                    self.agent.memory['files'] = {}
-                self.agent.memory['files'][str(self.own_file)] = directive.content
             return f"CHANGE succeeded: {self.own_file} was replaced with new content"
         except Exception as e:
             return f"CHANGE failed: Could not write to {self.own_file}: {str(e)}"
