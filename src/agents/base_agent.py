@@ -1,17 +1,22 @@
 """
 Base Agent class that all agents inherit from.
 
-This module provides the core functionality for all agents in the system, including:
-- Message handling and communication
-- File reading and writing capabilities
-- Context management
-- Task processing
-- Terminal command execution
+This module provides the core functionality for all agents in the hierarchical system, including:
+- File reading and memory management
+- Context management (prompt-response history)
+- Task processing and API calls
+- Personal file management
 
 Manager agents additionally implement:
 - Child agent management
 - Task delegation
 - Directory-level operations
+
+The agent system uses a hierarchical structure where:
+- Manager agents control directories and delegate to children
+- Coder agents handle individual files
+- All agents maintain a personal file (README for managers, code file for coders)
+- Memory contains file paths, context contains prompt-response history
 """
 
 # Standard library imports
@@ -20,7 +25,6 @@ import json
 import asyncio
 import uuid
 import time
-import subprocess
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Set, Tuple, Union
@@ -32,36 +36,31 @@ from ..messages.protocol import (
 from ..llm.base import BaseLLMClient
 
 # Global constants
-ALLOWED_COMMANDS = {
-    'ls', 'dir', 'cat', 'type', 'grep', 'find', 'git status', 'git log',
-    'python -m py_compile', 'npm test', 'pytest', 'flake8', 'black --check'
-}
-
 MAX_CONTEXT_DEPTH = 3
 DEFAULT_MAX_CONTEXT_SIZE = 8000
 
 class BaseAgent(ABC):
     '''
-    Base agent class providing core functionality for all agents in the system.
+    Base agent class providing core functionality for all agents in the hierarchical system.
     
     Each agent has:
-    - agent_id: Unique identifier for this agent
     - path: The path this agent is responsible for (file for coder, directory for manager)
     - personal_file: The one file this agent can modify (code file for coder, README for manager)
-    - parent_id: ID of the parent agent (None for root)
+    - parent_path: Path of the parent agent (None for root)
+    - children_paths: List of child agent paths (for managers)
     - llm_client: LLM client for generating responses
     
     The agent maintains:
     - Active state and current task
-    - Message queue for communication
-    - Short-term memory and context cache
-    - Task tracking (active and completed)
+    - Prompt queue for processing
+    - Memory: Dictionary of filenames to file paths
+    - Context: Dictionary of prompts to responses (API call history)
+    - Stall state for managing dependencies
     '''
 
     def __init__(
         self,
         path: str,
-        task: TaskMessage,
         parent_path: Optional[str] = None,
         children_paths: Optional[List[str]] = None,
         llm_client: Optional[BaseLLMClient] = None,
@@ -71,14 +70,15 @@ class BaseAgent(ABC):
         
         Args:
             path: Path this agent is responsible for
-            parent_id: Optional ID of the parent agent
+            parent_path: Optional path of the parent agent
+            children_paths: Optional list of child agent paths
             llm_client: Optional LLM client for generating responses
             max_context_size: Maximum size of context to maintain
         """
-        self.path = path
-        self.parent_path = parent_path
-        self.children_paths = children_paths
-        self.active_children = [] # consider Set
+        self.path = Path(path).resolve()
+        self.parent_path = Path(parent_path).resolve() if parent_path else None
+        self.children_paths = [Path(p).resolve() for p in (children_paths or [])]
+        self.active_children = []
 
         self.llm_client = llm_client
         self.max_context_size = max_context_size
@@ -88,13 +88,17 @@ class BaseAgent(ABC):
         self.prompt_queue: List[str] = []
         self.stall = False
 
-        # Short-term Memory (cleared after task completion)
+        # Memory: Dictionary of filenames to file paths
         self.memory: Dict[str, Path] = {}
-        self.context_cache: Dict[str, str] = {}
-        self.personal_file: Optional[Path] = None
+        
+        # Context: Dictionary of prompts to responses (API call history)
+        self.context: Dict[str, str] = {}
+        
+        # Personal file (always set, never optional)
+        self.personal_file: Path = None
 
         # Task Tracking
-        self.active_task = task
+        self.active_task = None
 
         # Set personal file based on agent type
         self._set_personal_file()
@@ -136,255 +140,145 @@ class BaseAgent(ABC):
     async def activate(self, task: TaskMessage) -> None:
         '''
         Activate the agent to work on a task.
+        Only works when there is no active task and agent is not active.
         
         Args:
             task: The task to process
             
         Raises:
-            RuntimeError: If agent is already active
-            ValueError: If task is invalid
+            RuntimeError: If agent is already active or has an active task
         '''
-        async with self._activation_lock:
-            if self.is_active:
-                raise RuntimeError(
-                    f"Agent {self.agent_id} is already active with task {self.current_task_id}"
-                )
-            
-            self.is_active = True
-            self.current_task_id = task.task_id
-            self.active_tasks[task.task_id] = {
-                'task': task,
-                'start_time': time.time(),
-                'status': 'active'
-            }
-
-            # Load context for this task
-            await self._load_context()
-
-            try:
-                result = await self.process_task(task)
-                await self._send_result(task, result, success=True)
-            
-            except Exception as e:
-                self.error_count += 1
-                await self._send_result(task, str(e), success=False)
+        if self.is_active or self.active_task is not None:
+            raise RuntimeError(
+                f"Agent is already active or has an active task"
+            )
+        
+        self.is_active = True
+        self.active_task = task
 
     async def deactivate(self) -> None:
         '''
         Deactivate the agent and clean up memory.
         Manager agents must ensure all children are deactivated first.
-        '''
-        self.is_active = False
-
-        # Mark task as completed
-        if self.current_task_id:
-            self.completed_tasks.append(self.current_task_id)
-            if self.current_task_id in self.active_tasks:
-                self.active_tasks[self.current_task_id]['status'] = 'completed'
-                del self.active_tasks[self.current_task_id]
         
-        # Clear short-term memory
-        self.memory.clear()
-        self.context_cache.clear()
-        self.current_task_id = None
-
-    @abstractmethod
-    async def process_task(self, task: TaskMessage) -> Any:
+        Raises:
+            RuntimeError: If a child is still active
         '''
-        Process a task -> implemented in subclasses.
+        if self.active_children:
+            raise RuntimeError("Cannot deactivate agent with active children")
+        
+        self.is_active = False
+        self.active_task = None
+        
+        # Clear memory and context
+        self.memory.clear()
+        self.context.clear()
+        self.prompt_queue.clear()
+        self.stall = False
+
+    async def process_task(self, prompt: str) -> None:
+        '''
+        Process a task by adding prompt to queue and calling API if not stalled.
         
         Args:
-            task: The task to process
-            
-        Returns:
-            Any: The result of processing the task
-            
-        Raises:
-            Exception: If task processing fails
+            prompt: The prompt to process
         '''
+        self.prompt_queue.append(prompt)
+        
+        if not self.stall:
+            await self.api_call()
+
+    async def api_call(self) -> None:
+        '''
+        Make an API call with current context and memory.
+        This is the core method that handles LLM interaction.
+        '''
+        # Set stall to true to prevent concurrent API calls
+        self.stall = True
+        
+        # Load context and memory
+        await self._load_context()
+        
+        # Concatenate all prompts in queue (numbered)
+        # NOTE: Use Jinja here!!
+        numbered_prompts = []
+        for i, prompt in enumerate(self.prompt_queue, 1):
+            numbered_prompts.append(f"{i}. {prompt}")
+        
+        full_prompt = "\n".join(numbered_prompts)
+        
+        # Get context string for LLM
+        context_string = await self.get_context_string()
+        
+        # Make API call
+        if self.llm_client:
+            response = await self.llm_client.generate_response(
+                prompt=full_prompt,
+                context=context_string
+            )
+            
+            # Add to context (prompt -> response)
+            self.context[full_prompt] = response
+            
+            # Process response through prompter
+            await self._process_response(response)
+        
+        # Clear prompt queue
+        self.prompt_queue.clear()
+
+    async def _process_response(self, response: str) -> None:
+        '''
+        Process the LLM response through the prompter.
+        This will be implemented by subclasses.
+        
+        Args:
+            response: The LLM response to process
+        '''
+        # This will be implemented by subclasses to handle specific response processing
         pass
 
-    async def read_file(self, file_path: str) -> str:
+    async def read_file(self, file_path: str) -> None:
         '''
-        Read any file in the codebase for context.
-        Results are cached during the active period.
+        Add a file to memory for reading.
+        The file contents will be automatically loaded during API calls.
         
         Args:
-            file_path: Path to the file to read
-            
-        Returns:
-            str: The file contents
-            
-        Raises:
-            FileNotFoundError: If file doesn't exist
-            PermissionError: If file cannot be read
-            Exception: For other errors
+            file_path: Path to the file to add to memory
         '''
-        try:
-            full_path = Path(file_path).resolve()
-
-            # Check cache first
-            cache_key = str(full_path)
-            if cache_key in self.context_cache:
-                return self.context_cache[cache_key]
-
-            with open(full_path, 'r', encoding='utf-8') as f:
-                content = f.read()
-            
-            # Cache for this activation period
-            self.context_cache[cache_key] = content
-            return content
-        
-        except FileNotFoundError:
-            raise FileNotFoundError(f"File not found: {file_path}")
-        except PermissionError:
-            raise PermissionError(f"Permission denied reading file: {file_path}")
-        except Exception as e:
-            raise Exception(f"Failed to read file {file_path}: {str(e)}")
-        
-    async def update_personal_file(self, content: str) -> None:
-        '''
-        Update this agent's personal file with new content.
-        This is the ONLY file the agent can modify.
-        
-        Args:
-            content: The new content to write
-            
-        Raises:
-            RuntimeError: If agent has no personal file
-            PermissionError: If file cannot be written
-            Exception: For other errors
-        '''
-        if not self.personal_file:
-            raise RuntimeError(f"Agent {self.agent_id} has no personal file to update")
-        
-        try:
-            # Ensure parent directory exists
-            self.personal_file.parent.mkdir(parents=True, exist_ok=True)
-
-            with open(self.personal_file, 'w', encoding='utf-8') as f:
-                f.write(content)
-            
-            # Update cache if we have it cached
-            cache_key = str(self.personal_file)
-            if cache_key in self.context_cache:
-                self.context_cache[cache_key] = content
-                
-        except PermissionError:
-            raise PermissionError(f"Permission denied writing to file: {self.personal_file}")
-        
-        except Exception as e:
-            raise Exception(f"Failed to update personal file: {str(e)}")
-
-    async def run_command(self, command: str, cwd: Optional[str] = None) -> Dict[str, Any]:
-        '''
-        Run a terminal command with limited permissions.
-        Only commands in ALLOWED_COMMANDS are permitted.
-        
-        Args:
-            command: The command to run
-            cwd: Optional working directory
-            
-        Returns:
-            Dict[str, Any]: Command output with stdout, stderr, and return code
-            
-        Raises:
-            PermissionError: If command is not allowed
-            subprocess.TimeoutExpired: If command times out
-            Exception: For other errors
-        '''
-        command_start = command.split()[0]
-        if not any(command.startswith(allowed) for allowed in ALLOWED_COMMANDS):
-            raise PermissionError(f"Command not allowed: {command}")
-        
-        try:
-            # Default working directory is the agent's scope
-            if cwd is None:
-                cwd = str(self.scope_path.parent if self.is_coder else self.scope_path)
-            
-            result = subprocess.run(
-                command,
-                shell=True,
-                cwd=cwd,
-                capture_output=True,
-                text=True,
-                timeout=30
-            )
-
-            return {
-                'stdout': result.stdout,
-                'stderr': result.stderr,
-                'returncode': result.returncode
-            }
-        
-        except subprocess.TimeoutExpired:
-            raise subprocess.TimeoutExpired(command, 30)
-        except Exception as e:
-            raise Exception(f"Command failed: {str(e)}")
-
-    async def send_message(self, recipient_id: str, message: Message) -> None:
-        '''
-        Send a message to another agent (typically the parent).
-        
-        Args:
-            recipient_id: ID of the recipient agent
-            message: The message to send
-        '''
-        self.prompt_queue.append(message)
-    
-    async def receive_messages(self) -> List[Message]:
-        '''
-        Receive and process pending messages in order they were received.
-        
-        Returns:
-            List[Message]: List of pending messages
-        '''
-        messages = self.prompt_queue.copy()
-        self.prompt_queue.clear()
-        return messages
-    
-    async def _send_result(self, task: TaskMessage, result: Any, success: bool) -> None:
-        '''
-        Send result back to parent agent and deactivate.
-        
-        Args:
-            task: The completed task
-            result: The task result
-            success: Whether the task succeeded
-        '''
-        if self.parent_id:
-            result_message = ResultMessage(
-                message_type=MessageType.RESULT,
-                sender_id=self.agent_id,
-                recipient_id=self.parent_id,
-                content={'result': result},
-                timestamp=time.time(),
-                message_id=str(uuid.uuid4()),
-                task_id=task.task_id,
-                success=success,
-                result_data=result
-            )
-            await self.send_message(self.parent_id, result_message)
-        
-        # Always deactivate after sending result
-        await self.deactivate()
+        full_path = Path(file_path).resolve()
+        filename = full_path.name
+        self.memory[filename] = full_path
 
     async def _load_context(self) -> None:
         '''
         Load relevant context for the current task.
         Always includes personal file and codebase structure.
         '''
-        # Load personal file content
-        if self.personal_file and self.personal_file.exists():
-            self.memory['personal_file_content'] = await self.read_file(str(self.personal_file))
-        else:
-            self.memory['personal_file_content'] = ""
+        # Always add personal file to memory
+        if self.personal_file:
+            self.memory['personal_file'] = self.personal_file
 
-        # Load codebase structure
-        self.memory['codebase_structure'] = await self._get_codebase_structure_string()
+    async def _get_memory_contents(self) -> Dict[str, str]:
+        '''
+        Read the contents of every file in memory and assemble a dictionary.
+        This is called before every API call to ensure up-to-date memory.
         
-        # Store allowed commands for reference
-        self.memory['allowed_commands'] = list(ALLOWED_COMMANDS)
+        Returns:
+            Dict[str, str]: Dictionary of filenames to file contents
+        '''
+        contents = {}
+        
+        for filename, file_path in self.memory.items():
+            try:
+                if file_path.exists():
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        contents[filename] = f.read()
+                else:
+                    contents[filename] = f"[File does not exist: {file_path}]"
+            except Exception as e:
+                contents[filename] = f"[Error reading file: {str(e)}]"
+        
+        return contents
 
     async def _get_codebase_structure_string(self) -> str:
         '''
@@ -460,55 +354,28 @@ class BaseAgent(ABC):
         
         return structure
 
-    async def get_context_string(self) -> str:
-        '''
-        Get a formatted string of all context for LLM consumption.
-        
-        Returns:
-            str: Formatted context string
-        '''
-        context_parts = [
-            f"Agent ID: {self.agent_id}",
-            f"Agent Type: {'Manager' if self.is_manager else 'Coder'}",
-            f"Scope Path: {self.scope_path}",
-            f"Personal File: {self.personal_file}",
-            "",
-            "Allowed Terminal Commands:",
-            "\n".join(f"  - {cmd}" for cmd in sorted(ALLOWED_COMMANDS)),
-            "",
-            "Codebase Structure:",
-            self.memory.get('codebase_structure', 'Not loaded'),
-            "",
-            "Personal File Content:",
-            self.memory.get('personal_file_content', 'No content'),
-        ]
-        
-        return "\n".join(context_parts)
-
     def get_status(self) -> Dict[str, Any]:
         '''
         Get current agent status.
         
         Returns:
             Dict[str, Any]: Status information including:
-                - Basic agent info (ID, type, path)
+                - Basic agent info (type, path)
                 - Active state and current task
-                - Task statistics
-                - Memory usage
-                - Error count
+                - Memory and context usage
+                - Queue and stall state
         '''
         return {
-            'agent_id': self.agent_id,
             'agent_type': 'manager' if self.is_manager else 'coder',
             'path': str(self.scope_path),
             'personal_file': str(self.personal_file) if self.personal_file else None,
             'is_active': self.is_active,
-            'current_task': self.current_task_id,
-            'active_tasks': len(self.active_tasks),
-            'completed_tasks': len(self.completed_tasks),
-            'memory_size': len(self.memory),
-            'cached_files': len(self.context_cache),
-            'error_count': self.error_count
+            'active_task': str(self.active_task) if self.active_task else None,
+            'memory_files': len(self.memory),
+            'context_entries': len(self.context),
+            'prompt_queue_size': len(self.prompt_queue),
+            'stall': self.stall,
+            'active_children': len(self.active_children)
         }
     
     def __repr__(self) -> str:
@@ -516,7 +383,7 @@ class BaseAgent(ABC):
         String representation of the agent.
         
         Returns:
-            str: Agent representation including ID, path, and active state
+            str: Agent representation including type, path, and active state
         '''
         agent_type = 'Manager' if self.is_manager else 'Coder'
-        return f"{agent_type}Agent(id={self.agent_id}, path={self.scope_path}, active={self.is_active})"
+        return f"{agent_type}Agent(path={self.scope_path}, active={self.is_active})"
