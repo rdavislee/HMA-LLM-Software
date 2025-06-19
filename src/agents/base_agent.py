@@ -30,10 +30,10 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any, Set, Tuple, Union
 
 # Local imports
-from ..messages.protocol import (
+from src.messages.protocol import (
     Message, TaskMessage, ResultMessage, MessageType
 )
-from ..llm.base import BaseLLMClient
+from src.llm.base import BaseLLMClient
 
 # Global constants
 MAX_CONTEXT_DEPTH = 3

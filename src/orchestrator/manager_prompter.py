@@ -2,12 +2,10 @@ import asyncio
 import time
 import uuid
 from typing import Optional, Any, Dict, List
-from ..agents.manager_agent import ManagerAgent
-from ..agents.coder_agent import CoderAgent
-from ..messages.protocol import *
-from ..manager_language.interpreter import ManagerLanguageInterpreter
-from ..manager_language.parser import ManagerLanguageParser
-from ..manager_language.ast import (
+from src.agents.manager_agent import ManagerAgent
+from src.agents.coder_agent import CoderAgent
+from src.messages.protocol import *
+from src.manager_language.ast import (
     DelegateDirective, FinishDirective, ActionDirective, 
     WaitDirective, RunDirective, UpdateReadmeDirective
 )

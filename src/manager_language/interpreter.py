@@ -11,11 +11,9 @@ import time
 from typing import Dict, List, Any, Optional
 from pathlib import Path
 from .ast import DirectiveType, DelegateDirective, FinishDirective, ActionDirective, WaitDirective, RunDirective, UpdateReadmeDirective
-from ..messages.protocol import TaskMessage, Task, MessageType, ResultMessage
-from ..orchestrator.manager_prompter import manager_prompt_stage
-from ..orchestrator.coder_prompter import coder_prompt_stage
+from src.messages.protocol import TaskMessage, Task, MessageType, ResultMessage
 from .parser import parse_directive
-from src import ROOT_DIR
+import src
 
 # Global constants
 ALLOWED_COMMANDS = {
@@ -38,9 +36,9 @@ class ManagerLanguageInterpreter:
             agent: The agent that sent the command
         """
         self.agent = agent
-        if ROOT_DIR is None:
+        if src.ROOT_DIR is None:
             raise RuntimeError("ROOT_DIR is not set. Please call set_root_dir(path) before using the interpreter.")
-        self.root_dir = ROOT_DIR
+        self.root_dir = src.ROOT_DIR
     
     def execute(self, directive: DirectiveType) -> None:
         """
@@ -64,6 +62,7 @@ class ManagerLanguageInterpreter:
         else:
             # Unknown directive type, reprompt self with error
             if self.agent:
+                from src.orchestrator.manager_prompter import manager_prompt_stage
                 asyncio.create_task(manager_prompt_stage(self.agent, f"Unknown directive type: {type(directive)}"))
 
     def _execute_delegate(self, directive: DelegateDirective) -> None:
@@ -97,13 +96,15 @@ class ManagerLanguageInterpreter:
                 sender_id=str(self.agent.path),
                 recipient_id=str(child_agent.path),
                 timestamp=0,  # Will be set by the prompter
-                message_id=str(hash(task.task_id))
+                message_id=str(hash(task.task_id)),
+                task=task
             )
-            task_message.task = task
             # Call appropriate prompter based on child type
             if hasattr(child_agent, 'is_manager') and child_agent.is_manager:
+                from src.orchestrator.manager_prompter import manager_prompt_stage
                 asyncio.create_task(manager_prompt_stage(child_agent, item.prompt.value, task_message))
             else:
+                from src.orchestrator.coder_prompter import coder_prompt_stage
                 asyncio.create_task(coder_prompt_stage(child_agent, item.prompt.value, task_message))
             # Track delegation in agent (call delegate_task)
             self.agent.delegate_task(child_agent, item.prompt.value)
@@ -132,10 +133,12 @@ class ManagerLanguageInterpreter:
                     task=task,
                     result=directive.prompt.value
                 )
+                from src.orchestrator.manager_prompter import manager_prompt_stage
                 asyncio.create_task(manager_prompt_stage(parent, directive.prompt.value, result_message))
         except Exception as e:
             # Reprompt self with error
             if self.agent:
+                from src.orchestrator.manager_prompter import manager_prompt_stage
                 asyncio.create_task(manager_prompt_stage(self.agent, f"Failed to finish: {str(e)}"))
     
     def _execute_action(self, directive: ActionDirective) -> None:
@@ -153,6 +156,7 @@ class ManagerLanguageInterpreter:
             results.append(result)
         # Reprompt self with action results
         if self.agent:
+            from src.orchestrator.manager_prompter import manager_prompt_stage
             prompt = f"Action {directive.action_type} completed:\n" + "\n".join(results)
             asyncio.create_task(manager_prompt_stage(self.agent, prompt))
     
@@ -186,6 +190,7 @@ class ManagerLanguageInterpreter:
                 result = f"Failed to execute command '{command}': {str(e)}"
         # Reprompt self with run result
         if self.agent:
+            from src.orchestrator.manager_prompter import manager_prompt_stage
             prompt = f"Run command result:\n{result}"
             asyncio.create_task(manager_prompt_stage(self.agent, prompt))
     
@@ -210,6 +215,7 @@ class ManagerLanguageInterpreter:
                     result = f"Failed to update readme: {str(e)}"
         # Reprompt self with update readme result
         if self.agent:
+            from src.orchestrator.manager_prompter import manager_prompt_stage
             prompt = f"Update README result:\n{result}"
             asyncio.create_task(manager_prompt_stage(self.agent, prompt))
     

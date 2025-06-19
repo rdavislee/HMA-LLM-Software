@@ -9,7 +9,6 @@ import subprocess
 from typing import Dict, Any, Optional
 from pathlib import Path
 from .ast import DirectiveType, ReadDirective, RunDirective, ChangeDirective, FinishDirective
-from ..orchestrator.coder_prompter import coder_prompt_stage
 from src import ROOT_DIR
 
 # Global constants
@@ -67,9 +66,11 @@ class CoderLanguageInterpreter:
                 self._execute_finish(directive)
             else:
                 if self.agent:
+                    from src.orchestrator.coder_prompter import coder_prompt_stage
                     asyncio.create_task(coder_prompt_stage(self.agent, f"Unknown directive type: {type(directive)}"))
         except Exception as e:
             if self.agent:
+                from src.orchestrator.coder_prompter import coder_prompt_stage
                 asyncio.create_task(coder_prompt_stage(self.agent, f"Exception during execution: {str(e)}"))
         return None
 
@@ -89,9 +90,11 @@ class CoderLanguageInterpreter:
                 prompt = f"READ failed: File not found: {filename}"
         except Exception as e:
             if self.agent:
+                from src.orchestrator.coder_prompter import coder_prompt_stage
                 asyncio.create_task(coder_prompt_stage(self.agent, f"READ failed: {filename} could not be added to memory: {str(e)}"))
             return
         if self.agent and prompt:
+            from src.orchestrator.coder_prompter import coder_prompt_stage
             asyncio.create_task(coder_prompt_stage(self.agent, prompt))
 
     def _execute_run(self, directive: RunDirective) -> None:
@@ -118,9 +121,11 @@ class CoderLanguageInterpreter:
             prompt = f"RUN failed: Command timed out after 5 minutes: {command}"
         except Exception as e:
             if self.agent:
+                from src.orchestrator.coder_prompter import coder_prompt_stage
                 asyncio.create_task(coder_prompt_stage(self.agent, f"RUN failed: {str(e)}"))
             return
         if self.agent and prompt:
+            from src.orchestrator.coder_prompter import coder_prompt_stage
             asyncio.create_task(coder_prompt_stage(self.agent, prompt))
 
     def _execute_change(self, directive: ChangeDirective) -> None:
@@ -137,9 +142,11 @@ class CoderLanguageInterpreter:
                 prompt = "CHANGE failed: This agent has no assigned file."
         except Exception as e:
             if self.agent:
+                from src.orchestrator.coder_prompter import coder_prompt_stage
                 asyncio.create_task(coder_prompt_stage(self.agent, f"CHANGE failed: Could not write to {self.own_file}: {str(e)}"))
             return
         if self.agent and prompt:
+            from src.orchestrator.coder_prompter import coder_prompt_stage
             asyncio.create_task(coder_prompt_stage(self.agent, prompt))
 
     def _execute_finish(self, directive: FinishDirective) -> None:
@@ -148,8 +155,10 @@ class CoderLanguageInterpreter:
             try:
                 asyncio.create_task(self.agent.deactivate())
             except Exception as e:
+                from src.orchestrator.coder_prompter import coder_prompt_stage
                 asyncio.create_task(coder_prompt_stage(self.agent, f"FINISH failed: {str(e)}"))
                 return
+            from src.orchestrator.coder_prompter import coder_prompt_stage
             asyncio.create_task(coder_prompt_stage(self.agent, directive.prompt.value))
 
 

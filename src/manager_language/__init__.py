@@ -13,8 +13,7 @@ from .parser import (
 
 from .interpreter import (
     ManagerLanguageInterpreter,
-    execute_directive,
-    execute_directives
+    execute_directive
 )
 
 from .ast import (
@@ -39,7 +38,6 @@ __all__ = [
     # Interpreter
     'ManagerLanguageInterpreter',
     'execute_directive',
-    'execute_directives',
     
     # AST Classes
     'Directive',

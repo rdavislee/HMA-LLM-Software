@@ -45,6 +45,10 @@ from manager_language.ast import (
     TokenType
 )
 
+from manager_language.interpreter import (
+    execute_directive
+)
+
 
 class TestTarget:
     """Test suite for Target data class."""

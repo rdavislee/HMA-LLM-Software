@@ -15,10 +15,10 @@ from typing import Dict, List, Optional, Any, Set, Tuple, Union
 from enum import Enum
 
 from .base_agent import BaseAgent
-from ..messages.protocol import (
+from src.messages.protocol import (
     Message, TaskMessage, ResultMessage, MessageType
 )
-from ..llm.base import BaseLLMClient
+from src.llm.base import BaseLLMClient
 
 class ManagerCommand(Enum):
     """Commands that a manager agent can exercise."""

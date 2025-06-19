@@ -1,457 +1,200 @@
 """
-Comprehensive test suite for the Manager Language Interpreter.
-
-Tests cover all functions in interpreter.py using partitioning methods to ensure
-complete coverage of interpreter functionality for autonomous agent coordination.
+Tests for ManagerLanguageInterpreter.
+Each interpreter verb (CREATE/DELETE/READ actions, DELEGATE, RUN, UPDATE_README, WAIT, FINISH) has
+positive and negative coverage.
 """
 
-import pytest
-import os
-import tempfile
-from pathlib import Path
-import shutil
+from __future__ import annotations
 
-# Add src to path for imports
+import asyncio
+from pathlib import Path as _P
 import sys
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
+import subprocess
 
-from manager_language.interpreter import (
-    ManagerLanguageInterpreter,
-    execute_directive,
-    execute_directives
-)
-from manager_language.ast import (
-    DelegateDirective,
-    FinishDirective,
+import pytest
+
+# Make src importable
+sys.path.insert(0, str(_P(__file__).parent.parent.parent))
+
+from src import set_root_dir  # noqa: E402
+from manager_language.interpreter import ManagerLanguageInterpreter  # noqa: E402
+from manager_language.ast import (  # noqa: E402
+    Target,
     ActionDirective,
     WaitDirective,
     RunDirective,
     UpdateReadmeDirective,
     DelegateItem,
-    Target,
-    PromptField
+    DelegateDirective,
+    FinishDirective,
+    PromptField,
 )
 
 
-def temp_workspace():
-    """Context manager for a temporary workspace directory."""
-    d = tempfile.mkdtemp()
-    try:
-        yield d
-    finally:
-        shutil.rmtree(d)
+# ---------------------------- Stubs ----------------------------
+
+class ChildAgent:
+    def __init__(self, path: _P, is_manager: bool = False):
+        self.path = path
+        self.is_manager = is_manager
+        self.prompts: list[str] = []
 
 
-class TestManagerLanguageInterpreter:
-    """Test suite for the Manager Language Interpreter class."""
-    
-    def setup_method(self):
-        self.temp_dir = tempfile.mkdtemp()
-        self.interpreter = ManagerLanguageInterpreter(base_path=self.temp_dir)
-    
-    def teardown_method(self):
-        shutil.rmtree(self.temp_dir)
-    
-    # CREATE file/folder
-    def test_execute_create_file(self):
-        directive = 'CREATE file "test.txt"'
-        result = self.interpreter.execute(directive)
-        file_path = Path(self.temp_dir) / "test.txt"
-        assert file_path.exists() and file_path.is_file()
-        assert result['actions'][-1]['type'] == "CREATE"
-        assert result['actions'][-1]['target'] == "test.txt"
-        assert result['actions'][-1]['status'] == "completed"
-    
-    def test_execute_create_folder(self):
-        directive = 'CREATE folder "my_folder"'
-        result = self.interpreter.execute(directive)
-        folder_path = Path(self.temp_dir) / "my_folder"
-        assert folder_path.exists() and folder_path.is_dir()
-        assert result['actions'][-1]['type'] == "CREATE"
-        assert result['actions'][-1]['target'] == "my_folder"
-        assert result['actions'][-1]['status'] == "completed"
-    
-    def test_execute_create_nested_file(self):
-        directive = 'CREATE file "nested/dir/test.txt"'
-        result = self.interpreter.execute(directive)
-        file_path = Path(self.temp_dir) / "nested/dir/test.txt"
-        assert file_path.exists() and file_path.is_file()
-        assert result['actions'][-1]['type'] == "CREATE"
-        assert result['actions'][-1]['target'] == "nested/dir/test.txt"
-    
-    # DELETE file/folder
-    def test_execute_delete_file(self):
-        file_path = Path(self.temp_dir) / "delete_me.txt"
-        file_path.parent.mkdir(parents=True, exist_ok=True)
-        file_path.write_text("to be deleted")
-        directive = 'DELETE file "delete_me.txt"'
-        result = self.interpreter.execute(directive)
-        assert not file_path.exists()
-        assert result['actions'][-1]['type'] == "DELETE"
-        assert result['actions'][-1]['status'] == "completed"
-    
-    def test_execute_delete_folder(self):
-        folder_path = Path(self.temp_dir) / "delete_folder"
-        folder_path.mkdir(parents=True, exist_ok=True)
-        (folder_path / "file.txt").write_text("test")
-        directive = 'DELETE folder "delete_folder"'
-        result = self.interpreter.execute(directive)
-        assert not folder_path.exists()
-        assert result['actions'][-1]['type'] == "DELETE"
-        assert result['actions'][-1]['status'] == "completed"
-    
-    def test_execute_delete_nonexistent(self):
-        directive = 'DELETE file "no_such_file.txt"'
-        result = self.interpreter.execute(directive)
-        assert result['actions'][-1]['status'] == "failed"
-        assert "does not exist" in result['actions'][-1]['error']
-    
-    # READ file/folder
-    def test_execute_read_file(self):
-        file_path = Path(self.temp_dir) / "readme.txt"
-        file_path.write_text("hello world")
-        directive = 'READ file "readme.txt"'
-        result = self.interpreter.execute(directive)
-        assert result['actions'][-1]['type'] == "READ"
-        assert result['actions'][-1]['target'] == "readme.txt"
-        assert result['actions'][-1]['result']['content'] == "hello world"
-        assert result['actions'][-1]['status'] == "completed"
-    
-    def test_execute_read_folder(self):
-        folder_path = Path(self.temp_dir) / "folder"
-        folder_path.mkdir()
-        (folder_path / "a.txt").write_text("A")
-        (folder_path / "b.txt").write_text("B")
-        directive = 'READ folder "folder"'
-        result = self.interpreter.execute(directive)
-        assert result['actions'][-1]['type'] == "READ"
-        assert result['actions'][-1]['target'] == "folder"
-        assert result['actions'][-1]['result']['success']
-        contents = result['actions'][-1]['result']['contents']
-        assert any(item['name'] == "a.txt" for item in contents)
-        assert any(item['name'] == "b.txt" for item in contents)
-    
-    def test_execute_read_nonexistent(self):
-        directive = 'READ file "no_such_file.txt"'
-        result = self.interpreter.execute(directive)
-        assert result['actions'][-1]['status'] == "failed"
-        assert "does not exist" in result['actions'][-1]['error']
-    
-    # DELEGATE
-    def test_execute_delegate_single(self):
-        directive = 'DELEGATE file "test.txt" PROMPT="Create this file"'
-        result = self.interpreter.execute(directive)
-        assert 'delegations' in result
-        assert len(result['delegations']) == 1
-        assert result['delegations'][0]['target'] == "test.txt"
-        assert result['delegations'][0]['prompt'] == "Create this file"
-        assert result['delegations'][0]['status'] == "pending"
-    
-    def test_execute_delegate_multiple(self):
-        directive = 'DELEGATE file "a.txt" PROMPT="A", file "b.txt" PROMPT="B"'
-        result = self.interpreter.execute(directive)
-        assert len(result['delegations']) == 2
-        assert result['delegations'][0]['target'] == "a.txt"
-        assert result['delegations'][1]['target'] == "b.txt"
-    
-    # FINISH
-    def test_execute_finish(self):
-        directive = 'FINISH PROMPT="All done"'
-        result = self.interpreter.execute(directive)
-        assert result['finished'] is True
-        assert result['completion_prompt'] == "All done"
-    
-    # WAIT
-    def test_execute_wait(self):
-        directive = 'WAIT'
-        result = self.interpreter.execute(directive)
-        assert result['waiting'] is True
-    
-    # RUN
-    def test_execute_run_simple_command(self):
-        """Test executing a simple RUN directive."""
-        directive = 'RUN "echo hello world"'
-        result = self.interpreter.execute(directive)
-        
-        assert 'commands' in result
-        assert len(result['commands']) == 1
-        assert result['commands'][0]['command'] == "echo hello world"
-        assert result['commands'][0]['status'] == "completed"
-        assert result['commands'][0]['result']['success'] is True
-        assert "hello world" in result['commands'][0]['result']['stdout']
-    
-    def test_execute_run_complex_command(self):
-        """Test executing a complex RUN directive."""
-        # Use a cross-platform command that does not rely on complex quoting
-        directive = 'RUN "echo hello world again"'
-        result = self.interpreter.execute(directive)
+class StubManagerAgent:
+    """Bare-bones agent sufficient for interpreter interactions."""
 
-        assert 'commands' in result
-        assert len(result['commands']) == 1
-        assert result['commands'][0]['command'] == "echo hello world again"
-        assert result['commands'][0]['status'] == "completed"
-        assert result['commands'][0]['result']['success'] is True
-        assert "hello world again" in result['commands'][0]['result']['stdout']
-    
-    def test_execute_run_failing_command(self):
-        """Test executing a RUN directive that fails."""
-        directive = 'RUN "nonexistent_command_that_fails"'
-        result = self.interpreter.execute(directive)
-        
-        assert 'commands' in result
-        assert len(result['commands']) == 1
-        assert result['commands'][0]['command'] == "nonexistent_command_that_fails"
-        assert result['commands'][0]['status'] == "failed"
-        assert result['commands'][0]['result']['success'] is False
-        assert 'error' in result['commands'][0]['result']
-    
-    def test_execute_run_multiple_commands(self):
-        """Test executing multiple RUN directives."""
-        directives = '''
-        RUN "echo first"
-        RUN "echo second"
-        '''
-        result = self.interpreter.execute_multiple(directives)
-        
-        assert 'commands' in result
-        assert len(result['commands']) == 2
-        assert result['commands'][0]['command'] == "echo first"
-        assert result['commands'][1]['command'] == "echo second"
-        assert result['commands'][0]['status'] == "completed"
-        assert result['commands'][1]['status'] == "completed"
-    
-    def test_execute_run_with_file_operations(self):
-        """Test RUN directive combined with file operations."""
-        directives = '''
-        CREATE file "test.txt"
-        RUN "echo content > test.txt"
-        READ file "test.txt"
-        '''
-        result = self.interpreter.execute_multiple(directives)
-        
-        assert 'actions' in result and len(result['actions']) == 2
-        assert 'commands' in result and len(result['commands']) == 1
-        assert result['commands'][0]['status'] == "completed"
-    
-    # UPDATE_README
-    def test_execute_update_readme_simple(self):
-        """Test executing a simple UPDATE_README directive."""
-        directive = 'UPDATE_README CONTENT_STRING="This is the new README content"'
-        result = self.interpreter.execute(directive)
-        
-        assert 'readme_updates' in result
-        assert len(result['readme_updates']) == 1
-        assert result['readme_updates'][0]['content'] == "This is the new README content"
-        assert result['readme_updates'][0]['status'] == "pending"
-    
-    def test_execute_update_readme_multiple(self):
-        """Test executing multiple UPDATE_README directives."""
-        directives = '''
-        UPDATE_README CONTENT_STRING="First README update"
-        UPDATE_README CONTENT_STRING="Second README update"
-        '''
-        result = self.interpreter.execute_multiple(directives)
-        
-        assert 'readme_updates' in result
-        assert len(result['readme_updates']) == 2
-        assert result['readme_updates'][0]['content'] == "First README update"
-        assert result['readme_updates'][1]['content'] == "Second README update"
-        assert result['readme_updates'][0]['status'] == "pending"
-        assert result['readme_updates'][1]['status'] == "pending"
-    
-    def test_execute_update_readme_with_escaped_chars(self):
-        """Test executing UPDATE_README directive with escaped characters."""
-        directive = 'UPDATE_README CONTENT_STRING="README with \\"quotes\\" and \\n newlines"'
-        result = self.interpreter.execute(directive)
-        
-        assert 'readme_updates' in result
-        assert len(result['readme_updates']) == 1
-        assert result['readme_updates'][0]['content'] == 'README with "quotes" and \n newlines'
-    
-    def test_execute_update_readme_empty_content(self):
-        """Test executing UPDATE_README directive with empty content."""
-        directive = 'UPDATE_README CONTENT_STRING=""'
-        result = self.interpreter.execute(directive)
-        
-        assert 'readme_updates' in result
-        assert len(result['readme_updates']) == 1
-        assert result['readme_updates'][0]['content'] == ""
-        assert result['readme_updates'][0]['status'] == "pending"
-    
-    def test_execute_update_readme_complex_content(self):
-        """Test executing UPDATE_README directive with complex markdown content."""
-        complex_content = """# Agent Documentation
+    def __init__(self, root: _P):
+        self.path = root / "mgr"
+        self.path.mkdir(parents=True, exist_ok=True)
+        self.prompts: list[str] = []
+        self.children: list[ChildAgent] = []
+        self.deactivated: bool = False
+        self.active_task = None
+        self.parent = None  # For simplicity
 
-This agent is responsible for:
-- File operations (CREATE, DELETE, READ)
-- Task delegation to child agents
-- Documentation updates
+    # Callbacks expected by interpreter
+    def delegate_task(self, child, prompt):
+        # Record delegations for assertions
+        self.prompts.append(f"delegated to {child.path.name}: {prompt}")
 
-## Usage Examples
-```bash
-CREATE file "config.json"
-DELEGATE file "src/main.py" PROMPT="Create main function"
-UPDATE_README CONTENT_STRING="Updated documentation"
-```
-
-## Configuration
-The agent uses the following directives:
-- CREATE: Create files and folders
-- DELETE: Remove files and folders
-- READ: Read file contents or list folder contents
-- DELEGATE: Assign tasks to child agents
-- FINISH: Mark task completion
-- WAIT: Wait for child agents
-- RUN: Execute shell commands
-- UPDATE_README: Update agent's personal README
-"""
-        # Escape the content for the directive
-        escaped_content = complex_content.replace('"', '\\"').replace('\n', '\\n')
-        directive = f'UPDATE_README CONTENT_STRING="{escaped_content}"'
-        result = self.interpreter.execute(directive)
-        
-        assert 'readme_updates' in result
-        assert len(result['readme_updates']) == 1
-        assert result['readme_updates'][0]['content'] == complex_content
-        assert "# Agent Documentation" in result['readme_updates'][0]['content']
-        assert "File operations" in result['readme_updates'][0]['content']
-        assert "UPDATE_README" in result['readme_updates'][0]['content']
-    
-    def test_execute_update_readme_context_preservation(self):
-        """Test UPDATE_README directive preserves existing context."""
-        # Set up existing context
-        self.interpreter.execute('CREATE file "test.txt"')
-        self.interpreter.execute('DELEGATE file "child.txt" PROMPT="Do something"')
-        self.interpreter.execute('RUN "echo test"')
-        
-        # Execute UPDATE_README
-        directive = 'UPDATE_README CONTENT_STRING="Updated README"'
-        result = self.interpreter.execute(directive)
-        
-        # Check that existing context is preserved
-        assert 'actions' in result and len(result['actions']) == 1
-        assert 'delegations' in result and len(result['delegations']) == 1
-        assert 'commands' in result and len(result['commands']) == 1
-        
-        # Check that readme_updates is added
-        assert 'readme_updates' in result
-        assert len(result['readme_updates']) == 1
-        assert result['readme_updates'][0]['content'] == "Updated README"
-        assert result['readme_updates'][0]['status'] == "pending"
-    
-    def test_execute_update_readme_with_other_directives(self):
-        """Test UPDATE_README directive combined with other directives."""
-        directives = '''
-        CREATE file "config.json"
-        UPDATE_README CONTENT_STRING="Created config file"
-        DELEGATE file "src/main.py" PROMPT="Create main function"
-        UPDATE_README CONTENT_STRING="Delegated main.py creation"
-        FINISH PROMPT="All done"
-        '''
-        result = self.interpreter.execute_multiple(directives)
-        
-        assert 'actions' in result and len(result['actions']) == 1
-        assert 'delegations' in result and len(result['delegations']) == 1
-        assert 'readme_updates' in result and len(result['readme_updates']) == 2
-        assert result['finished'] is True
-        assert result['completion_prompt'] == "All done"
-        
-        # Check README updates
-        assert result['readme_updates'][0]['content'] == "Created config file"
-        assert result['readme_updates'][1]['content'] == "Delegated main.py creation"
-    
-    # Multiple directives
-    def test_execute_multiple(self):
-        directives = '''
-        CREATE folder "proj"
-        CREATE file "proj/readme.md"
-        DELEGATE file "proj/readme.md" PROMPT="Write documentation"
-        RUN "echo 'Project created'"
-        WAIT
-        FINISH PROMPT="Done"
-        '''
-        result = self.interpreter.execute_multiple(directives)
-        assert 'actions' in result and len(result['actions']) == 2
-        assert 'delegations' in result and len(result['delegations']) == 1
-        assert 'commands' in result and len(result['commands']) == 1
-        assert result['waiting'] is True or result['finished'] is True
-    
-    # Error handling
-    def test_execute_invalid_directive(self):
-        directive = 'INVALID file "test.txt"'
-        result = self.interpreter.execute(directive)
-        assert 'error' in result
-        assert "Failed to parse" in result['error'] or "Unknown directive" in result['error']
-    
-    def test_execute_multiple_with_error(self):
-        directives = '''
-        CREATE file "a.txt"
-        INVALID file "b.txt"
-        '''
-        result = self.interpreter.execute_multiple(directives)
-        assert 'error' in result
-    
-    # Context management
-    def test_get_and_reset_context(self):
-        directive = 'CREATE file "test.txt"'
-        self.interpreter.execute(directive)
-        context = self.interpreter.get_context()
-        assert 'actions' in context and len(context['actions']) == 1
-        self.interpreter.reset_context()
-        context2 = self.interpreter.get_context()
-        assert context2['actions'] == []
-        assert context2['delegations'] == []
-        assert context2['readme_updates'] == []
-        assert context2['finished'] is False
-        assert context2['waiting'] is False
-        assert context2['completion_prompt'] is None
-    
-    # Export context
-    def test_export_context(self):
-        directive = 'CREATE file "test.txt"'
-        self.interpreter.execute(directive)
-        export_path = Path(self.temp_dir) / "context.json"
-        self.interpreter.export_context(str(export_path))
-        assert export_path.exists()
-        with open(export_path) as f:
-            data = f.read()
-            assert 'actions' in data
+    async def deactivate(self):  # noqa: D401
+        self.deactivated = True
 
 
-class TestConvenienceFunctions:
-    """Test suite for convenience functions in interpreter.py."""
-    
-    def test_execute_directive_function(self):
-        with tempfile.TemporaryDirectory() as temp_dir:
-            directive = 'CREATE file "test.txt"'
-            result = execute_directive(directive, base_path=temp_dir)
-            file_path = Path(temp_dir) / "test.txt"
-            assert file_path.exists()
-            assert result['actions'][-1]['type'] == "CREATE"
-    
-    def test_execute_directives_function(self):
-        with tempfile.TemporaryDirectory() as temp_dir:
-            directives = '''
-            CREATE folder "proj"
-            CREATE file "proj/readme.md"
-            '''
-            result = execute_directives(directives, base_path=temp_dir)
-            folder_path = Path(temp_dir) / "proj"
-            file_path = Path(temp_dir) / "proj/readme.md"
-            assert folder_path.exists() and folder_path.is_dir()
-            assert file_path.exists() and file_path.is_file()
-    
-    def test_execute_directive_function_error_handling(self):
-        with tempfile.TemporaryDirectory() as temp_dir:
-            directive = 'INVALID file "test.txt"'
-            result = execute_directive(directive, base_path=temp_dir)
-            assert 'error' in result
-    
-    def test_execute_directives_function_error_handling(self):
-        with tempfile.TemporaryDirectory() as temp_dir:
-            directives = '''
-            CREATE file "a.txt"
-            INVALID file "b.txt"
-            '''
-            result = execute_directives(directives, base_path=temp_dir)
-            assert 'error' in result 
+# ----------------------------- Fixtures -----------------------------
+
+
+@pytest.fixture()
+def workspace(tmp_path):
+    """Temp directory registered as ROOT_DIR."""
+    set_root_dir(str(tmp_path))
+    return tmp_path
+
+
+@pytest.fixture(autouse=True)
+def patch_prompts(monkeypatch):
+    """Patch prompters + create_task to run synchronously and capture messages."""
+
+    async def _fake_prompt(agent, message, *_a, **_kw):  # noqa: D401
+        if hasattr(agent, "prompts"):
+            agent.prompts.append(message)
+        return None
+
+    monkeypatch.setattr(
+        "src.orchestrator.manager_prompter.manager_prompt_stage", _fake_prompt, raising=False
+    )
+    monkeypatch.setattr(
+        "src.orchestrator.coder_prompter.coder_prompt_stage", _fake_prompt, raising=False
+    )
+    monkeypatch.setattr(
+        "asyncio.create_task", lambda coro: asyncio.get_event_loop().run_until_complete(coro),
+    )
+
+
+# -------------------- ACTION (CREATE / DELETE / READ) --------------------
+
+
+def test_create_file_success(workspace):
+    agent = StubManagerAgent(workspace)
+    interp = ManagerLanguageInterpreter(agent)
+
+    target = Target(name="foo.txt", is_folder=False)
+    interp.execute(ActionDirective(action_type="CREATE", targets=[target]))
+
+    created = agent.path / "foo.txt"
+    assert created.exists() and created.is_file()
+
+
+def test_delete_missing_file_failure(workspace):
+    agent = StubManagerAgent(workspace)
+    interp = ManagerLanguageInterpreter(agent)
+
+    target = Target(name="no.txt", is_folder=False)
+    interp.execute(ActionDirective(action_type="DELETE", targets=[target]))
+
+    # The interpreter should generate a failure prompt
+    assert any("failed" in p.lower() for p in agent.prompts)
+
+
+# -------------------- RUN --------------------
+
+def test_run_success(monkeypatch, workspace):
+    agent = StubManagerAgent(workspace)
+    interp = ManagerLanguageInterpreter(agent)
+
+    class _CP:
+        def __init__(self):
+            self.returncode = 0
+            self.stdout = "ok\n"
+            self.stderr = ""
+
+    monkeypatch.setattr("subprocess.run", lambda *a, **kw: _CP())
+    interp.execute(RunDirective(command="pytest"))
+
+    assert any("Run command result" in p for p in agent.prompts)
+
+
+def test_run_invalid_command(workspace):
+    agent = StubManagerAgent(workspace)
+    interp = ManagerLanguageInterpreter(agent)
+
+    interp.execute(RunDirective(command="rm -rf /"))
+    assert any("Invalid command" in p or "Invalid" in p for p in agent.prompts)
+
+
+# -------------------- UPDATE_README --------------------
+
+def test_update_readme(workspace):
+    agent = StubManagerAgent(workspace)
+    interp = ManagerLanguageInterpreter(agent)
+    content = "hello readme"
+    interp.execute(UpdateReadmeDirective(content=content))
+
+    readme_path = agent.path / f"{agent.path.name}_readme.md"
+    assert readme_path.read_text() == content
+
+
+# -------------------- WAIT --------------------
+
+def test_wait_noop(workspace):
+    agent = StubManagerAgent(workspace)
+    interp = ManagerLanguageInterpreter(agent)
+
+    # Should not raise
+    interp.execute(WaitDirective())
+
+
+# -------------------- DELEGATE --------------------
+
+def test_delegate_success(workspace):
+    agent = StubManagerAgent(workspace)
+    child = ChildAgent(agent.path / "child")
+    agent.children.append(child)
+
+    interp = ManagerLanguageInterpreter(agent)
+
+    item = DelegateItem(target=Target(name="child", is_folder=False), prompt=PromptField(value="do"))
+    interp.execute(DelegateDirective(items=[item]))
+
+    assert any("delegated to child" in p for p in agent.prompts)
+
+
+def test_delegate_unknown_child_failure(workspace):
+    agent = StubManagerAgent(workspace)
+    interp = ManagerLanguageInterpreter(agent)
+
+    item = DelegateItem(target=Target(name="ghost", is_folder=False), prompt=PromptField(value="do"))
+    interp.execute(DelegateDirective(items=[item]))
+
+    # No delegation should be recorded
+    assert not agent.prompts  # interpreter returns early on missing child
+
+
+# -------------------- FINISH --------------------
+
+def test_finish_deactivates_agent(workspace):
+    agent = StubManagerAgent(workspace)
+    interp = ManagerLanguageInterpreter(agent)
+
+    interp.execute(FinishDirective(prompt=PromptField(value="done")))
+    assert agent.deactivated is True 

@@ -1,6 +1,6 @@
 from .base_agent import BaseAgent
 from typing import Optional
-from ..llm.base import BaseLLMClient
+from src.llm.base import BaseLLMClient
 
 class CoderAgent(BaseAgent):
     """
