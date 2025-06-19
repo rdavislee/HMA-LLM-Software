@@ -4,16 +4,17 @@ Executes parsed coder language directives and performs the described actions.
 """
 
 import os
+import asyncio
 import subprocess
 from typing import Dict, Any, Optional
 from pathlib import Path
 from .ast import DirectiveType, ReadDirective, RunDirective, ChangeDirective, FinishDirective
-from .parser import CoderLanguageParser
 
-
+# Global constants
 ALLOWED_COMMANDS = {
     'ls', 'dir', 'cat', 'type', 'grep', 'find', 'git status', 'git log',
-    'python -m py_compile', 'npm test', 'pytest', 'flake8', 'black --check'
+    'python -m py_compile', 'npm test', 'pytest', 'flake8', 'black --check',
+    'ripgrep', 'rg'
 }
 
 class CoderLanguageInterpreter:
@@ -34,31 +35,27 @@ class CoderLanguageInterpreter:
         self.base_path = Path(base_path).resolve()
         self.agent = agent
         self.own_file = own_file
-        self.parser = CoderLanguageParser()
-
-    def execute(self, directive_text: str) -> str:
-        """
-        Parse and execute a coder language directive.
         
-        Args:
-            directive_text: The directive string to execute
-        Returns:
-            String result of the execution
-        """
-        try:
-            directive = self.parser.parse(directive_text)
-            return self._execute_directive(directive)
-        except Exception as e:
-            return f"Error executing directive: {str(e)}"
+        # Find project root for command execution
+        self.project_root = self._find_project_root()
+    
+    def _find_project_root(self) -> Path:
+        """Find the project root directory."""
+        current = self.base_path
+        while current.parent != current:
+            if any((current / marker).exists() for marker in ['.git', 'requirements.txt', 'package.json', 'Cargo.toml']):
+                break
+            current = current.parent
+        return current
 
-    def _execute_directive(self, directive: DirectiveType) -> str:
+    def execute(self, directive: DirectiveType) -> Optional[str]:
         """
         Execute a single directive.
         
         Args:
             directive: The directive to execute
         Returns:
-            String result of the execution
+            String result of the execution, or None if no result
         """
         if isinstance(directive, ReadDirective):
             return self._execute_read(directive)
@@ -95,12 +92,13 @@ class CoderLanguageInterpreter:
         if not any(command.startswith(allowed) for allowed in ALLOWED_COMMANDS):
             return f"RUN failed: Invalid command: {command}"
         try:
+            # Execute the command from project root
             result = subprocess.run(
                 command,
                 shell=True,
                 capture_output=True,
                 text=True,
-                cwd=self.base_path,
+                cwd=self.project_root,
                 timeout=300  # 5 minute timeout
             )
             if result.returncode == 0:
@@ -132,61 +130,28 @@ class CoderLanguageInterpreter:
 
     def _execute_finish(self, directive: FinishDirective) -> str:
         """Execute a FINISH directive."""
-        # Remove this agent from parent's active children and deactivate
-        msg = directive.prompt.value
-        # Remove from parent's active children if possible
-        if self.agent and hasattr(self.agent, 'parent_id') and hasattr(self.agent, 'agent_id'):
-            parent = getattr(self.agent, 'parent_id', None)
-            if parent and hasattr(parent, 'active_tasks'):
-                if self.agent.agent_id in parent.active_tasks:
-                    del parent.active_tasks[self.agent.agent_id]
-        # Deactivate this agent if possible
-        if self.agent and hasattr(self.agent, 'deactivate'):
-            try:
-                # If deactivate is async, call it properly
-                import asyncio
-                if asyncio.iscoroutinefunction(self.agent.deactivate):
-                    loop = asyncio.get_event_loop()
-                    if loop.is_running():
-                        import nest_asyncio
-                        nest_asyncio.apply()
-                        loop.create_task(self.agent.deactivate())
-                    else:
-                        loop.run_until_complete(self.agent.deactivate())
-                else:
-                    self.agent.deactivate()
-            except Exception:
-                pass
-        return f"FINISH: {msg}"
+        if not self.agent:
+            raise ValueError("No agent available for finish")
+        
+        # Try to deactivate the agent
+        # This will raise an error if there are still active children
+        asyncio.create_task(self.agent.deactivate())
+        
+        return directive.prompt.value
 
-    def get_context(self) -> Dict[str, Any]:
-        """Get the current execution context."""
-        # Not used in this refactor, but kept for compatibility
-        return {}
 
-    def reset_context(self):
-        """Reset the execution context."""
-        # Not used in this refactor, but kept for compatibility
-        pass
-
-    def export_context(self, file_path: str):
-        """Export the current context to a JSON file."""
-        # Not used in this refactor, but kept for compatibility
-        pass
-
-# Convenience functions for easy execution
-
-def execute_directive(directive_text: str, base_path: str = ".", agent=None, own_file: str = None) -> str:
+# Convenience function
+def execute_directive(directive: DirectiveType, base_path: str = ".", agent=None, own_file: str = None) -> Optional[str]:
     """
     Execute a single coder directive.
     
     Args:
-        directive_text: The directive string to execute
+        directive: The directive to execute
         base_path: Base directory for file operations
         agent: The agent that sent the command
         own_file: The file this coder agent is responsible for
     Returns:
-        String result of the execution
+        String result of the execution, or None if no result
     """
     interpreter = CoderLanguageInterpreter(base_path=base_path, agent=agent, own_file=own_file)
-    return interpreter.execute(directive_text) 
+    return interpreter.execute(directive) 
