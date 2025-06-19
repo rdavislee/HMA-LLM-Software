@@ -5,11 +5,21 @@ Executes parsed manager language directives and performs the described actions.
 
 import os
 import json
+import asyncio
 import subprocess
 from typing import Dict, List, Any, Optional
 from pathlib import Path
 from .ast import DirectiveType, DelegateDirective, FinishDirective, ActionDirective, WaitDirective, RunDirective, UpdateReadmeDirective
-from .parser import ManagerLanguageParser
+from ..messages.protocol import TaskMessage, Task, MessageType
+from ..orchestrator.manager_prompter import manager_prompt_stage
+from ..orchestrator.coder_prompter import coder_prompt_stage
+
+# Global constants
+ALLOWED_COMMANDS = {
+    'ls', 'dir', 'cat', 'type', 'grep', 'find', 'git status', 'git log',
+    'python -m py_compile', 'npm test', 'pytest', 'flake8', 'black --check',
+    'ripgrep', 'rg'
+}
 
 
 class ManagerLanguageInterpreter:
@@ -27,56 +37,21 @@ class ManagerLanguageInterpreter:
             agent: The agent that sent the command
         """
         self.base_path = Path(base_path).resolve()
-        self.parser = ManagerLanguageParser()
         self.agent = agent
-        self.context: Dict[str, Any] = {
-            'actions': [],
-            'delegations': [],
-            'commands': [],
-            'readme_updates': [],
-            'finished': False,
-            'waiting': False,
-            'completion_prompt': None
-        }
-    
-    def execute(self, directive_text: str) -> str:
-        """
-        Parse and execute a manager language directive.
         
-        Args:
-            directive_text: The directive string to execute
-            
-        Returns:
-            String result of the execution
-        """
-        try:
-            directive = self.parser.parse(directive_text)
-            return self._execute_directive(directive)
-        except Exception as e:
-            return f"Error executing directive: {str(e)}"
+        # Find project root for command execution
+        self.project_root = self._find_project_root()
     
-    def execute_multiple(self, directives_text: str) -> str:
-        """
-        Parse and execute multiple manager language directives.
-        
-        Args:
-            directives_text: Text containing multiple directives (one per line)
-            
-        Returns:
-            Combined string result of all executions
-        """
-        try:
-            directives = self.parser.parse_multiple(directives_text)
-            results = []
-            for directive in directives:
-                result = self._execute_directive(directive)
-                if result:
-                    results.append(result)
-            return "\n".join(results) if results else None
-        except Exception as e:
-            return f"Error executing directives: {str(e)}"
+    def _find_project_root(self) -> Path:
+        """Find the project root directory."""
+        current = self.base_path
+        while current.parent != current:
+            if any((current / marker).exists() for marker in ['.git', 'requirements.txt', 'package.json', 'Cargo.toml']):
+                break
+            current = current.parent
+        return current
     
-    def _execute_directive(self, directive: DirectiveType) -> str:
+    def execute(self, directive: DirectiveType) -> Optional[str]:
         """
         Execute a single directive.
         
@@ -84,7 +59,7 @@ class ManagerLanguageInterpreter:
             directive: The directive to execute
             
         Returns:
-            String result of the execution
+            String result of the execution, or None if no result
         """
         if isinstance(directive, DelegateDirective):
             return self._execute_delegate(directive)
@@ -101,22 +76,63 @@ class ManagerLanguageInterpreter:
         else:
             return f"Unknown directive type: {type(directive)}"
     
-    def _execute_delegate(self, directive: DelegateDirective) -> str:
+    def _execute_delegate(self, directive: DelegateDirective) -> None:
         """Execute a DELEGATE directive."""
-        # TODO: This will add the children that were delegated to the active children
-        # For now, just return None since base agent doesn't have the capacity for this
+        if not self.agent:
+            raise ValueError("No agent available for delegation")
+        
+        # Check if all children exist
+        for item in directive.items:
+            child_name = item.target.name
+            child_path = self.agent.path / child_name
+            
+            if not child_path.exists():
+                raise ValueError(f"Child '{child_name}' does not exist")
+        
+        # Add all delegated children to active children list
+        for item in directive.items:
+            child_name = item.target.name
+            child_path = self.agent.path / child_name
+            
+            # Create TaskMessage for the child
+            task = Task(
+                task_id=str(hash(child_name + item.prompt.value)),
+                task_string=item.prompt.value
+            )
+            task_message = TaskMessage(
+                message_type=MessageType.DELEGATION,
+                sender_id=str(self.agent.path),
+                recipient_id=str(child_path),
+                timestamp=0,  # Will be set by the prompter
+                message_id=str(hash(task.task_id))
+            )
+            task_message.task = task
+            
+            # Add to active children
+            self.agent.active_children.append(child_path)
+            
+            # Call appropriate prompter based on child type
+            if child_path.is_dir():
+                # Child is a manager
+                from ..agents.manager_agent import ManagerAgent
+                child_agent = ManagerAgent(str(child_path), parent_path=str(self.agent.path))
+                asyncio.create_task(manager_prompt_stage(child_agent, item.prompt.value, task_message))
+            else:
+                # Child is a coder
+                from ..agents.coder_agent import CoderAgent
+                child_agent = CoderAgent(str(child_path), parent_path=str(self.agent.path))
+                asyncio.create_task(coder_prompt_stage(child_agent, item.prompt.value, task_message))
+        
         return None
     
     def _execute_finish(self, directive: FinishDirective) -> str:
         """Execute a FINISH directive."""
-        # Remove the agent from its parent's active children and deactivate the agent
-        if self.agent and hasattr(self.agent, 'parent_id') and self.agent.parent_id:
-            # TODO: Remove from parent's active children
-            pass
+        if not self.agent:
+            raise ValueError("No agent available for finish")
         
-        if self.agent:
-            # TODO: Deactivate the agent
-            pass
+        # Try to deactivate the agent
+        # This will raise an error if there are still active children
+        asyncio.create_task(self.agent.deactivate())
         
         return directive.prompt.value
     
@@ -138,7 +154,7 @@ class ManagerLanguageInterpreter:
         
         return "\n".join(results)
     
-    def _execute_wait(self, directive: WaitDirective) -> str:
+    def _execute_wait(self, directive: WaitDirective) -> None:
         """Execute a WAIT directive."""
         # Wait doesn't need to do anything, just pass
         return None
@@ -148,23 +164,18 @@ class ManagerLanguageInterpreter:
         command = directive.command
         
         # Check if command is allowed
-        allowed_commands = {
-            'ls', 'dir', 'cat', 'type', 'grep', 'find', 'git status', 'git log',
-            'python -m py_compile', 'npm test', 'pytest', 'flake8', 'black --check'
-        }
-        
         command_start = command.split()[0]
-        if not any(command.startswith(allowed) for allowed in allowed_commands):
+        if not any(command.startswith(allowed) for allowed in ALLOWED_COMMANDS):
             return "Invalid command"
         
         try:
-            # Execute the command and capture output
+            # Execute the command from project root
             result = subprocess.run(
                 command,
                 shell=True,
                 capture_output=True,
                 text=True,
-                cwd=self.base_path,
+                cwd=self.project_root,
                 timeout=300  # 5 minute timeout
             )
             
@@ -299,57 +310,20 @@ class ManagerLanguageInterpreter:
             
         except Exception as e:
             return f"File {target.name} was not added to memory: {str(e)}"
-    
-    def get_context(self) -> Dict[str, Any]:
-        """Get the current execution context."""
-        return self.context.copy()
-    
-    def reset_context(self):
-        """Reset the execution context."""
-        self.context = {
-            'actions': [],
-            'delegations': [],
-            'commands': [],
-            'readme_updates': [],
-            'finished': False,
-            'waiting': False,
-            'completion_prompt': None
-        }
-    
-    def export_context(self, file_path: str):
-        """Export the current context to a JSON file."""
-        with open(file_path, 'w') as f:
-            json.dump(self.context, f, indent=2, default=str)
 
 
-# Convenience functions
-def execute_directive(directive_text: str, base_path: str = ".", agent=None) -> str:
+# Convenience function
+def execute_directive(directive: DirectiveType, base_path: str = ".", agent=None) -> Optional[str]:
     """
     Convenience function to execute a single directive.
     
     Args:
-        directive_text: The directive string to execute
+        directive: The directive to execute
         base_path: Base directory for file operations
         agent: The agent that sent the command
         
     Returns:
-        String result of the execution
+        String result of the execution, or None if no result
     """
     interpreter = ManagerLanguageInterpreter(base_path, agent)
-    return interpreter.execute(directive_text)
-
-
-def execute_directives(directives_text: str, base_path: str = ".", agent=None) -> str:
-    """
-    Convenience function to execute multiple directives.
-    
-    Args:
-        directives_text: Text containing multiple directives
-        base_path: Base directory for file operations
-        agent: The agent that sent the command
-        
-    Returns:
-        String result of the execution
-    """
-    interpreter = ManagerLanguageInterpreter(base_path, agent)
-    return interpreter.execute_multiple(directives_text) 
+    return interpreter.execute(directive) 

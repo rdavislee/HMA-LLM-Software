@@ -28,7 +28,7 @@ from .parser import (
 
 from .interpreter import (
     CoderLanguageInterpreter,
-    execute_directive, execute_directives
+    execute_directive
 )
 
 __all__ = [
@@ -44,7 +44,7 @@ __all__ = [
     
     # Interpreter classes
     'CoderLanguageInterpreter',
-    'execute_directive', 'execute_directives'
+    'execute_directive'
 ]
 
 __version__ = "1.0.0" 
