@@ -1,31 +1,14 @@
 Feedback on base agent implementation, in order of the file. v2
 
-Gonna have to redo message imports.
-
-Good global constants.
-
-Will agent ids simply be their path?
-
-If we are gonna have task ids, maybe we should keep a database of active tasks somewhere? Maybe thats stupid though, over complicating. TBH I dont even think we need task ids. Just task message objects. [Good idea, we can use DynamoDb? - Ryan]
-
 Message queue is definitely still needed, call it prompt queue though, multiple children returning results at once is possible. We are going to need to figure out how that is going to work with api calls, but anything is possible-gonna have to have a way to indicate the agent is ready for the next input.
 
-Whats the activation lock?
-[Asyncio.Lock is meant to prevent race conditions, but it won't be necessary if we implement the idea you had in these comments - Ryan]
-
-Memory should be files and results from running commands. Context should be previous prompts and responses.
-
-I am a little bit worried about agents reading a file and then it changes and the old version is still in their cache. What if we somehow had a fileread command in the context and everytime the context is built into a prompt, the read file from before reads the current verion. So like we just have a pointer to a file to include in the context. 
+Memory should be files. Context should be previous prompts and responses.
 
 Context should be keys of prompts with values of answers. These represent every API call this agent has made since it was activated.
 
 Personal file should not be optional.
 
 active_tasks should be active task. Agents will only ever have one task, when given another they must have finished their previous.
-
-I don't know if it is a good idea to remember completed tasks. Correct me if you think otherwise though.
-
-We don't need an error count.
 
 Set personal file is good, I think we should be actually creating the personal file in execution, which is in the interpreter. We need this to throw like a super mega error if it fails that stops the entire network because it means that something unrelated to the agents actions is broken.
 

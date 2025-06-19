@@ -60,42 +60,41 @@ class BaseAgent(ABC):
 
     def __init__(
         self,
-        agent_id: str,
         path: str,
-        parent_id: Optional[str] = None,
+        task: TaskMessage,
+        parent_path: Optional[str] = None,
+        children_paths: Optional[List[str]] = None,
         llm_client: Optional[BaseLLMClient] = None,
         max_context_size: int = DEFAULT_MAX_CONTEXT_SIZE
     ) -> None:
         """Initialize a new agent.
         
         Args:
-            agent_id: Unique identifier for this agent
             path: Path this agent is responsible for
             parent_id: Optional ID of the parent agent
             llm_client: Optional LLM client for generating responses
             max_context_size: Maximum size of context to maintain
         """
-        self.agent_id = agent_id
-        self.path = Path(path).resolve()
-        self.parent_id = parent_id
+        self.path = path
+        self.parent_path = parent_path
+        self.children_paths = children_paths
+        self.active_children = [] # consider Set
+
         self.llm_client = llm_client
         self.max_context_size = max_context_size
 
         # Agent State
         self.is_active = False
-        self.current_task_id: Optional[str] = None
-        self.prompt_queue: List[Message] = []
-        self._activation_lock = asyncio.Lock()
+        self.prompt_queue: List[str] = []
+        self.stall = False
 
         # Short-term Memory (cleared after task completion)
-        self.memory: Dict[str, Any] = {}
+        self.memory: Dict[str, Path] = {}
         self.context_cache: Dict[str, str] = {}
         self.personal_file: Optional[Path] = None
 
         # Task Tracking
-        self.active_tasks: Dict[str, Dict[str, Any]] = {}
-        self.completed_tasks: List[str] = []
-        self.error_count: int = 0
+        self.active_task = task
 
         # Set personal file based on agent type
         self._set_personal_file()
