@@ -24,9 +24,7 @@ async def coder_prompt_stage(
            - handle activation errors (send to parent if fails)
     
     2. LLM RESPONSE PHASE:
-       - call await agent.api_call(prompt) to get coder language response
-       - response should contain coder language directives
-       - call coder_receive_stage(agent, response_string)
+       - add prompt to agent's prompt queue using agent.process_task(prompt)
     
     ERROR HANDLING:
        - catch all exceptions in try/catch

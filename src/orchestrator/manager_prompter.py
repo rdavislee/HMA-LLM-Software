@@ -31,9 +31,7 @@ async def manager_prompt_stage(
            - remove child from agent's active_children list
     
     3. LLM RESPONSE PHASE:
-       - call await agent.api_call(prompt) to get manager language response
-       - response should contain manager language directives
-       - call manager_receive_stage(agent, response_string)
+       - add prompt to agent's prompt queue using agent.process_task(prompt)
     
     ERROR HANDLING:
        - catch all exceptions in try/catch

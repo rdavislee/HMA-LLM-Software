@@ -47,6 +47,7 @@ class ManagerLanguageInterpreter:
         Args:
             directive: The directive to execute
         """
+        #TODO: add try except block to catch exceptions and reprompt self with error
         if isinstance(directive, DelegateDirective):
             self._execute_delegate(directive)
         elif isinstance(directive, FinishDirective):
@@ -320,4 +321,5 @@ def execute_directive(directive_text: str, agent=None) -> None:
     directive = parse_directive(directive_text)
     interpreter.execute(directive)
     if agent is not None:
-        agent.stall = False 
+        agent.stall = False
+        # TODO: Check agent prompt queue and if not empty, call api_call
