@@ -57,7 +57,7 @@ class StubManagerAgent:
         # Record delegations for assertions
         self.prompts.append(f"delegated to {child.path.name}: {prompt}")
 
-    async def deactivate(self):  # noqa: D401
+    def deactivate(self):  # noqa: D401
         self.deactivated = True
 
 
@@ -81,10 +81,10 @@ def patch_prompts(monkeypatch):
         return None
 
     monkeypatch.setattr(
-        "src.orchestrator.manager_prompter.manager_prompt_stage", _fake_prompt, raising=False
+        "src.orchestrator.manager_prompter.manager_prompter", _fake_prompt, raising=False
     )
     monkeypatch.setattr(
-        "src.orchestrator.coder_prompter.coder_prompt_stage", _fake_prompt, raising=False
+        "src.orchestrator.coder_prompter.coder_prompter", _fake_prompt, raising=False
     )
     monkeypatch.setattr(
         "asyncio.create_task", lambda coro: asyncio.get_event_loop().run_until_complete(coro),

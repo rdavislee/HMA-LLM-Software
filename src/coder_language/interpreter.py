@@ -66,12 +66,12 @@ class CoderLanguageInterpreter:
                 self._execute_finish(directive)
             else:
                 if self.agent:
-                    from src.orchestrator.coder_prompter import coder_prompt_stage
-                    asyncio.create_task(coder_prompt_stage(self.agent, f"Unknown directive type: {type(directive)}"))
+                    from src.orchestrator.coder_prompter import coder_prompter
+                    asyncio.create_task(coder_prompter(self.agent, f"Unknown directive type: {type(directive)}"))
         except Exception as e:
             if self.agent:
-                from src.orchestrator.coder_prompter import coder_prompt_stage
-                asyncio.create_task(coder_prompt_stage(self.agent, f"Exception during execution: {str(e)}"))
+                from src.orchestrator.coder_prompter import coder_prompter
+                asyncio.create_task(coder_prompter(self.agent, f"Exception during execution: {str(e)}"))
         return None
 
     def _execute_read(self, directive: ReadDirective) -> None:
@@ -90,12 +90,12 @@ class CoderLanguageInterpreter:
                 prompt = f"READ failed: File not found: {filename}"
         except Exception as e:
             if self.agent:
-                from src.orchestrator.coder_prompter import coder_prompt_stage
-                asyncio.create_task(coder_prompt_stage(self.agent, f"READ failed: {filename} could not be added to memory: {str(e)}"))
+                from src.orchestrator.coder_prompter import coder_prompter
+                asyncio.create_task(coder_prompter(self.agent, f"READ failed: {filename} could not be added to memory: {str(e)}"))
             return
         if self.agent and prompt:
-            from src.orchestrator.coder_prompter import coder_prompt_stage
-            asyncio.create_task(coder_prompt_stage(self.agent, prompt))
+            from src.orchestrator.coder_prompter import coder_prompter
+            asyncio.create_task(coder_prompter(self.agent, prompt))
 
     def _execute_run(self, directive: RunDirective) -> None:
         """Execute a RUN directive and reprompt with the result string."""
@@ -121,12 +121,12 @@ class CoderLanguageInterpreter:
             prompt = f"RUN failed: Command timed out after 5 minutes: {command}"
         except Exception as e:
             if self.agent:
-                from src.orchestrator.coder_prompter import coder_prompt_stage
-                asyncio.create_task(coder_prompt_stage(self.agent, f"RUN failed: {str(e)}"))
+                from src.orchestrator.coder_prompter import coder_prompter
+                asyncio.create_task(coder_prompter(self.agent, f"RUN failed: {str(e)}"))
             return
         if self.agent and prompt:
-            from src.orchestrator.coder_prompter import coder_prompt_stage
-            asyncio.create_task(coder_prompt_stage(self.agent, prompt))
+            from src.orchestrator.coder_prompter import coder_prompter
+            asyncio.create_task(coder_prompter(self.agent, prompt))
 
     def _execute_change(self, directive: ChangeDirective) -> None:
         """Execute a CHANGE directive."""
@@ -142,12 +142,12 @@ class CoderLanguageInterpreter:
                 prompt = "CHANGE failed: This agent has no assigned file."
         except Exception as e:
             if self.agent:
-                from src.orchestrator.coder_prompter import coder_prompt_stage
-                asyncio.create_task(coder_prompt_stage(self.agent, f"CHANGE failed: Could not write to {self.own_file}: {str(e)}"))
+                from src.orchestrator.coder_prompter import coder_prompter
+                asyncio.create_task(coder_prompter(self.agent, f"CHANGE failed: Could not write to {self.own_file}: {str(e)}"))
             return
         if self.agent and prompt:
-            from src.orchestrator.coder_prompter import coder_prompt_stage
-            asyncio.create_task(coder_prompt_stage(self.agent, prompt))
+            from src.orchestrator.coder_prompter import coder_prompter
+            asyncio.create_task(coder_prompter(self.agent, prompt))
 
     def _execute_finish(self, directive: FinishDirective) -> None:
         """Execute a FINISH directive."""
@@ -155,11 +155,11 @@ class CoderLanguageInterpreter:
             try:
                 asyncio.create_task(self.agent.deactivate())
             except Exception as e:
-                from src.orchestrator.coder_prompter import coder_prompt_stage
-                asyncio.create_task(coder_prompt_stage(self.agent, f"FINISH failed: {str(e)}"))
+                from src.orchestrator.coder_prompter import coder_prompter
+                asyncio.create_task(coder_prompter(self.agent, f"FINISH failed: {str(e)}"))
                 return
-            from src.orchestrator.coder_prompter import coder_prompt_stage
-            asyncio.create_task(coder_prompt_stage(self.agent, directive.prompt.value))
+            from src.orchestrator.coder_prompter import coder_prompter
+            asyncio.create_task(coder_prompter(self.agent, directive.prompt.value))
 
 
 # Convenience function

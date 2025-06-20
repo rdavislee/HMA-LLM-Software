@@ -56,8 +56,8 @@ def patch_prompters(monkeypatch):
     async def _noop(*_, **__):
         return None
 
-    monkeypatch.setattr("src.orchestrator.coder_prompter.coder_prompt_stage", _noop, raising=False)
-    monkeypatch.setattr("src.orchestrator.manager_prompter.manager_prompt_stage", _noop, raising=False)
+    monkeypatch.setattr("src.orchestrator.coder_prompter.coder_prompter", _noop, raising=False)
+    monkeypatch.setattr("src.orchestrator.manager_prompter.manager_prompter", _noop, raising=False)
     # Ensure asyncio.create_task executes immediately in tests for determinism
     def _create_task(coro):
         import asyncio

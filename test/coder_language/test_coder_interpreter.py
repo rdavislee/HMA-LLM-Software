@@ -59,7 +59,7 @@ def patch_async(monkeypatch):
         return None
 
     monkeypatch.setattr(
-        "src.orchestrator.coder_prompter.coder_prompt_stage", _fake_prompt, raising=False
+        "src.orchestrator.coder_prompter.coder_prompter", _fake_prompt, raising=False
     )
     monkeypatch.setattr(
         "asyncio.create_task", lambda coro: asyncio.get_event_loop().run_until_complete(coro)

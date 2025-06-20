@@ -8,7 +8,7 @@ from src.coder_language.ast import (
     ReadDirective, RunDirective, ChangeDirective, FinishDirective
 )
 
-async def coder_prompt_stage(
+async def coder_prompter(
     agent: CoderAgent, 
     prompt: str, 
     message: Optional[TaskMessage] = None
@@ -32,6 +32,32 @@ async def coder_prompt_stage(
            - reprompt with error message.
        - return
     """
-    pass
+    try:
+        # 1. ACTIVATION PHASE
+        if message is not None and isinstance(message, TaskMessage):
+            try:
+                agent.activate(message)
+            except Exception as activation_error:
+                # Handle activation errors (send to parent if fails)
+                if agent.parent:
+                    # Send error to parent agent
+                    error_message = f"Activation failed for agent {agent.path}: {str(activation_error)}"
+                    await agent.parent.process_task(error_message)
+                return
+        
+        # 2. LLM RESPONSE PHASE
+        # Add prompt to agent's prompt queue using agent.process_task(prompt)
+        await agent.process_task(prompt)
+        
+    except Exception as error:
+        # ERROR HANDLING: catch all exceptions in try/catch
+        # If error occurs: reprompt with error message
+        error_prompt = f"Error occurred during processing: {str(error)}"
+        try:
+            await agent.process_task(error_prompt)
+        except:
+            # If even the error reprompt fails, we can't do much more
+            pass
+        return
 
 
