@@ -103,14 +103,14 @@ class BaseAgent(ABC):
         '''
         Set the personal file this agent can modify and add it to memory.
         For coders: the code file they manage
-        For managers: their README.md in the parent directory
+        For managers: their README.md in their own directory
         '''
         if self.path.is_file() or not self.path.exists():
             # Coder agent - personal file is the code file
             self.personal_file = self.path
         else:
-            # Manager agent - personal file is README in parent directory
-            self.personal_file = self.path.parent / f"{self.path.name}_README.md"
+            # Manager agent - personal file is README in their own directory
+            self.personal_file = self.path / f"{self.path.name}_README.md"
         if self.personal_file:
             self.memory[self.personal_file.name] = self.personal_file
 
@@ -199,28 +199,6 @@ class BaseAgent(ABC):
         '''
         pass
 
-    def get_context_string(self) -> str:
-        '''
-        Get context string for LLM by combining codebase structure and memory contents.
-        
-        Returns:
-            str: Formatted context string containing structure and memory files
-        '''
-        memory_contents = self._get_memory_contents()
-        structure = self._get_codebase_structure_string()
-        
-        context_parts = [
-            f"Codebase Structure:\n{structure}",
-            f"Memory Files ({len(memory_contents)}):"
-        ]
-        
-        for filename, content in memory_contents.items():
-            context_parts.append(f"\n--- {filename} ---\n{content}")
-        
-        return "\n".join(context_parts)
-
-
-
     def read_file(self, file_path: str) -> None:
         '''
         Add a file to memory for reading.
@@ -257,77 +235,10 @@ class BaseAgent(ABC):
 
     def _get_codebase_structure_string(self) -> str:
         '''
-        Gets a string representation of the codebase structure that LLMs can understand.
-        
-        Returns:
-            str: Tree-like representation of the codebase structure
+        TODO: Implement a function that returns the codebase structure from the root directory in string form.
+        This should provide a tree-like or otherwise useful representation of the project for LLM context.
         '''
-        # Find project root
-        current = self.scope_path
-        while current.parent != current:
-            if any((current / marker).exists() for marker in ['.git', 'requirements.txt', 'package.json', 'Cargo.toml']):
-                break
-            current = current.parent
-        
-        project_root = current
-        
-        def build_tree_string(
-            path: Path,
-            prefix: str = "",
-            max_depth: int = MAX_CONTEXT_DEPTH,
-            current_depth: int = 0
-        ) -> str:
-            '''
-            Build a tree-like string representation of directory structure.
-            
-            Args:
-                path: Current directory path
-                prefix: Current indentation prefix
-                max_depth: Maximum directory depth to traverse
-                current_depth: Current directory depth
-                
-            Returns:
-                str: Tree-like string representation
-            '''
-            if current_depth >= max_depth:
-                return f"{prefix}...\n"
-            
-            result = ""
-            try:
-                items = sorted(path.iterdir(), key=lambda x: (x.is_file(), x.name))
-                for i, item in enumerate(items):
-                    if item.name.startswith('.'):
-                        continue
-                    
-                    is_last = i == len(items) - 1
-                    current_prefix = "└── " if is_last else "├── "
-                    next_prefix = prefix + ("    " if is_last else "│   ")
-                    
-                    if item.is_dir():
-                        result += f"{prefix}{current_prefix}{item.name}/\n"
-                        result += build_tree_string(item, next_prefix, max_depth, current_depth + 1)
-                    else:
-                        # Include file size for context
-                        size = item.stat().st_size
-                        size_str = f"{size:,}" if size < 1024 else f"{size/1024:.1f}K"
-                        result += f"{prefix}{current_prefix}{item.name} ({size_str})\n"
-            
-            except PermissionError:
-                result += f"{prefix}[Permission Denied]\n"
-            
-            return result
-        
-        structure = f"Project Structure (root: {project_root.name}):\n"
-        structure += build_tree_string(project_root)
-        
-        # Add current agent's location in the structure
-        try:
-            rel_path = self.scope_path.relative_to(project_root)
-            structure += f"\nCurrent agent location: {rel_path}"
-        except ValueError:
-            structure += f"\nCurrent agent location: {self.scope_path}"
-        
-        return structure
+        return "[Codebase structure not implemented yet]"
 
     def get_status(self) -> Dict[str, Any]:
         '''

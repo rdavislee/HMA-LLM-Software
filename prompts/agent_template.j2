@@ -1,0 +1,91 @@
+{# Agent Jinja Template #}
+{# This template is used to format prompts for agents #}
+
+{% if agent_role %}
+## Agent Role
+{{ agent_role }}
+{% endif %}
+
+{# Current Task #}
+{% if active_task %}
+## Current Task
+{{ active_task }}
+
+{% endif %}
+
+{# Context (prompt-response history) #}
+{% if context %}
+## Context
+{% for prompt, response in context.items() %}
+### Previous Interaction
+**Prompt:**
+{{ prompt }}
+
+**Response:**
+{{ response }}
+
+{% endfor %}
+{% endif %}
+
+{# Memory (file contents) #}
+{% if memory_contents %}
+## Memory Files
+{% for filename, content in memory_contents.items() %}
+### {{ filename }}
+```
+{{ content }}
+```
+
+{% endfor %}
+{% endif %}
+
+{# Personal File #}
+{% if personal_file_name %}
+## Personal File
+{{ personal_file_name }} (content available in Memory Files above)
+
+{% endif %}
+
+{# Code Base Structure #}
+{% if codebase_structure %}
+## Codebase Structure
+{{ codebase_structure }}
+
+{% endif %}
+
+{# Commands Available #}
+{% if available_commands %}
+## Available Terminal Commands
+{{ available_commands }}
+{% endif %}
+
+{# Lark Grammar #}
+## Language Grammar
+```
+{{ lark_grammar }}
+```
+
+{# Language Examples #}
+## Language Examples
+
+{{ language_examples }}
+
+{# Current Prompt #}
+{% if current_prompt %}
+## Current Prompt
+{{ current_prompt }}
+{% endif %}
+
+{# Instructions #}
+## Instructions
+
+Respond using the provided language syntax. You can use multiple commands by separating them with newlines. Each command should be on its own line.
+
+Example response format:
+```
+CREATE folder "src"
+CREATE file "src/main.py"
+DELEGATE file "src/main.py" PROMPT="Create a main function"
+WAIT
+FINISH PROMPT="Project structure created"
+``` 

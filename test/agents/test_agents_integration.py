@@ -184,7 +184,7 @@ def test_manager_delete_missing_fails(coder_agent, workspace):
 def test_manager_deactivate_with_children_error(coder_agent):
     from src.messages.protocol import Task, TaskMessage, MessageType
     task = Task(task_id='t', task_string='do')
-    tm = TaskMessage(message_type=MessageType.DELEGATION, sender_id='p', recipient_id='m', timestamp=0, message_id='mid', task=task)
+    tm = TaskMessage(message_type=MessageType.DELEGATION, sender_id='p', recipient_id='m', message_id='mid', task=task)
     coder_agent.activate(tm)
     # Inject fake parent with children attribute
     class DummyParent:
@@ -210,7 +210,7 @@ def test_base_agent_activation_deactivation(coder_agent):
     """activate + deactivate workflow without children."""
     from src.messages.protocol import Task, TaskMessage, MessageType
     task = Task(task_id="1", task_string="demo")
-    msg = TaskMessage(message_type=MessageType.DELEGATION, sender_id="p", recipient_id="c", timestamp=0, message_id="m", task=task)
+    msg = TaskMessage(message_type=MessageType.DELEGATION, sender_id="p", recipient_id="c", message_id="m", task=task)
 
     coder_agent.activate(msg)
     assert coder_agent.is_active

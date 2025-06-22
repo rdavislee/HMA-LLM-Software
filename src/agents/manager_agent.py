@@ -13,6 +13,7 @@ import json
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Set, Tuple, Union
 from enum import Enum
+from jinja2 import Environment, FileSystemLoader
 
 from .base_agent import BaseAgent
 from src.messages.protocol import (
@@ -72,6 +73,13 @@ class ManagerAgent(BaseAgent):
         if not self.path.is_dir() and self.path.exists():
             raise ValueError(f"ManagerAgent can only manage directories, not files: {path}")
         
+        # Initialize Jinja2 environment
+        self.jinja_env = Environment(
+            loader=FileSystemLoader('prompts'),
+            trim_blocks=True,
+            lstrip_blocks=True
+        )
+        
     def delegate_task(self, child: "BaseAgent", task_description: str) -> None:
         """
         Delegates a task to a child agent.
@@ -102,29 +110,103 @@ class ManagerAgent(BaseAgent):
         # Set stall to true to prevent concurrent API calls
         self.stall = True
         
-        # Load context and memory
-        await self._load_context()
+        # Get current prompt from queue
+        current_prompt = "\n".join(self.prompt_queue) if self.prompt_queue else ""
         
-        # Concatenate all prompts in queue (numbered)
-        # TODO: Use Jinja template for manager-specific formatting here
-        numbered_prompts = []
-        for i, prompt in enumerate(self.prompt_queue, 1):
-            numbered_prompts.append(f"{i}. {prompt}")
+        # Get memory contents
+        memory_contents = self._get_memory_contents()
         
-        full_prompt = "\n".join(numbered_prompts)
+        # Get personal file content
+        personal_file_name = ""
+        if self.personal_file and self.personal_file.exists():
+            personal_file_name = self.personal_file.name
         
-        # Get context string for LLM
-        context_string = await self.get_context_string()
+        # Get codebase structure
+        codebase_structure = self._get_codebase_structure_string()
+        
+        # Load Lark grammar
+        lark_grammar = ""
+        try:
+            with open('src/manager_language/grammar.lark', 'r', encoding='utf-8') as f:
+                lark_grammar = f.read()
+        except Exception as e:
+            lark_grammar = f"[Error reading Lark grammar: {str(e)}]"
+        
+        # Load language examples
+        language_examples = ""
+        try:
+            with open('prompts/manager/language_examples.md', 'r', encoding='utf-8') as f:
+                language_examples = f.read()
+        except Exception as e:
+            language_examples = f"[Error reading language examples: {str(e)}]"
+        
+        # Define agent role and commands
+        agent_role = "You are a manager agent. Your role is to coordinate work within a directory. You can delegate tasks to child agents (files and subdirectories), create and delete files, and manage concurrent task execution."
+        available_commands = """
+        ### Development Commands
+        - `python -m pytest tests/` - Run all tests
+        - `python -m pytest tests/ -v` - Run tests with verbose output
+        - `python -m pytest tests/ -k "test_name"` - Run specific test
+        - `python setup.py test` - Run tests using setup.py
+        - `python -m unittest discover tests` - Run tests using unittest
+
+        ### Package Management
+        - `pip install -r requirements.txt` - Install dependencies
+        - `pip install package_name` - Install a specific package
+        - `pip freeze > requirements.txt` - Generate requirements file
+        - `pip list` - List installed packages
+
+        ### Build and Installation
+        - `python setup.py build` - Build the project
+        - `python setup.py install` - Install the project
+        - `python setup.py develop` - Install in development mode
+
+        ### Code Quality
+        - `flake8 src/` - Run linting
+        - `black src/` - Format code with black
+        - `isort src/` - Sort imports
+        - `mypy src/` - Run type checking
+
+        ### Git Operations
+        - `git status` - Check repository status
+        - `git add .` - Stage all changes
+        - `git commit -m "message"` - Commit changes
+        - `git push` - Push to remote repository
+        - `git pull` - Pull from remote repository
+
+        ### File Operations
+        - `ls -la` - List all files with details
+        - `find . -name "*.py"` - Find Python files
+        - `grep -r "pattern" src/` - Search for pattern in source files
+        - `cat filename` - Display file contents
+        - `head -n 10 filename` - Show first 10 lines of file
+        - `tail -n 10 filename` - Show last 10 lines of file
+        """
+
+        # Render template
+        template = self.jinja_env.get_template('agent_template.j2')
+        formatted_prompt = template.render(
+            agent_role=agent_role,
+            active_task=str(self.active_task) if self.active_task else None,
+            context=self.context,
+            memory_contents=memory_contents,
+            personal_file_name=personal_file_name,
+            codebase_structure=codebase_structure,
+            available_commands=available_commands,
+            lark_grammar=lark_grammar,
+            language_examples=language_examples,
+            current_prompt=current_prompt
+        )
         
         # Make API call
         if self.llm_client:
             response = await self.llm_client.generate_response(
-                prompt=full_prompt,
-                context=context_string
+                prompt=formatted_prompt,
+                context=""  # Context is already included in the formatted prompt
             )
             
             # Add to context (prompt -> response)
-            self.context[full_prompt] = response
+            self.context[current_prompt] = response
             
             # Process response through manager language interpreter
             # TODO: Implement manager-specific response processing here
