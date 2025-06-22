@@ -35,7 +35,6 @@ class Message:
     message_type: MessageType
     sender_id: str
     recipient_id: str
-    timestamp: float
     message_id: str
 
 @dataclass

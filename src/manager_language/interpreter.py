@@ -96,7 +96,6 @@ class ManagerLanguageInterpreter:
                 message_type=MessageType.DELEGATION,
                 sender_id=str(self.agent.path),
                 recipient_id=str(child_agent.path),
-                timestamp=0,  # Will be set by the prompter
                 message_id=str(hash(task.task_id)),
                 task=task
             )
