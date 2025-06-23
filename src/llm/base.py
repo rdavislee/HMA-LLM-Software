@@ -34,3 +34,13 @@ class BaseLLMClient(ABC):
         Generate a structured response matching the provided schema.
         '''
         pass
+
+    @property
+    def supports_system_role(self) -> bool:
+        """Return True if the provider supports a dedicated `system` role.
+
+        Providers that only accept a single prompt string (legacy completion
+        style) should override this to return False so that the agents can
+        fall back to the monolithic Jinja2 template.
+        """
+        return True

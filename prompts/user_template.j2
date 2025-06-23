@@ -1,0 +1,44 @@
+{# User-Level Agent Template #}
+{% if active_task %}
+## Current Task
+{{ active_task }}
+{% endif %}
+
+{% if context %}
+## Context
+{% for item in context %}
+### Previous Interaction
+**Prompt:**
+{{ item.prompt }}
+
+**Response:**
+{{ item.response }}
+
+{% endfor %}
+{% endif %}
+
+{% if memory_contents %}
+## Memory Files
+{% for filename, content in memory_contents.items() %}
+### {{ filename }}
+```
+{{ content }}
+```
+
+{% endfor %}
+{% endif %}
+
+{% if personal_file_name %}
+## Personal File
+{{ personal_file_name }} (content available in Memory Files above)
+{% endif %}
+
+{% if codebase_structure %}
+## Codebase Structure
+{{ codebase_structure }}
+{% endif %}
+
+{% if current_prompt %}
+## Current Prompt
+{{ current_prompt }}
+{% endif %} 

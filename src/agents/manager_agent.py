@@ -20,6 +20,13 @@ from src.messages.protocol import (
     Message, TaskMessage, ResultMessage, MessageType
 )
 from src.llm.base import BaseLLMClient
+from src.llm.providers import (
+    GPT41Client, O3Client, O3ProClient,
+    ClaudeSonnet4Client, ClaudeOpus4Client,
+    Gemini25FlashClient, Gemini25ProClient,
+    DeepSeekV3Client, DeepSeekR1Client
+)
+from src.llm.providers import get_llm_client
 
 class ManagerCommand(Enum):
     """Commands that a manager agent can exercise."""
@@ -183,32 +190,54 @@ class ManagerAgent(BaseAgent):
         - `tail -n 10 filename` - Show last 10 lines of file
         """
 
-        # Render template
-        template = self.jinja_env.get_template('agent_template.j2')
-        formatted_prompt = template.render(
-            agent_role=agent_role,
-            active_task=str(self.active_task) if self.active_task else None,
-            context=self.context,
-            memory_contents=memory_contents,
-            personal_file_name=personal_file_name,
-            codebase_structure=codebase_structure,
-            available_commands=available_commands,
-            lark_grammar=lark_grammar,
-            language_examples=language_examples,
-            current_prompt=current_prompt
-        )
-        
-        # Make API call
+        # Make API call using message list
         if self.llm_client:
-            response = await self.llm_client.generate_response(
-                prompt=formatted_prompt,
-                context=""  # Context is already included in the formatted prompt
-            )
+            if self.llm_client.supports_system_role:
+                # Render split templates
+                system_template = self.jinja_env.get_template('system_template.j2')
+                user_template = self.jinja_env.get_template('user_template.j2')
+
+                system_prompt = system_template.render(
+                    agent_role=agent_role,
+                    available_commands=available_commands,
+                    lark_grammar=lark_grammar,
+                    language_examples=language_examples
+                )
+
+                user_prompt = user_template.render(
+                    active_task=str(self.active_task) if self.active_task else None,
+                    context=self.context,
+                    memory_contents=memory_contents,
+                    personal_file_name=personal_file_name,
+                    codebase_structure=codebase_structure,
+                    current_prompt=current_prompt
+                )
+
+                messages = [
+                    {"role": "user", "content": user_prompt}
+                ]
+                response = await self.llm_client.generate_response(messages, system_prompt=system_prompt)
+            else:
+                # Fallback to original monolithic template
+                template = self.jinja_env.get_template('agent_template.j2')
+                formatted_prompt = template.render(
+                    agent_role=agent_role,
+                    active_task=str(self.active_task) if self.active_task else None,
+                    context=self.context,
+                    memory_contents=memory_contents,
+                    personal_file_name=personal_file_name,
+                    codebase_structure=codebase_structure,
+                    available_commands=available_commands,
+                    lark_grammar=lark_grammar,
+                    language_examples=language_examples,
+                    current_prompt=current_prompt
+                )
+                response = await self.llm_client.generate_response(formatted_prompt)
+
+            # Save context (only store current prompt -> response)
             self.context.append(ContextEntry(prompt=current_prompt, response=response))
-            # Process response through manager language interpreter
-            # TODO: Implement manager-specific response processing here
-            # await manager_receive_stage(self, response)  # Will be implemented when prompter is ready
-            pass
+
+            # TODO: Process response via manager language interpreter
         
         # Clear prompt queue
         self.prompt_queue.clear()

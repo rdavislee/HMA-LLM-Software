@@ -1,0 +1,16 @@
+###############################################
+# Example environment file for LLM API keys.
+# Copy to `.env` at project root and populate values.
+###############################################
+
+# OpenAI GPT-4 / o3 / o3-pro models
+OPENAI_API_KEY=
+
+# Anthropic Claude Sonnet 4
+ANTHROPIC_API_KEY=
+
+# Google Gemini Flash / Pro 2.5
+GOOGLE_GEMINI_API_KEY=
+
+# DeepSeek R1 0528 model
+DEEPSEEK_API_KEY= 
