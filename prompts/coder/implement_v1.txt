@@ -1,2 +1,0 @@
-# Coder agent implementation prompt template  
-# Will contain the structured prompt for code generation
