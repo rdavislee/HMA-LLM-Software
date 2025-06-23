@@ -68,39 +68,14 @@ class CoderAgent(BaseAgent):
             with open('prompts/coder/agent_role.md', 'r', encoding='utf-8') as f:
                 agent_role = f.read()
         except Exception as e:
-            # Fallback description if the file is missing or cannot be read
-            agent_role = (
-                "Coder Agent: Manages a single code file. Reads other files for context but can only modify its own file. "
-                "Respond with exactly one command according to the Coder Language grammar. If unsure, respond with WAIT."
-            )
+            agent_role = f"[Error reading agent role: {str(e)}]"
 
         # Define available terminal commands and utilities
-        available_commands = """
-        ### Testing Commands
-        - `python -m pytest tests/` - Run all tests
-        - `python -m pytest tests/ -v` - Run tests with verbose output
-        - `python -m pytest tests/ -k "test_name"` - Run specific test
-        - `python -m pytest tests/test_file.py::test_function` - Run specific test function
-        - `python -m unittest discover tests` - Run tests using unittest
-
-        ### Code Quality
-        - `flake8 filename.py` - Run linting on specific file
-        - `black filename.py` - Format code with black
-        - `isort filename.py` - Sort imports in file
-        - `mypy filename.py` - Run type checking on file
-
-        ### File Operations
-        - `cat filename` - Display file contents
-        - `head -n 20 filename` - Show first 20 lines of file
-        - `tail -n 20 filename` - Show last 20 lines of file
-        - `grep -n "pattern" filename` - Search for pattern with line numbers
-        - `wc -l filename` - Count lines in file
-
-        ### Development Tools
-        - `python -c "import filename; help(filename)"` - Get help on module
-        - `python -m doctest filename.py` - Run doctests in file
-        - `python -m py_compile filename.py` - Check syntax without executing
-        """
+        try:
+            with open('prompts/coder/available_commands.md', 'r', encoding='utf-8') as f:
+                available_commands = f.read()
+        except Exception as e:
+            available_commands = "[Error reading available commands: {}]".format(str(e))
 
         if self.llm_client:
             if self.llm_client.supports_system_role:

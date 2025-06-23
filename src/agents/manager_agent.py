@@ -152,54 +152,14 @@ class ManagerAgent(BaseAgent):
             with open('prompts/manager/agent_role.md', 'r', encoding='utf-8') as f:
                 agent_role = f.read()
         except Exception as e:
-            # Fallback description if the file is missing or cannot be read
-            agent_role = (
-                "Manager Agent: Coordinates work within a directory, delegating tasks to child agents in the same directory, "
-                "creating/deleting files, and aggregating results. Respond with exactly one command according to the Manager Language grammar. "
-                "If unsure, respond with WAIT."
-            )
+            agent_role = f"[Error reading agent role: {str(e)}]"
         
         # Define available terminal commands and utilities
-        available_commands = """
-        ### Development Commands
-        - `python -m pytest tests/` - Run all tests
-        - `python -m pytest tests/ -v` - Run tests with verbose output
-        - `python -m pytest tests/ -k "test_name"` - Run specific test
-        - `python setup.py test` - Run tests using setup.py
-        - `python -m unittest discover tests` - Run tests using unittest
-
-        ### Package Management
-        - `pip install -r requirements.txt` - Install dependencies
-        - `pip install package_name` - Install a specific package
-        - `pip freeze > requirements.txt` - Generate requirements file
-        - `pip list` - List installed packages
-
-        ### Build and Installation
-        - `python setup.py build` - Build the project
-        - `python setup.py install` - Install the project
-        - `python setup.py develop` - Install in development mode
-
-        ### Code Quality
-        - `flake8 src/` - Run linting
-        - `black src/` - Format code with black
-        - `isort src/` - Sort imports
-        - `mypy src/` - Run type checking
-
-        ### Git Operations
-        - `git status` - Check repository status
-        - `git add .` - Stage all changes
-        - `git commit -m "message"` - Commit changes
-        - `git push` - Push to remote repository
-        - `git pull` - Pull from remote repository
-
-        ### File Operations
-        - `ls -la` - List all files with details
-        - `find . -name "*.py"` - Find Python files
-        - `grep -r "pattern" src/` - Search for pattern in source files
-        - `cat filename` - Display file contents
-        - `head -n 10 filename` - Show first 10 lines of file
-        - `tail -n 10 filename` - Show last 10 lines of file
-        """
+        try:
+            with open('prompts/manager/available_commands.md', 'r', encoding='utf-8') as f:
+                available_commands = f.read()
+        except Exception as e:
+            available_commands = f"[Error reading available commands: {str(e)}]"
 
         # Make API call using message list
         if self.llm_client:
