@@ -61,7 +61,13 @@ class CoderAgent(BaseAgent):
         except Exception as e:
             lark_grammar = f"[Error reading Lark grammar: {str(e)}]"
 
-        # TODO: Load language examples for coder agent if they exist
+        # Load language examples for coder agent
+        language_examples = ""
+        try:
+            with open('prompts/coder/language_examples.md', 'r', encoding='utf-8') as f:
+                language_examples = f.read()
+        except Exception as e:
+            language_examples = f"[Error reading language examples: {str(e)}]"
 
         # Load agent role description from markdown file
         try:
@@ -87,7 +93,7 @@ class CoderAgent(BaseAgent):
                     agent_role=agent_role,
                     available_commands=available_commands,
                     lark_grammar=lark_grammar,
-                    language_examples=""  # No examples for now
+                    language_examples=language_examples
                 )
 
                 user_prompt = user_template.render(
@@ -115,13 +121,17 @@ class CoderAgent(BaseAgent):
                     codebase_structure=codebase_structure,
                     available_commands=available_commands,
                     lark_grammar=lark_grammar,
-                    language_examples="",
+                    language_examples=language_examples,
                     current_prompt=current_prompt
                 )
                 response = await self.llm_client.generate_response(formatted_prompt)
 
             # Save context
             self.context.append(ContextEntry(prompt=current_prompt, response=response))
+
+            # Process response via coder language interpreter
+            from src.coder_language.interpreter import execute_directive
+            execute_directive(response, base_path=str(self.path), agent=self, own_file=str(self.path.name))
 
         # Clear prompt queue
         self.prompt_queue.clear()

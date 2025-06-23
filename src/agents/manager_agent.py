@@ -208,7 +208,9 @@ class ManagerAgent(BaseAgent):
             # Save context (only store current prompt -> response)
             self.context.append(ContextEntry(prompt=current_prompt, response=response))
 
-            # TODO: Process response via manager language interpreter
+            # Process response via manager language interpreter
+            from src.manager_language.interpreter import execute_directive
+            execute_directive(response, agent=self)
         
         # Clear prompt queue
         self.prompt_queue.clear()

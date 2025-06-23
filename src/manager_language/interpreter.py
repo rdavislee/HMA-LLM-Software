@@ -47,24 +47,28 @@ class ManagerLanguageInterpreter:
         Args:
             directive: The directive to execute
         """
-        #TODO: add try except block to catch exceptions and reprompt self with error
-        if isinstance(directive, DelegateDirective):
-            self._execute_delegate(directive)
-        elif isinstance(directive, FinishDirective):
-            self._execute_finish(directive)
-        elif isinstance(directive, ActionDirective):
-            self._execute_action(directive)
-        elif isinstance(directive, WaitDirective):
-            self._execute_wait(directive)
-        elif isinstance(directive, RunDirective):
-            self._execute_run(directive)
-        elif isinstance(directive, UpdateReadmeDirective):
-            self._execute_update_readme(directive)
-        else:
-            # Unknown directive type, reprompt self with error
+        try:
+            if isinstance(directive, DelegateDirective):
+                self._execute_delegate(directive)
+            elif isinstance(directive, FinishDirective):
+                self._execute_finish(directive)
+            elif isinstance(directive, ActionDirective):
+                self._execute_action(directive)
+            elif isinstance(directive, WaitDirective):
+                self._execute_wait(directive)
+            elif isinstance(directive, RunDirective):
+                self._execute_run(directive)
+            elif isinstance(directive, UpdateReadmeDirective):
+                self._execute_update_readme(directive)
+            else:
+                # Unknown directive type, reprompt self with error
+                if self.agent:
+                    from src.orchestrator.manager_prompter import manager_prompter
+                    asyncio.create_task(manager_prompter(self.agent, f"Unknown directive type: {type(directive)}"))
+        except Exception as e:
             if self.agent:
                 from src.orchestrator.manager_prompter import manager_prompter
-                asyncio.create_task(manager_prompter(self.agent, f"Unknown directive type: {type(directive)}"))
+                asyncio.create_task(manager_prompter(self.agent, f"Error executing directive {type(directive).__name__}: {str(e)}"))
 
     def _execute_delegate(self, directive: DelegateDirective) -> None:
         """Execute a DELEGATE directive."""
