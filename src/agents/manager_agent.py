@@ -147,8 +147,19 @@ class ManagerAgent(BaseAgent):
         except Exception as e:
             language_examples = f"[Error reading language examples: {str(e)}]"
         
-        # Define agent role and commands
-        agent_role = "You are a manager agent. Your role is to coordinate work within a directory. You can delegate tasks to child agents (files and subdirectories), create and delete files, and manage concurrent task execution."
+        # Load agent role description from markdown file
+        try:
+            with open('prompts/manager/agent_role.md', 'r', encoding='utf-8') as f:
+                agent_role = f.read()
+        except Exception as e:
+            # Fallback description if the file is missing or cannot be read
+            agent_role = (
+                "Manager Agent: Coordinates work within a directory, delegating tasks to child agents in the same directory, "
+                "creating/deleting files, and aggregating results. Respond with exactly one command according to the Manager Language grammar. "
+                "If unsure, respond with WAIT."
+            )
+        
+        # Define available terminal commands and utilities
         available_commands = """
         ### Development Commands
         - `python -m pytest tests/` - Run all tests

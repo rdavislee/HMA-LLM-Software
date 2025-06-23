@@ -63,8 +63,18 @@ class CoderAgent(BaseAgent):
 
         # TODO: Load language examples for coder agent if they exist
 
-        # Define agent role and commands
-        agent_role = "You are a Coder agent. Your primary role is to write and modify code in a single file. You can read other files for context, but you can only change your assigned file."
+        # Load agent role description from markdown file
+        try:
+            with open('prompts/coder/agent_role.md', 'r', encoding='utf-8') as f:
+                agent_role = f.read()
+        except Exception as e:
+            # Fallback description if the file is missing or cannot be read
+            agent_role = (
+                "Coder Agent: Manages a single code file. Reads other files for context but can only modify its own file. "
+                "Respond with exactly one command according to the Coder Language grammar. If unsure, respond with WAIT."
+            )
+
+        # Define available terminal commands and utilities
         available_commands = """
         ### Testing Commands
         - `python -m pytest tests/` - Run all tests
