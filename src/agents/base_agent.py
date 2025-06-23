@@ -35,6 +35,7 @@ from src.messages.protocol import (
     Message, TaskMessage, ResultMessage, MessageType
 )
 from src.llm.base import BaseLLMClient
+from src import ROOT_DIR
 
 # Global constants
 MAX_CONTEXT_DEPTH = 3
@@ -242,10 +243,30 @@ class BaseAgent(ABC):
 
     def _get_codebase_structure_string(self) -> str:
         '''
-        TODO: Implement a function that returns the codebase structure from the root directory in string form.
-        This should provide a tree-like or otherwise useful representation of the project for LLM context.
+        Returns a tree-style ASCII representation of the codebase starting at the project root directory (ROOT_DIR from src).
         '''
-        return "[Codebase structure not implemented yet]"
+        def tree(dir_path: Path, prefix: str = "") -> list:
+            entries = []
+            try:
+                children = sorted(list(dir_path.iterdir()), key=lambda p: (not p.is_dir(), p.name.lower()))
+            except Exception as e:
+                return [f"{prefix}[Error reading directory: {e}]"]
+            for idx, child in enumerate(children):
+                connector = "└── " if idx == len(children) - 1 else "├── "
+                if child.is_dir():
+                    entries.append(f"{prefix}{connector}{child.name}/")
+                    extension = "    " if idx == len(children) - 1 else "│   "
+                    entries.extend(tree(child, prefix + extension))
+                else:
+                    entries.append(f"{prefix}{connector}{child.name}")
+            return entries
+        root = ROOT_DIR if ROOT_DIR is not None else Path('.').resolve()
+        lines = [f"{root.name}/"]
+        if root.is_dir():
+            lines.extend(tree(root))
+        else:
+            lines.append(f"└── {root.name}")
+        return "\n".join(lines)
 
     def get_status(self) -> Dict[str, Any]:
         '''
