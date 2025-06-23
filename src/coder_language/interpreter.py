@@ -10,6 +10,7 @@ from typing import Dict, Any, Optional
 from pathlib import Path
 from .ast import DirectiveType, ReadDirective, RunDirective, ChangeDirective, FinishDirective
 from src import ROOT_DIR
+from .parser import parse_directive
 
 # Global constants
 ALLOWED_COMMANDS = {
@@ -163,14 +164,25 @@ class CoderLanguageInterpreter:
 
 
 # Convenience function
-def execute_directive(directive: DirectiveType, base_path: str = ".", agent=None, own_file: str = None) -> None:
+def execute_directive(directive_text: str, base_path: str = ".", agent=None, own_file: str = None) -> None:
     """
-    Execute a single coder directive and reprompt agent if available.
+    Convenience function to parse and execute a single directive string.
+    After execution, sets agent.stall to False if agent is provided.
+    
     Args:
-        directive: The directive to execute
+        directive_text: The directive string to parse and execute
         base_path: Base directory for file operations
         agent: The agent that sent the command
         own_file: The file this coder agent is responsible for
     """
     interpreter = CoderLanguageInterpreter(base_path=base_path, agent=agent, own_file=own_file)
-    interpreter.execute(directive) 
+    directive = parse_directive(directive_text)
+    interpreter.execute(directive)
+    if agent is not None:
+        agent.stall = False
+        # Check agent prompt queue and if not empty, call api_call
+        if hasattr(agent, 'prompt_queue') and hasattr(agent, 'api_call') and agent.prompt_queue:
+            try:
+                asyncio.create_task(agent.api_call())
+            except Exception:
+                pass 
