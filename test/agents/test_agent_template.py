@@ -110,8 +110,7 @@ class TestAgentTemplate:
         assert len(manager_agent.prompt_queue) == 0
         
         # Verify the response was added to context
-        assert "Create a new file" in manager_agent.context
-        assert manager_agent.context["Create a new file"] == "Mock response"
+        assert any(entry.prompt == "Create a new file" and entry.response == "Mock response" for entry in manager_agent.context)
 
     @pytest.mark.asyncio
     async def test_coder_api_call_with_template(self, coder_agent):
@@ -154,5 +153,4 @@ class TestAgentTemplate:
         assert len(coder_agent.prompt_queue) == 0
         
         # Verify the response was added to context
-        assert "Implement the new feature as described." in coder_agent.context
-        assert coder_agent.context["Implement the new feature as described."] == "Mock response" 
+        assert any(entry.prompt == "Implement the new feature as described." and entry.response == "Mock response" for entry in coder_agent.context) 

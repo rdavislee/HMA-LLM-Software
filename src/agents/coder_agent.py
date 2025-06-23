@@ -1,4 +1,4 @@
-from .base_agent import BaseAgent
+from .base_agent import BaseAgent, ContextEntry
 from typing import Optional
 from src.llm.base import BaseLLMClient
 from jinja2 import Environment, FileSystemLoader
@@ -107,7 +107,7 @@ class CoderAgent(BaseAgent):
                 context="" # Context is included in the prompt
             )
             # Add to context (prompt -> response)
-            self.context[current_prompt] = response
+            self.context.append(ContextEntry(prompt=current_prompt, response=response))
             # (Optional) Post-process response here if needed
 
         # Clear prompt queue

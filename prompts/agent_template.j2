@@ -16,13 +16,13 @@
 {# Context (prompt-response history) #}
 {% if context %}
 ## Context
-{% for prompt, response in context.items() %}
+{% for item in context %}
 ### Previous Interaction
 **Prompt:**
-{{ prompt }}
+{{ item.prompt }}
 
 **Response:**
-{{ response }}
+{{ item.response }}
 
 {% endfor %}
 {% endif %}

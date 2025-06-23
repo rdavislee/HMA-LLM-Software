@@ -28,6 +28,7 @@ import time
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Set, Tuple, Union
+from dataclasses import dataclass
 
 # Local imports
 from src.messages.protocol import (
@@ -38,6 +39,12 @@ from src.llm.base import BaseLLMClient
 # Global constants
 MAX_CONTEXT_DEPTH = 3
 DEFAULT_MAX_CONTEXT_SIZE = 8000
+
+# ContextEntry ADT for prompt-response pairs
+@dataclass
+class ContextEntry:
+    prompt: str
+    response: str
 
 class BaseAgent(ABC):
     '''
@@ -54,7 +61,7 @@ class BaseAgent(ABC):
     - Active state and current task
     - Prompt queue for processing
     - Memory: Dictionary of filenames to file paths
-    - Context: Dictionary of prompts to responses (API call history)
+    - Context: List of ContextEntry (prompt-response history)
     - Stall state for managing dependencies
     '''
 
@@ -87,8 +94,8 @@ class BaseAgent(ABC):
         # Memory: Dictionary of filenames to file paths
         self.memory: Dict[str, Path] = {}
         
-        # Context: Dictionary of prompts to responses (API call history)
-        self.context: Dict[str, str] = {}
+        # Context: List of ContextEntry (prompt-response history)
+        self.context: List[ContextEntry] = []
         
         # Personal file (always set, never optional)
         self.personal_file: Path = None

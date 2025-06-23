@@ -15,7 +15,7 @@ from typing import Dict, List, Optional, Any, Set, Tuple, Union
 from enum import Enum
 from jinja2 import Environment, FileSystemLoader
 
-from .base_agent import BaseAgent
+from .base_agent import BaseAgent, ContextEntry
 from src.messages.protocol import (
     Message, TaskMessage, ResultMessage, MessageType
 )
@@ -204,10 +204,7 @@ class ManagerAgent(BaseAgent):
                 prompt=formatted_prompt,
                 context=""  # Context is already included in the formatted prompt
             )
-            
-            # Add to context (prompt -> response)
-            self.context[current_prompt] = response
-            
+            self.context.append(ContextEntry(prompt=current_prompt, response=response))
             # Process response through manager language interpreter
             # TODO: Implement manager-specific response processing here
             # await manager_receive_stage(self, response)  # Will be implemented when prompter is ready
