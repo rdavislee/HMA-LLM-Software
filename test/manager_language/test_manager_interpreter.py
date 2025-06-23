@@ -52,6 +52,9 @@ class StubManagerAgent:
         self.active_task = None
         self.parent = None  # For simplicity
 
+        # Memory tracking for read_file tests
+        self.memory: list[str] = []
+
     # Callbacks expected by interpreter
     def delegate_task(self, child, prompt):
         # Record delegations for assertions
@@ -59,6 +62,11 @@ class StubManagerAgent:
 
     def deactivate(self):  # noqa: D401
         self.deactivated = True
+
+    # ---------------- File Reading -----------------
+    def read_file(self, file_path: str):  # noqa: D401
+        """Stubbed read_file just records the file path for assertions."""
+        self.memory.append(file_path)
 
 
 # ----------------------------- Fixtures -----------------------------
@@ -197,4 +205,41 @@ def test_finish_deactivates_agent(workspace):
     interp = ManagerLanguageInterpreter(agent)
 
     interp.execute(FinishDirective(prompt=PromptField(value="done")))
-    assert agent.deactivated is True 
+    assert agent.deactivated is True
+
+
+# -------------------- READ (Folder) --------------------
+
+
+def test_read_folder_readme_added(workspace):
+    """Reading a folder should add its README to memory."""
+    # Prepare folder with a README
+    docs_dir = workspace / "docs"
+    docs_dir.mkdir()
+    readme_path = docs_dir / "docs_README.md"
+    readme_path.write_text("documentation")
+
+    agent = StubManagerAgent(workspace)
+    interp = ManagerLanguageInterpreter(agent)
+
+    target = Target(name="docs", is_folder=True)
+    interp.execute(ActionDirective(action_type="READ", targets=[target]))
+
+    # The stub read_file records memory paths
+    assert any(str(readme_path) == p for p in agent.memory)
+
+
+def test_read_folder_without_readme(workspace):
+    """Reading a folder without a README should generate a prompt failure."""
+    empty_dir = workspace / "empty"
+    empty_dir.mkdir()
+
+    agent = StubManagerAgent(workspace)
+    interp = ManagerLanguageInterpreter(agent)
+
+    target = Target(name="empty", is_folder=True)
+    interp.execute(ActionDirective(action_type="READ", targets=[target]))
+
+    # No memory added and prompts should indicate missing README
+    assert not agent.memory
+    assert any("no README" in p.lower() or "has no readme" in p.lower() for p in agent.prompts) 

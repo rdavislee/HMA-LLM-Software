@@ -282,27 +282,57 @@ class ManagerLanguageInterpreter:
         """Read a file and add it to the agent's memory using the agent's read_file method."""
         if not self.agent or not hasattr(self.agent, 'read_file'):
             return "No agent or read_file method available"
-        
-        # Look for the file regardless of scope
-        target_path = self.root_dir / target.name
-        found_path = None
-        if target_path.exists():
-            found_path = target_path
-        else:
+
+        # Helper to search for a path (file or directory) within root_dir
+        def _search_path(name: str, expect_folder: bool = False) -> Optional[Path]:
+            candidate = self.root_dir / name
+            if candidate.exists() and (candidate.is_dir() if expect_folder else True):
+                return candidate
             for root, dirs, files in os.walk(self.root_dir):
-                for file in files:
-                    if file == target.name:
-                        found_path = Path(root) / file
-                        break
-                if found_path:
+                if expect_folder:
+                    for d in dirs:
+                        if d == name:
+                            return Path(root) / d
+                else:
+                    for f in files:
+                        if f == name:
+                            return Path(root) / f
+            return None
+
+        if target.is_folder:
+            # Locate the folder first
+            folder_path = _search_path(target.name, expect_folder=True)
+            if not folder_path or not folder_path.exists():
+                return f"Folder {target.name} was not added to memory: folder not found"
+
+            # Determine README filename(s)
+            folder_name = Path(folder_path).name
+            candidate_names = [f"{folder_name}_README.md"]
+            readme_path = None
+            for cname in candidate_names:
+                potential = folder_path / cname
+                if potential.exists():
+                    readme_path = potential
                     break
-        if not found_path or not found_path.exists():
-            return f"File {target.name} was not added to memory: file not found"
-        try:
-            self.agent.read_file(str(found_path))
-            return f"File {target.name} was added to memory"
-        except Exception as e:
-            return f"File {target.name} was not added to memory: {str(e)}"
+
+            if not readme_path:
+                return f"Folder {target.name} has no README file to add to memory"
+
+            try:
+                self.agent.read_file(str(readme_path))
+                return f"Folder {target.name} README ({readme_path.name}) was added to memory"
+            except Exception as e:
+                return f"Folder {target.name} README was not added to memory: {str(e)}"
+        else:
+            # It's a file target. Search for the file regardless of scope.
+            found_path = _search_path(target.name, expect_folder=False)
+            if not found_path or not found_path.exists():
+                return f"File {target.name} was not added to memory: file not found"
+            try:
+                self.agent.read_file(str(found_path))
+                return f"File {target.name} was added to memory"
+            except Exception as e:
+                return f"File {target.name} was not added to memory: {str(e)}"
 
 
 # Convenience function

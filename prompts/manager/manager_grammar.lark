@@ -1,0 +1,56 @@
+// Manager Language Grammar for Lark (Prototype)
+// Based on the TypeScript parserlib grammar specification
+
+// Comments
+COMMENT: /\/\/.*/
+
+// Directives
+directive: delegate | finish | action | run | update_readme
+
+// Delegate directive
+delegate: "DELEGATE" delegate_item
+delegate_item: target prompt_field
+
+// Finish directive  
+finish: "FINISH" prompt_field
+
+// Action directive
+action: action_type target ("," target)*
+action_type: READ
+
+// Update readme directive
+update_readme: "UPDATE_README" content_string
+
+// Run directive
+run: RUN command
+
+// Targets
+target: "file" localname   -> file
+      | "folder" localname -> folder
+
+// Local file or folder name (no slashes allowed)
+localname: LOCALNAME
+LOCALNAME: /[a-zA-Z0-9_.-]+/
+
+// Command is a quoted string
+command: string
+
+// Prompt field
+prompt_field: "PROMPT" "=" string
+
+// File content field (completely replaces current file contents)
+content_string: "CONTENT_STRING" "=" string
+
+// String literals as a terminal (preserve whitespace and escapes)
+string: STRING
+STRING: /"(\\.|[^\\"])*"/
+
+// Action type tokens
+READ: "READ"
+UPDATE_README: "UPDATE_README"
+RUN: "RUN"
+
+// Ignore whitespace and comments
+%import common.WS
+%ignore WS
+%ignore COMMENT 
