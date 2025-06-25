@@ -53,6 +53,23 @@
 
 {% endif %}
 
+{# Agent Position & Children #}
+## Agent Context
+**Current Path (from project root):** {{ agent_path }}
+
+{% if children %}
+**Children:**
+{% for child in children %}- {{ child }}
+{% endfor %}
+
+{% endif %}
+{% if active_children %}
+**Active Children:**
+{% for child in active_children %}- {{ child }}
+{% endfor %}
+
+{% endif %}
+
 {# Commands Available #}
 {% if available_commands %}
 ## Available Terminal Commands
@@ -79,13 +96,8 @@
 {# Instructions #}
 ## Instructions
 
-Respond using the provided language syntax. You can use multiple commands by separating them with newlines. Each command should be on its own line.
+Respond using the provided language syntax. You may include multiple commands, each on its own line.
 
-Example response format:
-```
-CREATE folder "src"
-CREATE file "src/main.py"
-DELEGATE file "src/main.py" PROMPT="Create a main function"
-WAIT
-FINISH PROMPT="Project structure created"
-``` 
+IMPORTANT:
+1. Use escaped quotes (\") and `\\n` only when they appear inside a quoted argument (e.g., file contents or prompts).
+2. End the response with a single newline character.

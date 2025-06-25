@@ -38,6 +38,27 @@
 {{ codebase_structure }}
 {% endif %}
 
+{# Agent Position & Children #}
+## Agent Context
+**Current Path (from project root):** {{ agent_path }}
+
+{% if children %}
+**Children:**
+{% for child in children %}- {{ child }}
+{% endfor %}
+
+{% endif %}
+{% if active_children %}
+**Active Children:**
+{% for child in active_children %}- {{ child }}
+{% endfor %}
+
+{% endif %}
+
+## Response Format Requirements
+Return exactly the command(s) with no surrounding prose or code fences.
+Use escaped quotes (\") and `\\n` only when needed inside quoted arguments. Ensure the response ends with a single newline.
+
 {% if current_prompt %}
 ## Current Prompt
 {{ current_prompt }}

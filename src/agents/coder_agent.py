@@ -60,10 +60,10 @@ class CoderAgent(BaseAgent):
         # Get codebase structure
         codebase_structure = self._get_codebase_structure_string()
 
-        # Load Lark grammar
+        # Load Lark grammar (moved to prompts folder)
         lark_grammar = ""
         try:
-            with open('src/coder_language/grammar.lark', 'r', encoding='utf-8') as f:
+            with open('prompts/coder/coder_grammar.lark', 'r', encoding='utf-8') as f:
                 lark_grammar = f.read()
         except Exception as e:
             lark_grammar = f"[Error reading Lark grammar: {str(e)}]"
@@ -128,7 +128,10 @@ class CoderAgent(BaseAgent):
                     memory_contents=memory_contents,
                     personal_file_name=personal_file_name,
                     codebase_structure=codebase_structure,
-                    current_prompt=current_prompt
+                    current_prompt=current_prompt,
+                    agent_path=personal_path_display,
+                    children=[],
+                    active_children=[]
                 )
 
                 messages = [
@@ -148,7 +151,10 @@ class CoderAgent(BaseAgent):
                     available_commands=available_commands,
                     lark_grammar=lark_grammar,
                     language_examples=language_examples,
-                    current_prompt=current_prompt
+                    current_prompt=current_prompt,
+                    agent_path=personal_path_display,
+                    children=[],
+                    active_children=[]
                 )
                 response = await self.llm_client.generate_response(formatted_prompt)
 
