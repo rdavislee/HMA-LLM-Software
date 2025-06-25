@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import Dict, Tuple, Optional, List
 
 from src import set_root_dir, ROOT_DIR
+from src.agents.base_agent import BaseAgent
 from src.agents.manager_agent import ManagerAgent
 from src.agents.coder_agent import CoderAgent
 from src.llm.base import BaseLLMClient
