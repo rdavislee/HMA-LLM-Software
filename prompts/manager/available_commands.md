@@ -47,13 +47,6 @@
 - `npx prettier --write src/` - Format JavaScript/TypeScript with Prettier
 - `npx tsc --noEmit` - TypeScript type checking
 
-### Git Operations
-- `git status` - Check repository status
-- `git add .` - Stage all changes
-- `git commit -m "message"` - Commit changes
-- `git push` - Push to remote repository
-- `git pull` - Pull from remote repository
-
 ### File Operations
 - `ls -la` - List all files with details
 - `find . -name "*.py"` - Find Python files

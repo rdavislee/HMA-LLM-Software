@@ -55,21 +55,6 @@ DELEGATE folder "src" PROMPT="Create a module structure with __init__.py and cor
 DELEGATE folder "tests" PROMPT="Create test files for the src module"
 ```
 
-## Concurrent Task Management
-
-### Delegating Multiple Independent Tasks
-```
-DELEGATE file "utils.py" PROMPT="Create utility functions for file operations"
-DELEGATE file "config.py" PROMPT="Create configuration management"
-DELEGATE file "database.py" PROMPT="Create database connection utilities"
-```
-
-### Sequential Task Management
-```
-DELEGATE file "models.py" PROMPT="Create data models"
-DELEGATE file "controllers.py" PROMPT="Create controllers that use the models"
-DELEGATE file "views.py" PROMPT="Create views that use the controllers"
-```
 
 ## Agent Maintenance
 
