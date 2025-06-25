@@ -55,14 +55,12 @@ class ManagerLanguageInterpreter:
             elif isinstance(directive, UpdateReadmeDirective):
                 self._execute_update_readme(directive)
             else:
-                # Unknown directive type, reprompt self with error
-                if self.agent:
-                    from src.orchestrator.manager_prompter import manager_prompter
-                    asyncio.create_task(manager_prompter(self.agent, f"Unknown directive type: {type(directive)}"))
+                # Unknown directive type – queue a self prompt rather than invoking manager_prompter directly
+                self._queue_self_prompt(f"Unknown directive type: {type(directive)}")
         except Exception as e:
-            if self.agent:
-                from src.orchestrator.manager_prompter import manager_prompter
-                asyncio.create_task(manager_prompter(self.agent, f"Error executing directive {type(directive).__name__}: {str(e)}"))
+            # Queue the error instead of calling manager_prompter directly so that
+            # exactly one follow-up turn is scheduled by execute_directive().
+            self._queue_self_prompt(f"Error executing directive {type(directive).__name__}: {str(e)}")
 
     def _execute_delegate(self, directive: DelegateDirective) -> None:
         """Execute a DELEGATE directive."""
@@ -130,8 +128,7 @@ class ManagerLanguageInterpreter:
                     message_type=MessageType.RESULT,
                     sender_id=str(self.agent.path),
                     recipient_id=str(parent.path),
-                    timestamp=time.time(),
-                    message_id=str(hash(str(self.agent.path) + str(time.time()))),
+                    message_id=str(hash(str(self.agent.path))),
                     task=task,
                     result=directive.prompt.value
                 )
@@ -141,10 +138,9 @@ class ManagerLanguageInterpreter:
                 # Root agent – bubble the result back by attaching it to the agent so callers can access it
                 setattr(self.agent, "final_result", directive.prompt.value)
         except Exception as e:
-            # Reprompt self with error
-            if self.agent:
-                from src.orchestrator.manager_prompter import manager_prompter
-                asyncio.create_task(manager_prompter(self.agent, f"Failed to finish: {str(e)}"))
+            # Queue the error instead of calling manager_prompter directly so that
+            # exactly one follow-up turn is scheduled by execute_directive().
+            self._queue_self_prompt(f"Failed to finish: {str(e)}")
     
     def _execute_action(self, directive: ActionDirective) -> None:
         """Execute a CREATE, DELETE, or READ action directive."""
@@ -231,8 +227,7 @@ class ManagerLanguageInterpreter:
         # Queue a single follow-up prompt on the agent itself so that exactly one
         # subsequent LLM call is triggered (handled by execute_directive below).
         if self.agent:
-            follow_up_prompt = f"Update README result:\n{result}"
-            self._queue_self_prompt(follow_up_prompt)
+            self._queue_self_prompt(f"Update README result:\n{result}")
     
     def _create_target(self, target) -> str:
         """Create a file or folder from the home directory of the agent's path."""
@@ -408,15 +403,9 @@ def execute_directive(directive_text: str, agent=None) -> None:
     interpreter.execute(directive)
 
     if agent is not None:
-        # Only unstall the agent if it no longer has active children
-        should_unstall = not getattr(agent, 'active_children', {})
-        if should_unstall:
-            agent.stall = False
 
-        # Trigger follow-up api_call only if agent is not stalled and has queued prompts
-        if (not agent.stall) and getattr(agent, 'prompt_queue', []):
-            if hasattr(agent, 'api_call'):
-                try:
-                    asyncio.create_task(agent.api_call())
-                except Exception:
-                    pass
+        # Always re-call api_call if prompt_queue is not empty (like coder interpreter)
+        if hasattr(agent, 'prompt_queue') and hasattr(agent, 'api_call') and agent.prompt_queue:
+            asyncio.create_task(agent.api_call())
+        else:
+            agent.stall = False

@@ -160,12 +160,14 @@ class CoderAgent(BaseAgent):
 
             # Save context
             self.context.append(ContextEntry(prompt=current_prompt, response=response))
+            
+            # Clear prompt queue
+            self.prompt_queue.clear()
 
             # Process response via coder language interpreter
             from src.coder_language.interpreter import execute_directive
-            execute_directive(response, base_path=str(self.path), agent=self, own_file=str(self.path.name))
+            execute_directive(response, base_path=str(self.path.parent), agent=self, own_file=str(self.path.name))
 
-        # Clear prompt queue
-        self.prompt_queue.clear()
+        
 
         

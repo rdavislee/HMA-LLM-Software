@@ -6,12 +6,16 @@ Executes parsed coder language directives and performs the described actions.
 import os
 import asyncio
 import subprocess
+import time
+import uuid
 from typing import Dict, Any, Optional
 from pathlib import Path
 from .ast import DirectiveType, ReadDirective, RunDirective, ChangeDirective, FinishDirective
 from src import ROOT_DIR
 from src.config import ALLOWED_COMMANDS
 from .parser import parse_directive
+from src.messages.protocol import ResultMessage, MessageType
+from src.orchestrator.manager_prompter import manager_prompter
 
 class CoderLanguageInterpreter:
     """
@@ -60,14 +64,12 @@ class CoderLanguageInterpreter:
             elif isinstance(directive, FinishDirective):
                 self._execute_finish(directive)
             else:
-                if self.agent:
-                    from src.orchestrator.coder_prompter import coder_prompter
-                    asyncio.create_task(coder_prompter(self.agent, f"Unknown directive type: {type(directive)}"))
+                # Unknown directive type – queue a self prompt instead of directly invoking coder_prompter
+                self._queue_self_prompt(f"Unknown directive type: {type(directive)}")
         except Exception as e:
-            if self.agent:
-                from src.orchestrator.coder_prompter import coder_prompter
-                asyncio.create_task(coder_prompter(self.agent, f"Exception during execution: {str(e)}"))
-        return None
+            # Surface the exception back to the LLM via a queued prompt so that exactly
+            # one follow-up turn is scheduled by the execute_directive() epilogue.
+            self._queue_self_prompt(f"Exception during execution: {str(e)}")
 
     def _execute_read(self, directive: ReadDirective) -> None:
         """Execute a READ directive."""
@@ -84,9 +86,7 @@ class CoderLanguageInterpreter:
             else:
                 prompt = f"READ failed: File not found: {filename}"
         except Exception as e:
-            if self.agent:
-                from src.orchestrator.coder_prompter import coder_prompter
-                asyncio.create_task(coder_prompter(self.agent, f"READ failed: {filename} could not be added to memory: {str(e)}"))
+            self._queue_self_prompt(f"READ failed: {filename} could not be added to memory: {str(e)}")
             return
         self._queue_self_prompt(prompt)
 
@@ -113,9 +113,7 @@ class CoderLanguageInterpreter:
         except subprocess.TimeoutExpired:
             prompt = f"RUN failed: Command timed out after 5 minutes: {command}"
         except Exception as e:
-            if self.agent:
-                from src.orchestrator.coder_prompter import coder_prompter
-                asyncio.create_task(coder_prompter(self.agent, f"RUN failed: {str(e)}"))
+            self._queue_self_prompt(f"RUN failed: {str(e)}")
             return
         self._queue_self_prompt(prompt)
 
@@ -132,9 +130,7 @@ class CoderLanguageInterpreter:
             else:
                 prompt = "CHANGE failed: This agent has no assigned file."
         except Exception as e:
-            if self.agent:
-                from src.orchestrator.coder_prompter import coder_prompter
-                asyncio.create_task(coder_prompter(self.agent, f"CHANGE failed: Could not write to {self.own_file}: {str(e)}"))
+            self._queue_self_prompt(f"CHANGE failed: Could not write to {self.own_file}: {str(e)}")
             return
         self._queue_self_prompt(prompt)
 
@@ -142,12 +138,34 @@ class CoderLanguageInterpreter:
         """Execute a FINISH directive."""
         if self.agent:
             try:
-                asyncio.create_task(self.agent.deactivate())
+                self.agent.deactivate()
             except Exception as e:
-                from src.orchestrator.coder_prompter import coder_prompter
-                asyncio.create_task(coder_prompter(self.agent, f"FINISH failed: {str(e)}"))
+                self._queue_self_prompt(f"FINISH failed: {str(e)}")
                 return
-            self._queue_self_prompt(directive.prompt.value)
+            # Propagate result to parent if possible
+            parent = getattr(self.agent, 'parent', None)
+            if parent is not None:
+                # Build ResultMessage
+                task = getattr(self.agent, 'active_task', None)
+                if task is None and hasattr(self.agent, 'active_task'):
+                    task = self.agent.active_task
+                # Fallback: create a dummy task if needed
+                if task is None:
+                    from src.messages.protocol import Task
+                    task = Task(task_id=str(uuid.uuid4()), task_string="Task finished")
+                result_message = ResultMessage(
+                    message_type=MessageType.RESULT,
+                    sender_id=str(self.agent.path),
+                    recipient_id=str(parent.path),
+                    message_id=str(uuid.uuid4()),
+                    task=task.task if hasattr(task, 'task') else task,
+                    result=directive.prompt.value
+                )
+                # Schedule parent's manager_prompter
+                asyncio.create_task(manager_prompter(parent, directive.prompt.value, result_message))
+            else:
+                # No parent: store result on agent
+                setattr(self.agent, "final_result", directive.prompt.value)
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -206,10 +224,8 @@ def execute_directive(directive_text: str, base_path: str = ".", agent=None, own
     interpreter.execute(directive)
 
     if agent is not None:
-        agent.stall = False
         # Check agent prompt queue and if not empty, call api_call
         if hasattr(agent, 'prompt_queue') and hasattr(agent, 'api_call') and agent.prompt_queue:
-            try:
-                asyncio.create_task(agent.api_call())
-            except Exception:
-                pass 
+            asyncio.create_task(agent.api_call())
+        else:
+            agent.stall = False
