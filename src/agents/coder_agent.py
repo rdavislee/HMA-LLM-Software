@@ -9,6 +9,8 @@ from src.llm.providers import (
 )
 from src.llm.providers import get_llm_client
 from jinja2 import Environment, FileSystemLoader
+from pathlib import Path
+from src import ROOT_DIR
 
 class CoderAgent(BaseAgent):
     """
@@ -75,6 +77,17 @@ class CoderAgent(BaseAgent):
                 agent_role = f.read()
         except Exception as e:
             agent_role = f"[Error reading agent role: {str(e)}]"
+
+        # Prepend personal path information to agent role
+        if ROOT_DIR is None:
+            raise RuntimeError("ROOT_DIR is not set. Please initialize it with src.set_root_dir(<project_root_path>) before creating agents.")
+
+        try:
+            personal_path_display = str(self.path.resolve().relative_to(ROOT_DIR))
+        except ValueError:
+            personal_path_display = str(self.path.resolve())
+
+        agent_role = f"**Personal Path (from project root):** {personal_path_display}\n\n" + agent_role
 
         # Define available terminal commands and utilities
         try:

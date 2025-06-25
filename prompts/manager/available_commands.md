@@ -1,3 +1,7 @@
+# Available Terminal Commands
+
+**IMPORTANT: All terminal commands are executed from the root directory of the project, regardless of which folder the manager agent is responsible for.**
+
 ### Development Commands
 - `python -m pytest tests/` - Run all tests
 - `python -m pytest tests/ -v` - Run tests with verbose output
