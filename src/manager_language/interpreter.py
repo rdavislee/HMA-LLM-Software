@@ -12,15 +12,9 @@ from typing import Dict, List, Any, Optional
 from pathlib import Path
 from .ast import DirectiveType, DelegateDirective, FinishDirective, ActionDirective, WaitDirective, RunDirective, UpdateReadmeDirective
 from src.messages.protocol import TaskMessage, Task, MessageType, ResultMessage
+from src.config import ALLOWED_COMMANDS
 from .parser import parse_directive
 import src
-
-# Global constants
-ALLOWED_COMMANDS = {
-    'ls', 'dir', 'cat', 'type', 'grep', 'find', 'git status', 'git log',
-    'python -m py_compile', 'npm test', 'pytest', 'flake8', 'black --check',
-    'ripgrep', 'rg'
-}
 
 
 class ManagerLanguageInterpreter:

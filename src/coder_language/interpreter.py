@@ -10,14 +10,8 @@ from typing import Dict, Any, Optional
 from pathlib import Path
 from .ast import DirectiveType, ReadDirective, RunDirective, ChangeDirective, FinishDirective
 from src import ROOT_DIR
+from src.config import ALLOWED_COMMANDS
 from .parser import parse_directive
-
-# Global constants
-ALLOWED_COMMANDS = {
-    'ls', 'dir', 'cat', 'type', 'grep', 'find', 'git status', 'git log',
-    'python -m py_compile', 'npm test', 'pytest', 'flake8', 'black --check',
-    'ripgrep', 'rg'
-}
 
 class CoderLanguageInterpreter:
     """
