@@ -74,11 +74,15 @@ class ManagerLanguageInterpreter:
         # Build a mapping from child name to child agent object
         child_map = {str(child.path.name): child for child in self.agent.children}
 
-        # Check if all children exist
-        for item in directive.items:
-            child_name = item.target.name
-            if child_name not in child_map:
-                return
+        # Validate that all referenced children exist. If any are missing, immediately
+        # inform the agent (LLM) instead of failing silently so that it can adjust its
+        # strategy in the next turn.
+        missing_children = [item.target.name for item in directive.items if item.target.name not in child_map]
+        if missing_children:
+            missing_list = ", ".join(sorted(missing_children))
+            error_msg = f"DELEGATE failed: The following targets are not within this manager's scope – {missing_list}"
+            self._queue_self_prompt(error_msg)
+            return
 
         # Call appropriate prompter based on child type
         for item in directive.items:
@@ -157,9 +161,8 @@ class ManagerLanguageInterpreter:
             results.append(result)
         # Reprompt self with action results
         if self.agent:
-            from src.orchestrator.manager_prompter import manager_prompter
             prompt = f"Action {directive.action_type} completed:\n" + "\n".join(results)
-            asyncio.create_task(manager_prompter(self.agent, prompt))
+            self._queue_self_prompt(prompt)
     
     def _execute_wait(self, directive: WaitDirective) -> None:
         """Execute a WAIT directive."""
@@ -191,9 +194,8 @@ class ManagerLanguageInterpreter:
                 result = f"Failed to execute command '{command}': {str(e)}"
         # Reprompt self with run result
         if self.agent:
-            from src.orchestrator.manager_prompter import manager_prompter
             prompt = f"Run command result:\n{result}"
-            asyncio.create_task(manager_prompter(self.agent, prompt))
+            self._queue_self_prompt(prompt)
     
     def _execute_update_readme(self, directive: UpdateReadmeDirective) -> None:
         if not self.agent or not hasattr(self.agent, 'path'):
@@ -204,21 +206,33 @@ class ManagerLanguageInterpreter:
             if not agent_path.is_dir():
                 result = "Agent path is not a directory"
             else:
-                folder_name = agent_path.name
-                readme_filename = f"{folder_name}_readme.md"
-                readme_path = agent_path / readme_filename
+                # Prefer the personal_file reference directly from the agent
+                if hasattr(self.agent, "personal_file") and self.agent.personal_file is not None:
+                    # Ensure we resolve against ROOT_DIR so that relative paths behave as expected
+                    readme_path = Path(self.agent.personal_file)
+                    # Guard against a personal_file located outside the agent_path (shouldn't happen but stay safe)
+                    try:
+                        readme_path.resolve().relative_to(agent_path.resolve())
+                    except ValueError:
+                        # Fallback to constructing within the agent's directory
+                        readme_path = agent_path / readme_path.name
+                else:
+                    # Legacy behaviour – construct the filename based on folder name
+                    folder_name = agent_path.name
+                    readme_path = agent_path / f"{folder_name}_README.md"
+
                 try:
                     readme_path.parent.mkdir(parents=True, exist_ok=True)
                     with open(readme_path, 'w', encoding='utf-8') as f:
                         f.write(directive.content)
-                    result = f"Successfully updated {readme_filename}"
+                    result = f"Successfully updated {readme_path.name}"
                 except Exception as e:
                     result = f"Failed to update readme: {str(e)}"
-        # Reprompt self with update readme result
+        # Queue a single follow-up prompt on the agent itself so that exactly one
+        # subsequent LLM call is triggered (handled by execute_directive below).
         if self.agent:
-            from src.orchestrator.manager_prompter import manager_prompter
-            prompt = f"Update README result:\n{result}"
-            asyncio.create_task(manager_prompter(self.agent, prompt))
+            follow_up_prompt = f"Update README result:\n{result}"
+            self._queue_self_prompt(follow_up_prompt)
     
     def _create_target(self, target) -> str:
         """Create a file or folder from the home directory of the agent's path."""
@@ -335,6 +349,25 @@ class ManagerLanguageInterpreter:
             except Exception as e:
                 return f"File {target.name} was not added to memory: {str(e)}"
 
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _queue_self_prompt(self, prompt: str) -> None:
+        """Add *prompt* to the agent's queue in a deduplicated way.
+
+        We avoid calling manager_prompter() from within the interpreter to
+        prevent overlapping api_call() invocations, which in turn duplicate
+        the ConsoleLLMClient output. By simply queuing the prompt, the
+        execute_directive() epilogue (which un-stalls and schedules a single
+        api_call()) guarantees exactly one follow-up LLM turn.
+        """
+        if not self.agent:
+            return
+        # Ensure prompt is queued only once.
+        if prompt not in self.agent.prompt_queue:
+            self.agent.prompt_queue.append(prompt)
+
 
 # Convenience function
 def execute_directive(directive_text: str, agent=None) -> None:
@@ -348,7 +381,30 @@ def execute_directive(directive_text: str, agent=None) -> None:
         agent: The agent that sent the command
     """
     interpreter = ManagerLanguageInterpreter(agent)
-    directive = parse_directive(directive_text)
+
+    try:
+        directive = parse_directive(directive_text)
+    except Exception as e:
+        # Bubble parsing issues back to the manager agent so the LLM can react
+        error_msg = f"PARSING FAILED: {str(e)}"
+        interpreter._queue_self_prompt(error_msg)
+
+        # Make sure the agent is unstalled so that the queued prompt is processed
+        if agent is not None:
+            # Only unstall if there are no active children (same logic as below)
+            should_unstall = not getattr(agent, 'active_children', {})
+            if should_unstall:
+                agent.stall = False
+
+            if (not agent.stall) and getattr(agent, 'prompt_queue', []):
+                if hasattr(agent, 'api_call'):
+                    try:
+                        asyncio.create_task(agent.api_call())
+                    except Exception:
+                        pass
+        return  # Parsing failed; do not continue to execute.
+
+    # Normal execution path if parsing succeeded
     interpreter.execute(directive)
 
     if agent is not None:

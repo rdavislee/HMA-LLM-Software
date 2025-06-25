@@ -177,11 +177,8 @@ async def _async_execute_root_prompt(root_agent: ManagerAgent, prompt: str) -> s
     #   • Its prompt_queue is empty, AND
     #   • All children have completed (active_children empty)
     while True:
-        stalled = getattr(root_agent, "stall", False)
-        queue_empty = not getattr(root_agent, "prompt_queue", [])
-        children_active = bool(getattr(root_agent, "active_children", {}))
         finished = getattr(root_agent, "final_result", None)
-        if (not stalled and queue_empty and not children_active) or finished is not None:
+        if finished is not None:
             break
         await asyncio.sleep(0.1)
 

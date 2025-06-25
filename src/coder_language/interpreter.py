@@ -88,9 +88,7 @@ class CoderLanguageInterpreter:
                 from src.orchestrator.coder_prompter import coder_prompter
                 asyncio.create_task(coder_prompter(self.agent, f"READ failed: {filename} could not be added to memory: {str(e)}"))
             return
-        if self.agent and prompt:
-            from src.orchestrator.coder_prompter import coder_prompter
-            asyncio.create_task(coder_prompter(self.agent, prompt))
+        self._queue_self_prompt(prompt)
 
     def _execute_run(self, directive: RunDirective) -> None:
         """Execute a RUN directive and reprompt with the result string."""
@@ -119,9 +117,7 @@ class CoderLanguageInterpreter:
                 from src.orchestrator.coder_prompter import coder_prompter
                 asyncio.create_task(coder_prompter(self.agent, f"RUN failed: {str(e)}"))
             return
-        if self.agent and prompt:
-            from src.orchestrator.coder_prompter import coder_prompter
-            asyncio.create_task(coder_prompter(self.agent, prompt))
+        self._queue_self_prompt(prompt)
 
     def _execute_change(self, directive: ChangeDirective) -> None:
         """Execute a CHANGE directive."""
@@ -140,9 +136,7 @@ class CoderLanguageInterpreter:
                 from src.orchestrator.coder_prompter import coder_prompter
                 asyncio.create_task(coder_prompter(self.agent, f"CHANGE failed: Could not write to {self.own_file}: {str(e)}"))
             return
-        if self.agent and prompt:
-            from src.orchestrator.coder_prompter import coder_prompter
-            asyncio.create_task(coder_prompter(self.agent, prompt))
+        self._queue_self_prompt(prompt)
 
     def _execute_finish(self, directive: FinishDirective) -> None:
         """Execute a FINISH directive."""
@@ -153,8 +147,24 @@ class CoderLanguageInterpreter:
                 from src.orchestrator.coder_prompter import coder_prompter
                 asyncio.create_task(coder_prompter(self.agent, f"FINISH failed: {str(e)}"))
                 return
-            from src.orchestrator.coder_prompter import coder_prompter
-            asyncio.create_task(coder_prompter(self.agent, directive.prompt.value))
+            self._queue_self_prompt(directive.prompt.value)
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _queue_self_prompt(self, prompt: str) -> None:
+        """Add a follow-up prompt directly to the coder agent's queue once.
+
+        This avoids calling coder_prompter() from inside the interpreter, which
+        could schedule overlapping api_call() invocations and duplicate console
+        output. The wrapper at the end of execute_directive() will unstall and
+        schedule exactly one api_call(), ensuring a single LLM turn.
+        """
+        if self.agent is None:
+            return
+        if prompt not in self.agent.prompt_queue:
+            self.agent.prompt_queue.append(prompt)
 
 
 # Convenience function
@@ -169,9 +179,32 @@ def execute_directive(directive_text: str, base_path: str = ".", agent=None, own
         agent: The agent that sent the command
         own_file: The file this coder agent is responsible for
     """
+    # Always instantiate interpreter so we can reuse its helper to queue prompts
     interpreter = CoderLanguageInterpreter(base_path=base_path, agent=agent, own_file=own_file)
-    directive = parse_directive(directive_text)
+
+    try:
+        directive = parse_directive(directive_text)
+    except Exception as e:
+        # Surface parsing errors back to the agent instead of crashing the pipeline.
+        error_msg = f"PARSING FAILED: {str(e)}"
+        # If we have an agent attached make sure to enqueue the error so the next
+        # LLM turn can react accordingly. This avoids silent failures where the
+        # stack-trace only ends up in the console.
+        interpreter._queue_self_prompt(error_msg)
+
+        # Ensure the agent is unstalled so that the follow-up api_call can run.
+        if agent is not None:
+            agent.stall = False
+            if hasattr(agent, 'prompt_queue') and hasattr(agent, 'api_call') and agent.prompt_queue:
+                try:
+                    asyncio.create_task(agent.api_call())
+                except Exception:
+                    pass
+        return  # Abort further execution since parsing did not succeed.
+
+    # Normal execution path if parsing succeeded
     interpreter.execute(directive)
+
     if agent is not None:
         agent.stall = False
         # Check agent prompt queue and if not empty, call api_call
