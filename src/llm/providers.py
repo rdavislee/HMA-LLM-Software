@@ -18,12 +18,10 @@ from typing import List, Dict, Any, Optional, Union
 
 from .base import BaseLLMClient
 
-# Utility --------------------------------------------------------------------
+from dotenv import load_dotenv
+load_dotenv()
 
-ENV_OPENAI_KEY = os.getenv("OPENAI_API_KEY")
-ENV_ANTHROPIC_KEY = os.getenv("ANTHROPIC_API_KEY")
 ENV_GOOGLE_KEY = os.getenv("GOOGLE_GEMINI_API_KEY")
-ENV_DEEPSEEK_KEY = os.getenv("DEEPSEEK_API_KEY")
 
 
 def _ensure_api_key(var_name: str, value: Optional[str]):
