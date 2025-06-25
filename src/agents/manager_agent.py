@@ -198,7 +198,8 @@ class ManagerAgent(BaseAgent):
                     agent_role=agent_role,
                     available_commands=available_commands,
                     lark_grammar=lark_grammar,
-                    language_examples=language_examples
+                    language_examples=language_examples,
+                    agent_path=personal_path_display
                 )
 
                 # Only show the task string, not the full TaskMessage repr

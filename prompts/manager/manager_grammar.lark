@@ -1,4 +1,4 @@
-// Manager Language Grammar for Lark (Prototype)
+// Manager Language Grammar for Lark
 // Based on the TypeScript parserlib grammar specification
 
 // Comments
@@ -8,7 +8,7 @@ COMMENT: /\/\/.*/
 directive: delegate | finish | action | run | update_readme
 
 // Delegate directive
-delegate: "DELEGATE" delegate_item
+delegate: "DELEGATE" delegate_item ("," delegate_item)*
 delegate_item: target prompt_field
 
 // Finish directive  
@@ -25,12 +25,11 @@ update_readme: "UPDATE_README" content_string
 run: RUN command
 
 // Targets
-target: "file" localname   -> file
-      | "folder" localname -> folder
+target: "file" filename   -> file
+      | "folder" filename -> folder
 
-// Local file or folder name (no slashes allowed)
-localname: LOCALNAME
-LOCALNAME: /[a-zA-Z0-9_.-]+/
+// Filename is a quoted string
+filename: string
 
 // Command is a quoted string
 command: string

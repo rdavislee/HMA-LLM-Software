@@ -38,6 +38,7 @@
 - `head -n 20 filename` - Show first 20 lines of file
 - `tail -n 20 filename` - Show last 20 lines of file
 - `grep -n "pattern" filename` - Search for pattern with line numbers
+- `rg "pattern" path/` - Recursively search for pattern in files using ripgrep (rg)
 - `wc -l filename` - Count lines in file
 
 ### Development Tools

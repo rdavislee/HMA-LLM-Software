@@ -69,13 +69,30 @@ class ManagerLanguageInterpreter:
         if not hasattr(self.agent, 'children'):
             return
 
-        # Build a mapping from child name to child agent object
-        child_map = {str(child.path.name): child for child in self.agent.children}
+        # Normalize all paths to POSIX-style (forward slashes) so comparisons are
+        # consistent across operating systems. On Windows, Path.__str__() uses
+        # backslashes, which breaks look-ups when the directive string contains
+        # forward slashes. Converting both sides to POSIX eliminates this issue.
 
-        # Validate that all referenced children exist. If any are missing, immediately
-        # inform the agent (LLM) instead of failing silently so that it can adjust its
-        # strategy in the next turn.
-        missing_children = [item.target.name for item in directive.items if item.target.name not in child_map]
+        def _rel_posix(child):
+            return Path(child.path).relative_to(self.root_dir).as_posix()
+
+        child_map = {_rel_posix(child): child for child in self.agent.children}
+
+        def _to_posix(s: str) -> str:
+            # Avoid Path failures for strings like "some/child" that might contain
+            # wildcard characters – fall back to simple replace.
+            try:
+                return Path(s).as_posix()
+            except Exception:
+                return s.replace("\\", "/")
+
+        missing_children = []
+        for item in directive.items:
+            target_posix = _to_posix(item.target.name)
+            if target_posix not in child_map:
+                missing_children.append(item.target.name)
+
         if missing_children:
             missing_list = ", ".join(sorted(missing_children))
             error_msg = f"DELEGATE failed: The following targets are not within this manager's scope – {missing_list}"
@@ -84,12 +101,12 @@ class ManagerLanguageInterpreter:
 
         # Call appropriate prompter based on child type
         for item in directive.items:
-            child_name = item.target.name
-            child_agent = child_map[child_name]
+            target_posix = _to_posix(item.target.name)
+            child_agent = child_map[target_posix]
 
             # Create TaskMessage for the child
             task = Task(
-                task_id=str(hash(child_name + item.prompt.value)),
+                task_id=str(hash(target_posix + item.prompt.value)),
                 task_string=item.prompt.value
             )
             task_message = TaskMessage(
@@ -161,8 +178,24 @@ class ManagerLanguageInterpreter:
             self._queue_self_prompt(prompt)
     
     def _execute_wait(self, directive: WaitDirective) -> None:
-        """Execute a WAIT directive."""
-        # Wait doesn't need to do anything, just pass
+        """Execute a WAIT directive.
+
+        If the manager currently has no active children the instruction makes
+        no sense – in that case immediately queue a follow-up prompt so that
+        the LLM can react instead of stalling indefinitely.
+        """
+        if not self.agent:
+            return
+
+        active_children = getattr(self.agent, "active_children", {})
+
+        if active_children:
+            # There are still running children – do nothing (the prompt loop
+            # will naturally resume once they complete).
+            return None
+
+        # No active children ➔ inform the LLM so it can decide the next step.
+        self._queue_self_prompt("WAIT failed: No active children to wait for")
         return None
     
     def _execute_run(self, directive: RunDirective) -> None:
@@ -230,20 +263,17 @@ class ManagerLanguageInterpreter:
             self._queue_self_prompt(f"Update README result:\n{result}")
     
     def _create_target(self, target) -> str:
-        """Create a file or folder from the home directory of the agent's path."""
+        """Create a file or folder at the path relative to the project root, but only if within the manager's scope."""
         if not self.agent or not hasattr(self.agent, 'path'):
             return "No agent path available"
         
-        agent_path = Path(self.agent.path)
-        agent_path = self.root_dir / agent_path.relative_to(self.root_dir)
-        target_path = agent_path / target.name
-        
+        agent_path = self.root_dir / Path(self.agent.path).relative_to(self.root_dir)
+        target_path = self.root_dir / target.name
         # Check if destination is out of scope (outside agent's directory)
         try:
             target_path.resolve().relative_to(agent_path.resolve())
         except ValueError:
             return f"Action failed: Destination {target.name} is out of scope"
-        
         try:
             if target.is_folder:
                 if target_path.exists():
@@ -260,24 +290,20 @@ class ManagerLanguageInterpreter:
             return f"Action failed: {str(e)}"
     
     def _delete_target(self, target) -> str:
-        """Delete a file or folder from the home directory of the agent's path."""
+        """Delete a file or folder at the path relative to the project root, but only if within the manager's scope."""
         if not self.agent or not hasattr(self.agent, 'path'):
             return "No agent path available"
         
-        agent_path = Path(self.agent.path)
-        agent_path = self.root_dir / agent_path.relative_to(self.root_dir)
-        target_path = agent_path / target.name
-        
+        agent_path = self.root_dir / Path(self.agent.path).relative_to(self.root_dir)
+        target_path = self.root_dir / target.name
         # Check if destination is out of scope (outside agent's directory)
         try:
             target_path.resolve().relative_to(agent_path.resolve())
         except ValueError:
             return f"Action failed: Destination {target.name} is out of scope"
-        
         try:
             if not target_path.exists():
                 return f"Action failed: {target.name} does not exist"
-            
             if target.is_folder:
                 import shutil
                 shutil.rmtree(target_path)
@@ -293,30 +319,14 @@ class ManagerLanguageInterpreter:
         if not self.agent or not hasattr(self.agent, 'read_file'):
             return "No agent or read_file method available"
 
-        # Helper to search for a path (file or directory) within root_dir
-        def _search_path(name: str, expect_folder: bool = False) -> Optional[Path]:
-            candidate = self.root_dir / name
-            if candidate.exists() and (candidate.is_dir() if expect_folder else True):
-                return candidate
-            for root, dirs, files in os.walk(self.root_dir):
-                if expect_folder:
-                    for d in dirs:
-                        if d == name:
-                            return Path(root) / d
-                else:
-                    for f in files:
-                        if f == name:
-                            return Path(root) / f
-            return None
-
         if target.is_folder:
-            # Locate the folder first
-            folder_path = _search_path(target.name, expect_folder=True)
-            if not folder_path or not folder_path.exists():
+            # Treat target.name as a path relative to the project root
+            folder_path = self.root_dir / target.name
+            if not folder_path.exists() or not folder_path.is_dir():
                 return f"Folder {target.name} was not added to memory: folder not found"
 
             # Determine README filename(s)
-            folder_name = Path(folder_path).name
+            folder_name = folder_path.name
             candidate_names = [f"{folder_name}_README.md"]
             readme_path = None
             for cname in candidate_names:
@@ -334,9 +344,9 @@ class ManagerLanguageInterpreter:
             except Exception as e:
                 return f"Folder {target.name} README was not added to memory: {str(e)}"
         else:
-            # It's a file target. Search for the file regardless of scope.
-            found_path = _search_path(target.name, expect_folder=False)
-            if not found_path or not found_path.exists():
+            # It's a file target. Treat target.name as a path relative to the project root
+            found_path = self.root_dir / target.name
+            if not found_path.exists() or not found_path.is_file():
                 return f"File {target.name} was not added to memory: file not found"
             try:
                 self.agent.read_file(str(found_path))

@@ -1,0 +1,1 @@
+test/calculator.test.ts: Tests have been successfully converted to Mocha syntax. The tests are failing because the 'divide' method in 'src/calculator.ts' throws an error on division by zero, while the tests expect JavaScript's default 'Infinity', '-Infinity', or 'NaN' behavior. The 'src/calculator.ts' implementation needs to be updated to align with these test expectations.

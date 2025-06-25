@@ -53,6 +53,7 @@
 - `find . -name "*.js"` - Find JavaScript files
 - `find . -name "*.ts"` - Find TypeScript files
 - `grep -r "pattern" src/` - Search for pattern in source files
+- `rg "pattern" path/` - Recursively search for pattern in files using ripgrep (rg)
 - `cat filename` - Display file contents
 - `head -n 10 filename` - Show first 10 lines of file
 - `tail -n 10 filename` - Show last 10 lines of file 

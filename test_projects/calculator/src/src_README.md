@@ -1,0 +1,4 @@
+## src Directory Status
+
+- `calculator.interface.ts`: complete - Defines the `Calculator` interface with methods for basic arithmetic and power operations, including JSDoc comments.
+- `calculator.ts`: implemented. The 'divide' method has been fixed to handle division by zero as per the task. However, verification is blocked due to a conflict between Jest test syntax in `test/calculator.test.ts` and the Mocha configuration in `package.json`. 'npm test' fails with a generic return code 2, without specific test failure details. The agent cannot modify `package.json` or `test/calculator.test.ts` to resolve this, preventing test execution and validation.

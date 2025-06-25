@@ -324,8 +324,8 @@ class GeminiClient(BaseLLMClient):
         messages: Union[str, List[Dict[str, str]]],
         system_prompt: Optional[str] = None,
         temperature: float = 0.7,
-        max_tokens: int = 1000,
-        _retries: int = 3,
+        max_tokens: int = 100000,
+        _retries: int = 5,
     ) -> str:
         """Generate a response from Gemini with a simple retry loop.
 

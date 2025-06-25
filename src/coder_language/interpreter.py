@@ -74,7 +74,8 @@ class CoderLanguageInterpreter:
     def _execute_read(self, directive: ReadDirective) -> None:
         """Execute a READ directive."""
         filename = directive.filename
-        file_path = self.base_path / filename
+        # Treat filename as a path relative to the project root
+        file_path = self.project_root / filename
         prompt = None
         try:
             if file_path.exists():

@@ -119,7 +119,8 @@ class CoderAgent(BaseAgent):
                     agent_role=agent_role,
                     available_commands=available_commands,
                     lark_grammar=lark_grammar,
-                    language_examples=language_examples
+                    language_examples=language_examples,
+                    agent_path=personal_path_display
                 )
 
                 user_prompt = user_template.render(
