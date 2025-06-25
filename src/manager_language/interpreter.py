@@ -133,6 +133,9 @@ class ManagerLanguageInterpreter:
                 )
                 from src.orchestrator.manager_prompter import manager_prompter
                 asyncio.create_task(manager_prompter(parent, directive.prompt.value, result_message))
+            else:
+                # Root agent – bubble the result back by attaching it to the agent so callers can access it
+                setattr(self.agent, "final_result", directive.prompt.value)
         except Exception as e:
             # Reprompt self with error
             if self.agent:

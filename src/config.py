@@ -10,6 +10,7 @@ ALLOWED_COMMANDS = {
     
     # Python testing and development
     'python -m pytest', 'python -m unittest', 'python setup.py',
+    'pytest',
     'python -m py_compile', 'python -c', 'python -m doctest',
     
     # Python package management
