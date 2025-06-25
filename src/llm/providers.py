@@ -325,7 +325,16 @@ class GeminiClient(BaseLLMClient):
         system_prompt: Optional[str] = None,
         temperature: float = 0.7,
         max_tokens: int = 1000,
+        _retries: int = 3,
     ) -> str:
+        """Generate a response from Gemini with a simple retry loop.
+
+        Gemini occasionally returns a candidate with no valid `Part` which causes
+        the SDK's quick-accessors such as `response.text` to raise a *ValueError*.
+        This helper will transparently retry the request a few times before
+        bubbling the error up to the caller.
+        """
+
         # Gemini SDK uses list of dict("role","parts")
         if isinstance(messages, str):
             contents = messages
@@ -348,11 +357,35 @@ class GeminiClient(BaseLLMClient):
                 else:
                     contents.append({"role": "user", "parts": [msg["content"]]})
         
-        response = await self.model.generate_content_async(
-            contents,
-            generation_config={"temperature": temperature, "max_output_tokens": max_tokens}
-        )
-        return response.text.strip()
+        last_err: Optional[Exception] = None
+        for attempt in range(1, _retries + 1):
+            try:
+                response = await self.model.generate_content_async(
+                    contents,
+                    generation_config={"temperature": temperature, "max_output_tokens": max_tokens},
+                )
+
+                # Accessing `.text` may raise ValueError when no parts are returned.
+                text = response.text.strip()
+                if text:
+                    return text
+                # Empty string – treat as failure so we can retry.
+                raise ValueError("Gemini returned an empty string response")
+            except ValueError as e:
+                # Capture and retry unless we've exhausted attempts
+                last_err = e
+                if attempt == _retries:
+                    raise
+                # Optionally, small exponential back-off could be added here
+            except Exception as e:
+                # For non-ValueError exceptions (network issues etc.) we also retry
+                last_err = e
+                if attempt == _retries:
+                    raise
+
+        # If we exited the loop without returning, re-raise the last error (safety)
+        if last_err is not None:
+            raise last_err
 
     async def generate_structured_response(
         self,

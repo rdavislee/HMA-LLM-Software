@@ -245,6 +245,7 @@ class ManagerAgent(BaseAgent):
                 response = await self.llm_client.generate_response(formatted_prompt)
 
             # Save context (only store current prompt -> response)
+            print(f"Prompt and Response: {current_prompt} -> {response}")
             self.context.append(ContextEntry(prompt=current_prompt, response=response))
 
             # Clear prompt queue
