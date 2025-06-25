@@ -508,6 +508,65 @@ class DeepSeekR1Client(DeepSeekClient):
         super().__init__(model="deepseek-reasoner")
 
 
+# ---------------------------------------------------------------------------
+# Console / Manual testing client ------------------------------------------
+# ---------------------------------------------------------------------------
+
+class ConsoleLLMClient(BaseLLMClient):
+    """A dummy LLM client that prints the prompt to stdout and reads the reply from the user.
+
+    This is useful for manual testing – you can act as the language model yourself
+    or pipe the prompt into another tool and paste back the response.
+    """
+
+    async def _async_input(self, prompt: str) -> str:
+        """Non-blocking wrapper around built-in input() suitable for asyncio."""
+        import asyncio
+        return await asyncio.to_thread(input, prompt)
+
+    async def generate_response(
+        self,
+        messages: Union[str, List[Dict[str, str]]],
+        system_prompt: Optional[str] = None,
+        temperature: float = 0.7,
+        max_tokens: int = 1000,
+    ) -> str:
+        # Normalise to list[dict]
+        if isinstance(messages, str):
+            msgs = [{"role": "user", "content": messages}]
+        else:
+            msgs = messages
+
+        print("\n======================== LLM CALL (Console) ========================")
+        if system_prompt:
+            print("-- System prompt --")
+            print(system_prompt)
+            print("------------------------------------------------------------------")
+        for m in msgs:
+            role = m.get("role", "user")
+            print(f"[{role}] {m.get('content', '')}")
+        print("==================================================================\n")
+
+        # Read user input as the model output
+        response = await self._async_input("LLM reply> ")
+        return response.strip()
+
+    async def generate_structured_response(
+        self,
+        messages: Union[str, List[Dict[str, str]]],
+        schema: Dict[str, Any],
+        system_prompt: Optional[str] = None,
+        temperature: float = 0.7,
+    ) -> Dict[str, Any]:
+        import json
+        text_response = await self.generate_response(messages, system_prompt, temperature)
+        try:
+            return json.loads(text_response)
+        except json.JSONDecodeError:
+            print("[ConsoleLLMClient] Warning: Could not parse JSON – returning empty dict.")
+            return {}
+
+
 # Convenience mapping for easy model selection
 MODEL_CLIENTS = {
     # OpenAI
@@ -529,6 +588,9 @@ MODEL_CLIENTS = {
     # DeepSeek
     "deepseek-v3": DeepSeekV3Client,
     "deepseek-r1": DeepSeekR1Client,
+
+    # Console
+    "console": ConsoleLLMClient,
 }
 
 
