@@ -35,7 +35,8 @@ from src.messages.protocol import (
     Message, TaskMessage, ResultMessage, MessageType
 )
 from src.llm.base import BaseLLMClient
-from src import ROOT_DIR
+import src
+from src.config import COLLAPSED_DIR_NAMES
 
 # Global constants
 MAX_CONTEXT_DEPTH = 3
@@ -196,7 +197,21 @@ class BaseAgent(ABC):
         self.prompt_queue.append(prompt)
         
         if not self.stall:
-            await self.api_call()
+            try:
+                await self.api_call()
+            except Exception as e:
+                # Surface the exception immediately so manual testing doesn't appear to hang
+                import sys, traceback
+                print(f"[BaseAgent] Exception during api_call for agent {self.path}: {e}", file=sys.stderr)
+                traceback.print_exc()
+
+                # Ensure the agent doesn't remain stalled forever
+                self.stall = False
+
+                # Reprompt with the error message so higher-level logic can react
+                error_msg = f"Exception during api_call: {e}"
+                # Avoid infinite recursion: only enqueue, let caller decide when to process
+                self.prompt_queue.append(error_msg)
 
     @abstractmethod
     async def api_call(self) -> None:
@@ -254,13 +269,17 @@ class BaseAgent(ABC):
             for idx, child in enumerate(children):
                 connector = "└── " if idx == len(children) - 1 else "├── "
                 if child.is_dir():
-                    entries.append(f"{prefix}{connector}{child.name}/")
-                    extension = "    " if idx == len(children) - 1 else "│   "
-                    entries.extend(tree(child, prefix + extension))
+                    if child.name in COLLAPSED_DIR_NAMES:
+                        # Show the folder but collapse its contents to keep output concise
+                        entries.append(f"{prefix}{connector}{child.name}/...")
+                    else:
+                        entries.append(f"{prefix}{connector}{child.name}/")
+                        extension = "    " if idx == len(children) - 1 else "│   "
+                        entries.extend(tree(child, prefix + extension))
                 else:
                     entries.append(f"{prefix}{connector}{child.name}")
             return entries
-        root = ROOT_DIR if ROOT_DIR is not None else Path('.').resolve()
+        root = src.ROOT_DIR if getattr(src, 'ROOT_DIR', None) is not None else Path('.').resolve()
         lines = [f"{root.name}/"]
         if root.is_dir():
             lines.extend(tree(root))

@@ -1,6 +1,8 @@
 import asyncio
 import time
 import uuid
+import sys
+import traceback
 from typing import Optional, Any, Dict, List
 from src.agents.coder_agent import CoderAgent
 from src.messages.protocol import *
@@ -51,13 +53,13 @@ async def coder_prompter(
         
     except Exception as error:
         # ERROR HANDLING: catch all exceptions in try/catch
-        # If error occurs: reprompt with error message
         error_prompt = f"Error occurred during processing: {str(error)}"
         try:
             await agent.process_task(error_prompt)
-        except:
-            # If even the error reprompt fails, we can't do much more
-            pass
+        except Exception as reprompt_error:
+            # If even the error reprompt fails, print details so the user can see.
+            print(f"[coder_prompter] Failed to reprompt agent {agent.path}: {reprompt_error}", file=sys.stderr)
+            traceback.print_exc()
         return
 
 

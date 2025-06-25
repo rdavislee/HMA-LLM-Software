@@ -350,11 +350,17 @@ def execute_directive(directive_text: str, agent=None) -> None:
     interpreter = ManagerLanguageInterpreter(agent)
     directive = parse_directive(directive_text)
     interpreter.execute(directive)
+
     if agent is not None:
-        agent.stall = False
-        # Check agent prompt queue and if not empty, call api_call
-        if hasattr(agent, 'prompt_queue') and hasattr(agent, 'api_call') and agent.prompt_queue:
-            try:
-                asyncio.create_task(agent.api_call())
-            except Exception:
-                pass
+        # Only unstall the agent if it no longer has active children
+        should_unstall = not getattr(agent, 'active_children', {})
+        if should_unstall:
+            agent.stall = False
+
+        # Trigger follow-up api_call only if agent is not stalled and has queued prompts
+        if (not agent.stall) and getattr(agent, 'prompt_queue', []):
+            if hasattr(agent, 'api_call'):
+                try:
+                    asyncio.create_task(agent.api_call())
+                except Exception:
+                    pass

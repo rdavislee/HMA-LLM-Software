@@ -10,8 +10,11 @@ This script lets you act as the language model. It will:
    your console input is treated as the response.
 """
 
-from pathlib import Path
 import sys
+from pathlib import Path
+
+# Add the project root to sys.path
+sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 from src.initializer import initialize_and_run
 from src.llm.providers import ConsoleLLMClient

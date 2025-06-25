@@ -27,7 +27,7 @@ from src.llm.providers import (
     DeepSeekV3Client, DeepSeekR1Client
 )
 from src.llm.providers import get_llm_client
-from src import ROOT_DIR
+import src
 
 class ManagerCommand(Enum):
     """Commands that a manager agent can exercise."""
@@ -81,11 +81,15 @@ class ManagerAgent(BaseAgent):
         if not self.path.is_dir() and self.path.exists():
             raise ValueError(f"ManagerAgent can only manage directories, not files: {path}")
         
-        # Initialize Jinja2 environment
+        # Initialize Jinja2 environment – point to the absolute "prompts"
+        # directory so template resolution works regardless of current CWD.
+        project_root = Path(__file__).resolve().parent.parent.parent
+        templates_dir = project_root / "prompts"
+
         self.jinja_env = Environment(
-            loader=FileSystemLoader('prompts'),
+            loader=FileSystemLoader(str(templates_dir)),
             trim_blocks=True,
-            lstrip_blocks=True
+            lstrip_blocks=True,
         )
         
     def delegate_task(self, child: "BaseAgent", task_description: str) -> None:
@@ -156,11 +160,11 @@ class ManagerAgent(BaseAgent):
             agent_role = f"[Error reading agent role: {str(e)}]"
 
         # Prepend personal path information to agent role
-        if ROOT_DIR is None:
+        if src.ROOT_DIR is None:
             raise RuntimeError("ROOT_DIR is not set. Please initialize it with src.set_root_dir(<project_root_path>) before creating agents.")
 
         try:
-            personal_path_display = str(self.path.resolve().relative_to(ROOT_DIR))
+            personal_path_display = str(self.path.resolve().relative_to(src.ROOT_DIR))
         except ValueError:
             personal_path_display = str(self.path.resolve())
 
@@ -187,8 +191,15 @@ class ManagerAgent(BaseAgent):
                     language_examples=language_examples
                 )
 
+                # Only show the task string, not the full TaskMessage repr
+                task_string = None
+                if self.active_task is not None:
+                    if hasattr(self.active_task, 'task') and hasattr(self.active_task.task, 'task_string'):
+                        task_string = self.active_task.task.task_string
+                    else:
+                        task_string = str(self.active_task)
                 user_prompt = user_template.render(
-                    active_task=str(self.active_task) if self.active_task else None,
+                    active_task=task_string,
                     context=self.context,
                     memory_contents=memory_contents,
                     personal_file_name=personal_file_name,
@@ -205,7 +216,7 @@ class ManagerAgent(BaseAgent):
                 template = self.jinja_env.get_template('agent_template.j2')
                 formatted_prompt = template.render(
                     agent_role=agent_role,
-                    active_task=str(self.active_task) if self.active_task else None,
+                    active_task=task_string,
                     context=self.context,
                     memory_contents=memory_contents,
                     personal_file_name=personal_file_name,

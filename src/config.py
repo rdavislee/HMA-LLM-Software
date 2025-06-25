@@ -26,3 +26,14 @@ ALLOWED_COMMANDS = {
     # Node.js development
     'node -e', 'npx eslint', 'npx prettier', 'npx tsc', 'npx ts-node'
     }
+
+# Directories whose contents should be collapsed in codebase structure views
+COLLAPSED_DIR_NAMES = {
+    "node_modules",
+    "venv",
+    ".venv",
+    ".git",
+    "__pycache__",
+    ".mypy_cache",
+    ".pytest_cache",
+}
