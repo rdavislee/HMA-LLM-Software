@@ -5,7 +5,7 @@
 COMMENT: /\/\/.*/
 
 // Directives
-directive: delegate | finish | action | run | update_readme
+directive: delegate | finish | action | wait | run | update_readme
 
 // Delegate directive
 delegate: "DELEGATE" delegate_item ("," delegate_item)*
@@ -23,6 +23,9 @@ update_readme: "UPDATE_README" content_string
 
 // Run directive
 run: RUN command
+
+// Wait directive
+wait: "WAIT"
 
 // Targets
 target: "file" filename   -> file

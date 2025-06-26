@@ -19,12 +19,12 @@ ALLOWED_COMMANDS = {
     # Python code quality
     'flake8', 'black', 'isort', 'mypy',
     
-    # NPM and Node.js
-    'npm install', 'npm uninstall', 'npm update', 'npm list', 'npm run',
-    'npm test', 'npm audit', 'npm outdated',
+    # NPM and Node.js (offline wrappers only, project-local tools only)
+    'node tools/run-typescript.js', 'node tools/run-tsx.js', 'node tools/compile-typescript.js', 'node tools/run-mocha.js',
+    'node tools/run-mocha.cjs',
     
     # Node.js development
-    'node -e', 'npx eslint', 'npx prettier', 'npx tsc', 'npx ts-node'
+    'node -e', 'npx eslint', 'npx prettier'
     }
 
 # Directories whose contents should be collapsed in codebase structure views
@@ -36,4 +36,8 @@ COLLAPSED_DIR_NAMES = {
     "__pycache__",
     ".mypy_cache",
     ".pytest_cache",
+    # Language support directories (do not expose fully in structure views)
+    ".node_deps",
+    "npm-packages",
+    "typescript",
 }

@@ -1,0 +1,14 @@
+{
+  "name": "my-typescript-project",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "index.js",
+  "dependencies": {
+    "chai": "file:./npm-packages/chai-4.3.8.tgz",
+    "@types/chai": "file:./npm-packages/types-chai-4.3.11.tgz"
+  },
+  "devDependencies": {
+    "@types/mocha": "file:./npm-packages/types-mocha-10.0.6.tgz",
+    "@types/node": "file:./npm-packages/types-node-20.11.0.tgz"
+  }
+} 

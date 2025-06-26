@@ -20,12 +20,16 @@ The function performs the following tasks:
    • For **every file** it creates a :class:`~src.agents.coder_agent.CoderAgent` – except
      the manager READMEs which are already owned by the corresponding directory manager.
 3. Correctly wires **parent / child** relationships between the agents.
-4. Returns **both** the root :class:`ManagerAgent` and a flat ``dict`` mapping
+4. Copies all agent tool scripts (e.g., run-mocha.js) from ``scripts/typescript/tools/``
+   into the initialized project root's ``tools/`` directory, so agents can use them.
+5. Returns **both** the root :class:`ManagerAgent` and a flat ``dict`` mapping
    ``Path`` objects to their associated agents for optional convenience.
 """
 
 from pathlib import Path
 from typing import Dict, Tuple, Optional, List
+import subprocess  # NEW: for bootstrapping TypeScript deps
+from enum import Enum
 
 from src import set_root_dir, ROOT_DIR
 from src.agents.base_agent import BaseAgent
@@ -38,6 +42,12 @@ __all__ = ["initialize_agents"]
 
 IGNORED_DIR_NAMES = {".git", "__pycache__", ".mypy_cache", ".pytest_cache"}
 IGNORED_FILE_NAMES = {"__init__.py"}  # can be extended
+
+
+class Language(Enum):
+    """Programming language environments supported by the workspace initializer."""
+    TYPESCRIPT = "typescript"
+    # Future: PYTHON = "python"
 
 
 def _ensure_readme(dir_path: Path) -> Path:
@@ -101,9 +111,45 @@ def _build_manager(
     return manager
 
 
+# Tool binary paths (populated after _bootstrap_language_environment)
+TSC_BIN = ""
+TS_NODE_BIN = ""
+TSX_BIN = ""
+MOCHA_BIN = ""
+
+
+def _bootstrap_language_environment(language: "Language") -> None:
+    """Provision language-specific offline tooling.
+
+    For *typescript* this executes ``scripts/typescript/initializer.py`` which
+    installs vendored tarballs into ``.node_deps``. The global *_BIN constants
+    are populated afterwards so that other modules can reference them.
+    """
+    global TSC_BIN, TS_NODE_BIN, TSX_BIN, MOCHA_BIN
+    from src import ROOT_DIR
+    project_root = Path(ROOT_DIR)
+
+    if language == Language.TYPESCRIPT:
+        # Ensure packages are installed (idempotent).
+        try:
+            subprocess.run(["python", "scripts/typescript/initializer.py", str(project_root)], check=True)
+        except subprocess.CalledProcessError as e:
+            # In CI or restricted environments 'npm' may be unavailable. Skip installation but continue.
+            print(f"[initializer] Warning: TypeScript tooling installation failed ({e}). Continuing assuming tools are pre-bundled.")
+        node_deps = project_root / ".node_deps" / "node_modules"
+        TSC_BIN = str(node_deps / "typescript" / "bin" / "tsc")
+        TS_NODE_BIN = str(node_deps / "ts-node" / "bin" / "ts-node")
+        TSX_BIN = str(node_deps / "tsx" / "dist" / "cli.mjs")
+        MOCHA_BIN = str(node_deps / "mocha" / "bin" / "mocha")
+
+    else:
+        raise ValueError(f"Unsupported language environment: {language}")
+
+
 def initialize_agents(
     root_directory: str | Path,
     *,
+    language: Language = Language.TYPESCRIPT,
     llm_client: Optional[BaseLLMClient] = None,
     max_context_size: int = 8000,
 ) -> Tuple[ManagerAgent, Dict[Path, "BaseAgent"]]:
@@ -113,6 +159,8 @@ def initialize_agents(
     ----------
     root_directory:
         Path to the project root that will become ``src.ROOT_DIR``.
+    language:
+        Programming language environment for the project.
     llm_client:
         Optional LLM client instance to share between agents (can be *None* – the
         orchestrator may inject one later).
@@ -131,6 +179,10 @@ def initialize_agents(
 
     # Set global ROOT_DIR so that all future agents refer to correct path.
     set_root_dir(str(root_path))
+
+    # Bootstrap language-specific tooling *before* walking the tree so that child
+    # agents know binaries exist.
+    _bootstrap_language_environment(language)
 
     # Maintain lookup so that callers can easily retrieve a particular agent if necessary.
     agent_lookup: Dict[Path, "BaseAgent"] = {}
@@ -201,6 +253,7 @@ def initialize_and_run(
     root_directory: str | Path,
     initial_prompt: str,
     *,
+    language: Language = Language.TYPESCRIPT,
     llm_client: Optional[BaseLLMClient] = None,
     max_context_size: int = 8000,
 ) -> str:
@@ -210,6 +263,7 @@ def initialize_and_run(
     """
     root_agent, _ = initialize_agents(
         root_directory,
+        language=language,
         llm_client=llm_client,
         max_context_size=max_context_size,
     )
