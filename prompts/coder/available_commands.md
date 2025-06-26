@@ -2,38 +2,63 @@
 
 **IMPORTANT: All terminal commands are executed from the root directory of the project, regardless of which file or folder the agent is responsible for.**
 
-### TypeScript/Node.js (Offline Only)
-- `node tools/run-typescript.js src/myfile.ts`     # Run TypeScript files with ts-node
-- `node tools/run-tsx.js src/myfile.ts`           # Run TypeScript files with tsx (faster)
-- `node tools/compile-typescript.js --outDir dist` # Compile TypeScript to JavaScript
-- `node tools/run-mocha.js test/**/*.test.js`     # Run Mocha tests
-- `node tools/run-mocha.js --require ts-node/register test/**/*.test.ts` # Run TypeScript tests
+## TypeScript Development Workflow
 
-### Testing Commands
-- `python -m pytest tests/` - Run all tests
-- `python -m pytest tests/ -v` - Run tests with verbose output
-- `python -m pytest tests/ -k "test_name"` - Run specific test
-- `python -m pytest tests/test_file.py::test_function` - Run specific test function
-- `python -m unittest discover tests` - Run tests using unittest
+### **CRITICAL: TypeScript projects require a two-step testing process:**
 
-### Code Quality
-- `flake8 filename.py` - Run linting on specific file
-- `black filename.py` - Format code with black
-- `isort filename.py` - Sort imports in file
-- `mypy filename.py` - Run type checking on file
-- `npx eslint filename.js` - Run ESLint on JavaScript file
-- `npx prettier --write filename.js` - Format JavaScript with Prettier
+#### Step 1: Compile TypeScript to JavaScript
+```bash
+node tools/compile-typescript.js
+```
+**This MUST be run first!** It compiles all `.ts` files in `src/` and `test/` to JavaScript in the `dist/` directory.
 
-### File Operations
-- `cat filename` - Display file contents
+#### Step 2: Run Tests on Compiled JavaScript  
+```bash
+node tools/run-mocha.js
+```
+**Only run this AFTER compilation!** This runs tests on the compiled `.js` files in `dist/test/`.
+
+### **Complete Testing Workflow Example:**
+```bash
+# 1. First, always compile TypeScript
+node tools/compile-typescript.js
+
+# 2. Then run the tests  
+node tools/run-mocha.js
+
+# 3. If tests fail, fix your TypeScript code and repeat steps 1-2
+```
+
+### **Troubleshooting Test Issues:**
+- **"Cannot find files matching pattern"** → You forgot to compile first! Run `node tools/compile-typescript.js`
+- **"Module not found"** → Check your import paths in TypeScript files
+- **"Syntax error"** → Check TypeScript compilation output for errors
+
+### **DO NOT use these unreliable approaches:**
+- ❌ `node tools/run-mocha.js test/**/*.test.ts` (TypeScript files directly)
+- ❌ `node tools/run-mocha.js --require ts-node/register test/**/*.test.ts` (Complex setup)
+- ❌ Running tests without compiling first
+
+### TypeScript Diagnostics (Debugging Errors)
+```bash
+node tools/check-typescript.js
+```
+**Use this when you see compilation errors!** This shows detailed TypeScript diagnostics (equivalent to IDE "red squiggles") without compiling. It helps identify:
+- Type errors and mismatches
+- Missing imports or exports
+- Syntax errors
+- Interface violations
+- Any other TypeScript issues
+
+### Other TypeScript Tools
+- `node tools/run-typescript.js src/myfile.ts`     # Run individual TypeScript files with ts-node
+- `node tools/run-tsx.js src/myfile.ts`           # Run individual TypeScript files with tsx (faster)
+
+## File Operations
+- `cat filename` - Display file contents (Linux/Mac) 
+- `type filename` - Display file contents (Windows)
 - `head -n 20 filename` - Show first 20 lines of file
 - `tail -n 20 filename` - Show last 20 lines of file
 - `grep -n "pattern" filename` - Search for pattern with line numbers
 - `rg "pattern" path/` - Recursively search for pattern in files using ripgrep (rg)
-- `wc -l filename` - Count lines in file
-
-### Development Tools
-- `python -c "import filename; help(filename)"` - Get help on module
-- `python -m doctest filename.py` - Run doctests in file
-- `python -m py_compile filename.py` - Check syntax without executing
-- `node -e "console.log(require('./filename.js'))"` - Load and log Node.js module 
+- `wc -l filename` - Count lines in file 

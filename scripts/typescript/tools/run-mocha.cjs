@@ -24,5 +24,30 @@ if (!mochaBin) {
   process.exit(1);
 }
 
-const result = spawnSync('node', [mochaBin, ...process.argv.slice(2)], { stdio: 'inherit' });
+// Add default flags for better test output and detailed error reporting
+const defaultFlags = [
+  '--reporter', 'spec',          // Use spec reporter for detailed output
+  '--no-colors',                 // Disable colors for cleaner agent parsing
+  '--bail',                      // Stop on first failure for faster feedback
+  '--full-trace',                // Show full stack traces
+  '--recursive'                  // Search subdirectories
+];
+
+// Combine default flags with any user-provided arguments
+const allArgs = [...defaultFlags, ...process.argv.slice(2)];
+
+// Use stdio: 'pipe' to capture output properly for agents
+const result = spawnSync('node', [mochaBin, ...allArgs], { 
+  stdio: 'pipe',  // Capture stdout/stderr so agents can see detailed test results
+  encoding: 'utf8'
+});
+
+// Output the captured results to stdout/stderr so subprocess.run() can capture them
+if (result.stdout) {
+  process.stdout.write(result.stdout);
+}
+if (result.stderr) {
+  process.stderr.write(result.stderr);
+}
+
 process.exit(result.status); 

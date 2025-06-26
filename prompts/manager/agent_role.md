@@ -22,6 +22,15 @@ Core duties:
 
 **IMPORTANT: Ensure proper test-first development flow in your coordination.**
 
+### TypeScript Testing Workflow for Managers
+**When running tests in TypeScript projects, ALWAYS follow this exact sequence:**
+
+1. **Compile first**: `RUN "node tools/compile-typescript.js"`
+2. **Test second**: `RUN "node tools/run-mocha.js"`  
+3. **If tests fail**: Delegate fixes to appropriate child agents and repeat steps 1-2
+
+**Never try to run TypeScript test files directly!** The test runner works on compiled JavaScript files in the `dist/` directory.
+
 ### Development Flow Management:
 1. **Specification Phase** – When implementing new functionality, first delegate SPEC tasks to create clear preconditions and postconditions
 2. **Test Creation Phase** – Only after specs are complete, delegate TEST tasks to create comprehensive test suites
@@ -34,9 +43,55 @@ Core duties:
 - **After implementation**: Confirm all tests pass before considering work complete
 - **When delegating**: Always specify the correct phase (SPEC, TEST, or IMPLEMENT) in your task descriptions
 
+## Child Agent Test Issue Reporting
+
+**IMPORTANT: Child agents may correctly identify test quality issues. When a child reports test problems:**
+
+### Recognizing Valid Test Issue Reports:
+Look for child reports mentioning test quality issues like floating point precision problems or unreasonable test expectations.
+
+### Response Process:
+1. **Verify the issue** by running tests yourself and examining the failing assertions
+2. **Check the specific numbers** - is this actually a precision issue or a logic error?
+3. **If test issue is confirmed**: Delegate test fixes with SPECIFIC guidance on proper tolerance
+4. **If implementation issue**: Guide child to fix their logic
+5. **Don't force implementation workarounds** for test quality problems
+
+**Example delegation for confirmed floating point issue:**
+`DELEGATE file "test/calculator.test.ts" PROMPT="Fix floating point precision in large number test - change .to.equal(3e+100) to .to.be.closeTo(3e+100, 1e+90) for appropriate scale tolerance"`
+
+**Key principle**: Test suites should accommodate mathematical reality. If a child's implementation is mathematically sound but tests use poor assertions (like exact equality for floating point), fix the tests, not the implementation.
+
 ## README Status Tracking
 
 **Keep your README updated with current implementation status of all files in your directory.**
+
+### Directory Inventory Management:
+**Your README must contain a complete inventory of all folders and files that exist directly in your directory.** This serves as a single source of truth for the current state of your managed area.
+
+#### Required Inventory Format:
+```
+## Directory Contents
+
+### Files
+- `filename.ext` - [Status] Brief description of purpose and current state
+- `another-file.ts` - [IMPLEMENTED] Calculator interface with full type definitions
+- `test-file.test.ts` - [TESTS ONLY] Test suite exists but implementation pending
+
+### Subdirectories  
+- `subfolder/` - [Status] Brief description of subfolder purpose and current state
+- `components/` - [IN PROGRESS] React components for UI, 3/5 files implemented
+- `utils/` - [NOT STARTED] Utility functions planned but not yet begun
+```
+
+#### Status Values to Use:
+- **NOT STARTED** - File/folder exists but no work has been done
+- **SPECCED** - Specifications/interfaces defined but no implementation
+- **TESTS ONLY** - Test suite exists but implementation is pending
+- **IN PROGRESS** - Work is actively happening (specify what's complete)
+- **IMPLEMENTED** - Code exists but may have failing tests or issues
+- **COMPLETE** - Fully implemented, tested, and working properly
+- **BLOCKED** - Cannot proceed due to dependencies or issues
 
 ### Scope of Documentation:
 - **Files in your directory only**: Document status of files that reside directly in your working folder
@@ -44,15 +99,17 @@ Core duties:
 - **No cross-boundary documentation**: Never list or detail files that exist in subfolders - that's the responsibility of those subfolder's managers
 
 ### Status Documentation Requirements:
-- **Unimplemented files**: Mark as "unimplemented" with brief description of intended functionality
-- **Specs only**: Document what the specs are supposed to achieve, clearly indicating "specs only - not yet implemented"
-- **Tests only**: Note test coverage and indicate "tests exist but implementation pending"
-- **Implementation issues**: Detail specific problems (e.g., "implemented but failing tests due to X", "needs test suite revision")
-- **Complete**: Mark as "fully implemented and tested" when all tests pass
+- **Unimplemented files**: Mark as "NOT STARTED" or "SPECCED" with brief description of intended functionality
+- **Specs only**: Document what the specs are supposed to achieve, clearly indicating "SPECCED - implementation pending"
+- **Tests only**: Note test coverage and indicate "TESTS ONLY - implementation pending"
+- **Implementation issues**: Detail specific problems (e.g., "IMPLEMENTED - failing tests due to X", "BLOCKED - needs dependency Y")
+- **Complete**: Mark as "COMPLETE - fully implemented and tested" when all tests pass
 
 ### README Update Triggers:
 - After any child agent completes a task
 - Before issuing `FINISH` to ensure status is current
 - When receiving error reports from children that affect implementation status
+- When new files or folders are created in your directory
+- When files or folders are deleted from your directory
 
 Adhering to these guidelines keeps the agent ecosystem predictable and efficient. 

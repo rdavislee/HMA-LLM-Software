@@ -215,13 +215,22 @@ def _copy_npm_packages_to_project_root(project_root: Path):
 
 
 def _copy_config_templates_to_project_root(project_root: Path):
-    """Copy tsconfig.template.json, ensure package.json is merged with template, and copy npm-packages."""
+    """Copy tsconfig.template.json, ensure package.json is merged with template, copy npm-packages, and create mocha config."""
     tsconfig_src = Path(__file__).resolve().parent / "tsconfig.template.json"
     tsconfig_dst = project_root / "tsconfig.json"
     if not tsconfig_dst.exists():
         shutil.copy(tsconfig_src, tsconfig_dst)
     _merge_package_json_with_template(project_root)
     _copy_npm_packages_to_project_root(project_root)
+    _create_mocha_config(project_root)
+
+
+def _create_mocha_config(project_root: Path):
+    """Copy .mocharc.template.json to project root as .mocharc.json for test configuration."""
+    mocharc_src = Path(__file__).resolve().parent / ".mocharc.template.json"
+    mocharc_dst = project_root / ".mocharc.json"
+    if not mocharc_dst.exists():
+        shutil.copy(mocharc_src, mocharc_dst)
 
 
 def main() -> None:

@@ -108,7 +108,17 @@ class CoderLanguageInterpreter:
                 if result.returncode == 0:
                     prompt = f"RUN succeeded: Output:\n{result.stdout.strip()}"
                 else:
-                    prompt = f"RUN failed: {result.stderr.strip() or f'Command failed with return code {result.returncode}'}"
+                    # Show both stdout and stderr so agent can see test results even when tests fail
+                    output = result.stdout.strip() if result.stdout.strip() else ""
+                    error = result.stderr.strip() if result.stderr.strip() else ""
+                    if output and error:
+                        prompt = f"RUN failed: Output:\n{output}\nError:\n{error}"
+                    elif output:
+                        prompt = f"RUN failed: Output:\n{output}"
+                    elif error:
+                        prompt = f"RUN failed: Error:\n{error}"
+                    else:
+                        prompt = f"RUN failed: Command failed with return code {result.returncode}"
             else:
                 prompt = f"RUN failed: Invalid command: {command}"
         except subprocess.TimeoutExpired:

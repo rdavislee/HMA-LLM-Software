@@ -1,47 +1,61 @@
-# Available Terminal Commands
+# Available Terminal Commands for Managers
 
-**IMPORTANT: All terminal commands are executed from the root directory of the project, regardless of which folder the manager agent is responsible for.**
+**IMPORTANT: All terminal commands are executed from the root directory of the project, regardless of which folder the agent is responsible for.**
 
-### TypeScript/Node.js (Offline Only)
-- `node tools/run-typescript.js src/myfile.ts`     # Run TypeScript files with ts-node
-- `node tools/run-tsx.js src/myfile.ts`           # Run TypeScript files with tsx (faster)
-- `node tools/compile-typescript.js --outDir dist` # Compile TypeScript to JavaScript
-- `node tools/run-mocha.js test/**/*.test.js`     # Run Mocha tests
-- `node tools/run-mocha.js --require ts-node/register test/**/*.test.ts` # Run TypeScript tests
+## TypeScript Development Workflow
 
-### Development Commands
-- `python -m pytest tests/` - Run all tests
-- `python -m pytest tests/ -v` - Run tests with verbose output
-- `python -m pytest tests/ -k "test_name"` - Run specific test
-- `python setup.py test` - Run tests using setup.py
-- `python -m unittest discover tests` - Run tests using unittest
+### **CRITICAL: TypeScript projects require a two-step testing process:**
 
-### Package Management
-- `pip install -r requirements.txt` - Install dependencies
-- `pip install package_name` - Install a specific package
-- `pip freeze > requirements.txt` - Generate requirements file
-- `pip list` - List installed packages
+#### Step 1: Compile TypeScript to JavaScript
+```bash
+node tools/compile-typescript.js
+```
+**This MUST be run first!** It compiles all `.ts` files in `src/` and `test/` to JavaScript in the `dist/` directory.
 
-### Build and Installation
-- `python setup.py build` - Build the project
-- `python setup.py install` - Install the project
-- `python setup.py develop` - Install in development mode
+#### Step 2: Run Tests on Compiled JavaScript  
+```bash
+node tools/run-mocha.js
+```
+**Only run this AFTER compilation!** This runs tests on the compiled `.js` files in `dist/test/`.
 
-### Code Quality
-- `flake8 src/` - Run linting
-- `black src/` - Format code with black
-- `isort src/` - Sort imports
-- `mypy src/` - Run type checking
-- `npx eslint src/` - Run ESLint on source files
-- `npx prettier --write src/` - Format JavaScript/TypeScript with Prettier
+### **Complete Testing Workflow Example:**
+```bash
+# 1. First, always compile TypeScript
+node tools/compile-typescript.js
 
-### File Operations
-- `ls -la` - List all files with details
-- `find . -name "*.py"` - Find Python files
-- `find . -name "*.js"` - Find JavaScript files
-- `find . -name "*.ts"` - Find TypeScript files
-- `grep -r "pattern" src/` - Search for pattern in source files
-- `rg "pattern" path/` - Recursively search for pattern in files using ripgrep (rg)
-- `cat filename` - Display file contents
-- `head -n 10 filename` - Show first 10 lines of file
-- `tail -n 10 filename` - Show last 10 lines of file 
+# 2. Then run the tests  
+node tools/run-mocha.js
+
+# 3. If tests fail, delegate fixes to child agents and repeat steps 1-2
+```
+
+### **Troubleshooting Test Issues:**
+- **"Cannot find files matching pattern"** → You forgot to compile first! Run `node tools/compile-typescript.js`
+- **"Module not found"** → Delegate to child coder agent to check import paths
+- **"Syntax error"** → Check TypeScript compilation output for errors
+
+### **DO NOT use these unreliable approaches:**
+- ❌ `node tools/run-mocha.js test/**/*.test.ts` (TypeScript files directly)
+- ❌ `node tools/run-mocha.js --require ts-node/register test/**/*.test.ts` (Complex setup)
+- ❌ Running tests without compiling first
+
+### TypeScript Diagnostics (Debugging Errors)
+```bash
+node tools/check-typescript.js
+```
+**Use this when you see compilation errors!** This shows detailed TypeScript diagnostics (equivalent to IDE "red squiggles") without compiling. Perfect for diagnosing issues before delegating fixes to child agents.
+
+### Other TypeScript Tools
+- `node tools/run-typescript.js src/myfile.ts`     # Run individual TypeScript files with ts-node
+- `node tools/run-tsx.js src/myfile.ts`           # Run individual TypeScript files with tsx (faster)
+
+## File Operations
+- `cat filename` - Display file contents (Linux/Mac) 
+- `type filename` - Display file contents (Windows)
+- `head -n 20 filename` - Show first 20 lines of file
+- `tail -n 20 filename` - Show last 20 lines of file
+- `grep -n "pattern" filename` - Search for pattern with line numbers
+- `rg "pattern" path/` - Recursively search for pattern in files using ripgrep
+- `wc -l filename` - Count lines in file
+- `ls path/` - List directory contents (Linux/Mac)
+- `dir path/` - List directory contents (Windows) 

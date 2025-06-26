@@ -21,6 +21,17 @@ Key principles:
 
 **IMPORTANT: Test-first programming begins with SPECIFICATION, not tests!**
 
+### TypeScript Testing Workflow
+**For TypeScript projects, follow this simple sequence:**
+
+1. **Compile**: `RUN "node tools/compile-typescript.js"`
+2. **Test**: `RUN "node tools/run-mocha.js"`  
+3. **If compilation or tests fail**: Fix code and repeat steps 1-2
+
+**When debugging compilation errors**: Use `RUN "node tools/check-typescript.js"` to see detailed TypeScript diagnostics (equivalent to IDE "red squiggles").
+
+**Never try to run TypeScript test files directly!** The test runner works on compiled JavaScript files in the `dist/` directory.
+
 ### When Your Task is to SPEC:
 - Write clear and detailed preconditions and postconditions for each function
 - These specs must be comprehensive enough to generate a complete test suite
@@ -51,3 +62,54 @@ Key principles:
    - Do not consider the task complete until test suite passes completely
 
 Follow these rules strictly to ensure smooth coordination within the agent hierarchy. 
+
+## Test Failure Assessment Protocol
+
+**IMPORTANT: When tests fail, first determine if the issue is with your implementation or with the test quality.**
+
+### Mandatory Context Gathering - BEFORE Making Any Changes:
+**You MUST complete ALL of these steps before using CHANGE:**
+1. **READ the failing test file** to see the exact assertions and expected vs actual values
+2. **READ your current implementation** to understand what your code actually does  
+3. **READ the terminal error output carefully** - identify the SPECIFIC numbers in error vs expected
+4. **READ the interface file** (if it exists) to verify the contract you should implement
+
+**When tests fail, you MUST READ both:**
+- The test file showing the failure
+- Your implementation being tested
+- Any related interface/specification files
+
+### Quick Assessment Steps:
+1. **Identify the specific numbers** - what did you produce vs what was expected?
+2. **Check if the test is reasonable** - does it use proper assertions for the data type?
+3. **Verify your implementation** - is your logic mathematically/logically correct?
+
+### Floating Point Test Issues - Specific Technical Rules:
+
+**Only change tests when:**
+- Test uses `.to.equal()` for floating point arithmetic results
+- AND the numbers involved are large (>1e10) or result from multiple operations
+- AND the error is small relative to the magnitude (e.g., `3.0000000000000002e+100` vs `3e+100`)
+
+**Proper tolerance calculation:**
+- For numbers around `1e+100`, use tolerance around `1e+90` (relative error ~1e-10)
+- For numbers around `1e+10`, use tolerance around `1e+0` (relative error ~1e-10)  
+- For numbers around `1`, use tolerance around `1e-10`
+
+**DO NOT change tests when:**
+- The expected result is mathematically wrong
+- Your implementation has actual logic errors
+- The test tolerance is already reasonable but your output is way off
+
+### When to Report Test Issues vs Fix Implementation:
+
+**Report test issues to parent when:**
+- Tests use exact equality (`.to.equal()`) for floating point arithmetic AND the difference is only precision
+- Test expectations seem mathematically unreasonable
+
+**Fix your implementation when:**
+- Your logic is actually incorrect
+- You're not handling specified edge cases
+- You're not following the interface contract
+
+**NEVER modify tests or implementation unless you can articulate exactly why the current version is wrong.** 

@@ -216,7 +216,17 @@ class ManagerLanguageInterpreter:
                 if result_obj.returncode == 0:
                     result = result_obj.stdout
                 else:
-                    result = f"Command failed: {result_obj.stderr}"
+                    # Show both stdout and stderr so agent can see test results even when tests fail
+                    output = result_obj.stdout.strip() if result_obj.stdout.strip() else ""
+                    error = result_obj.stderr.strip() if result_obj.stderr.strip() else ""
+                    if output and error:
+                        result = f"Command failed: Output:\n{output}\nError:\n{error}"
+                    elif output:
+                        result = f"Command failed: Output:\n{output}"
+                    elif error:
+                        result = f"Command failed: Error:\n{error}"
+                    else:
+                        result = f"Command failed with return code {result_obj.returncode}"
             except subprocess.TimeoutExpired:
                 result = f"Command timed out after 5 minutes: {command}"
             except Exception as e:

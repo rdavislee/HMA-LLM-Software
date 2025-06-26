@@ -21,7 +21,7 @@ ALLOWED_COMMANDS = {
     
     # NPM and Node.js (offline wrappers only, project-local tools only)
     'node tools/run-typescript.js', 'node tools/run-tsx.js', 'node tools/compile-typescript.js', 'node tools/run-mocha.js',
-    'node tools/run-mocha.cjs',
+    'node tools/run-mocha.cjs', 'node tools/check-typescript.js',
     
     # Node.js development
     'node -e', 'npx eslint', 'npx prettier'
