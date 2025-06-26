@@ -37,6 +37,8 @@ class DummyLLM:
 def workspace(tmp_path):
     """Isolated project root; sets ROOT_DIR for interpreters."""
     set_root_dir(str(tmp_path))
+    # Add a project marker so _find_project_root works correctly
+    (tmp_path / "requirements.txt").write_text("# test requirements")
     return tmp_path
 
 
@@ -137,17 +139,17 @@ def test_manager_create_delete_read_files(coder_agent, workspace):
     coder_agent.parent = None
     manager_agent = ManagerAgent(path=str(dir_path), children=[coder_agent], llm_client=DummyLLM())
     coder_agent.parent = manager_agent
-    # CREATE file
-    create_str = 'CREATE file "data.txt"'
+    # CREATE file within manager's scope
+    create_str = 'CREATE file "pkg/data.txt"'
     ManagerLanguageInterpreter(agent=manager_agent).execute(parse_manager(create_str))
     created_path = Path(manager_agent.path) / "data.txt"
     assert created_path.exists()
     # READ file (adds to memory)
-    read_str = 'READ file "data.txt"'
+    read_str = 'READ file "pkg/data.txt"'
     ManagerLanguageInterpreter(agent=manager_agent).execute(parse_manager(read_str))
     assert "data.txt" in manager_agent.memory
     # DELETE file
-    delete_str = 'DELETE file "data.txt"'
+    delete_str = 'DELETE file "pkg/data.txt"'
     ManagerLanguageInterpreter(agent=manager_agent).execute(parse_manager(delete_str))
     assert not created_path.exists()
 
@@ -159,10 +161,10 @@ def test_manager_create_duplicate_fails(coder_agent, workspace):
     coder_agent.parent = None
     manager_agent = ManagerAgent(path=str(dir_path), children=[coder_agent], llm_client=DummyLLM())
     coder_agent.parent = manager_agent
-    # first creation
-    ManagerLanguageInterpreter(agent=manager_agent).execute(parse_manager('CREATE file "dup.txt"'))
+    # first creation within manager's scope
+    ManagerLanguageInterpreter(agent=manager_agent).execute(parse_manager('CREATE file "pkg/dup.txt"'))
     # second creation (duplicate)
-    ManagerLanguageInterpreter(agent=manager_agent).execute(parse_manager('CREATE file "dup.txt"'))
+    ManagerLanguageInterpreter(agent=manager_agent).execute(parse_manager('CREATE file "pkg/dup.txt"'))
     # file still exists
     assert (Path(manager_agent.path) / 'dup.txt').exists()
 
@@ -176,8 +178,8 @@ def test_manager_delete_missing_fails(coder_agent, workspace):
     coder_agent.parent = manager_agent
     missing_path = Path(manager_agent.path) / 'ghost.txt'
     assert not missing_path.exists()
-    # Should not raise
-    ManagerLanguageInterpreter(agent=manager_agent).execute(parse_manager('DELETE file "ghost.txt"'))
+    # Should not raise - trying to delete a file within manager's scope
+    ManagerLanguageInterpreter(agent=manager_agent).execute(parse_manager('DELETE file "pkg/ghost.txt"'))
     assert not missing_path.exists()
 
 
