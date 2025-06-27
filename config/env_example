@@ -3,14 +3,35 @@
 # Copy to `.env` at project root and populate values.
 ###############################################
 
-# OpenAI GPT-4 / o3 / o3-pro models
-OPENAI_API_KEY=
+# HMA-LLM Backend Configuration
+# Copy this file to .env and fill in your API keys
 
-# Anthropic Claude Sonnet 4
-ANTHROPIC_API_KEY=
+# LLM Provider Configuration
+# Choose one of the following providers:
 
-# Google Gemini Flash / Pro 2.5
-GOOGLE_GEMINI_API_KEY=
+# OpenAI Configuration
+OPENAI_API_KEY=your_openai_api_key_here
+OPENAI_MODEL=gpt-4-turbo-preview
+
+# Anthropic Configuration  
+ANTHROPIC_API_KEY=your_anthropic_api_key_here
+ANTHROPIC_MODEL=claude-3-sonnet-20240229
+
+# Google AI Configuration
+GOOGLE_API_KEY=your_google_api_key_here
+GOOGLE_MODEL=gemini-pro
+
+# Server Configuration
+HOST=localhost
+PORT=8080
+
+# Development Settings
+DEBUG=true
+LOG_LEVEL=INFO
+
+# Project Settings
+MAX_CONTEXT_SIZE=8000
+MAX_CONTEXT_DEPTH=3
 
 # DeepSeek R1 0528 model
 DEEPSEEK_API_KEY= 
