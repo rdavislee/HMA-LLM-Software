@@ -1,1 +1,0 @@
-notes: manager prompter should show child name in prompt when a result message comes in
