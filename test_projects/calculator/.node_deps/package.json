@@ -1,0 +1,12 @@
+{
+  "dependencies": {
+    "@types/chai": "file:../../../scripts/typescript/npm-packages/types-chai-4.3.11.tgz",
+    "@types/mocha": "file:../../../scripts/typescript/npm-packages/types-mocha-10.0.6.tgz",
+    "@types/node": "file:../../../scripts/typescript/npm-packages/types-node-20.11.0.tgz",
+    "chai": "file:../../../scripts/typescript/npm-packages/chai-4.3.8.tgz",
+    "mocha": "file:../../../scripts/typescript/npm-packages/mocha-10.2.0.tgz",
+    "ts-node": "file:../../../scripts/typescript/npm-packages/ts-node-10.9.1.tgz",
+    "tsx": "file:../../../scripts/typescript/npm-packages/tsx-4.7.0.tgz",
+    "typescript": "file:../../../scripts/typescript/npm-packages/typescript-5.3.3.tgz"
+  }
+}
