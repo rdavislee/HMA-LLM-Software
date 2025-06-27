@@ -1,9 +1,8 @@
-# Directory Contents
+Directory Contents
+Files
 
-### Files
-- `calculator.ts` - [IMPLEMENTED] Implementation of the Calculator class adhering to the interface
-- `calculatorInterface.ts` - [COMPLETE] Defines the interface for the Calculator class
-- `src_README.md` - [COMPLETE] This documentation file
-
-### Subdirectories
-- No subdirectories in this folder.
+expression.ts - [COMPLETE] Stub classes created and implement interfaces.
+expressionInterface.ts - [SPECCED] Defining Operator and UnaryOperator types.
+parser.ts - [COMPLETE] Fully implemented Parser class, all tests passing.
+utils.ts - [COMPLETE] Integration function 'evaluateExpression' implemented.
+src_README.md - [COMPLETE] This file

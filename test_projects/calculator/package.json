@@ -9,8 +9,12 @@
     "compile": "node tools/compile-typescript.js"
   },
   "mocha": {
-    "require": ["ts-node/register"],
-    "extensions": ["ts"],
+    "require": [
+      "ts-node/register"
+    ],
+    "extensions": [
+      "ts"
+    ],
     "spec": "test/**/*.test.ts",
     "reporter": "spec",
     "full-trace": true,
@@ -26,4 +30,4 @@
     "@types/mocha": "file:./npm-packages/types-mocha-10.0.6.tgz",
     "@types/node": "file:./npm-packages/types-node-20.11.0.tgz"
   }
-} 
+}

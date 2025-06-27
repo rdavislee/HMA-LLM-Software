@@ -13,43 +13,34 @@ class Calculator {
     }
     divide(a, b) {
         if (b === 0) {
-            // Handle division by zero based on IEEE 754 standard
-            // Positive infinity for positive dividend, negative infinity for negative dividend, NaN for 0/0
-            return a > 0 ? Infinity : a < 0 ? -Infinity : NaN;
+            if (a === 0)
+                return NaN; // 0/0 is NaN
+            return a > 0 ? Infinity : -Infinity; // Positive/0 is Infinity, Negative/0 is -Infinity
         }
         return a / b;
     }
     power(base, exponent) {
         return Math.pow(base, exponent);
     }
-    log(num, base) {
-        if (num <= 0 || base <= 0 || base === 1) {
-            // Logarithm is undefined for non-positive numbers or base 1
+    log(value, base) {
+        // Math.log returns natural logarithm (base e)
+        // log_b(x) = ln(x) / ln(b)
+        if (value < 0 || base <= 0 || base === 1) {
             return NaN;
         }
-        return Math.log(num) / Math.log(base);
+        return Math.log(value) / Math.log(base);
     }
-    naturalLog(num) {
-        if (num <= 0) {
-            // Natural logarithm is undefined for non-positive numbers
-            return NaN;
-        }
-        return Math.log(num);
+    ln(value) {
+        return Math.log(value);
     }
-    sin(angleInRadians) {
-        return Math.sin(angleInRadians);
+    sin(angle) {
+        return Math.sin(angle);
     }
-    cos(angleInRadians) {
-        return Math.cos(angleInRadians);
+    cos(angle) {
+        return Math.cos(angle);
     }
-    tan(angleInRadians) {
-        return Math.tan(angleInRadians);
-    }
-    degreesToRadians(degrees) {
-        return degrees * (Math.PI / 180);
-    }
-    radiansToDegrees(radians) {
-        return radians * (180 / Math.PI);
+    tan(angle) {
+        return Math.tan(angle);
     }
 }
 exports.Calculator = Calculator;
