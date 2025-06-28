@@ -63,6 +63,10 @@ async def manager_prompter(
                 if str(child.path) == child_sender_id:
                     # Remove child from agent's active_children list
                     agent.receive_child_result(child, message.result)
+                    # Prepend child's name to the prompt
+                    from pathlib import Path
+                    child_name = Path(child_sender_id).name
+                    prompt = f"[{child_name}] {prompt}"
                     break
         
         # 3. LLM RESPONSE PHASE
