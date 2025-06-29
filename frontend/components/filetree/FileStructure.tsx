@@ -1,15 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronRight, ChevronDown, File, Folder, FolderOpen } from 'lucide-react';
+import { ChevronRight, ChevronDown, File, Folder, FolderOpen, Code, FileText, Image, Loader2 } from 'lucide-react';
+import websocketService, { AgentUpdate } from '../../src/services/websocket';
 
 interface FileNode {
   name: string;
-  type: 'file' | 'folder';
-  children?: FileNode[];
-  isOpen?: boolean;
-  isModified?: boolean;
-  isBeingChanged?: boolean;
+  path: string;
+  type: 'file' | 'directory';
   content?: string;
-  size?: number;
+  children?: FileNode[];
 }
 
 interface ImportedFile {
@@ -23,322 +21,213 @@ interface ImportedFile {
 interface FileTreeProps {
   onFileSelect?: (filePath: string, content?: string) => void;
   importedFiles?: ImportedFile[];
+  projectFiles?: FileNode[];
 }
 
-const FileTree: React.FC<FileTreeProps> = ({ onFileSelect, importedFiles }) => {
-  const [fileStructure, setFileStructure] = useState<FileNode[]>([]);
+const FileTree: React.FC<FileTreeProps> = ({ onFileSelect, importedFiles = [], projectFiles = [] }) => {
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+  const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const [activeAgents, setActiveAgents] = useState<Map<string, AgentUpdate>>(new Map());
 
-  // Build file structure from imported files
+  // Listen for agent updates
   useEffect(() => {
-    if (importedFiles && importedFiles.length > 0) {
-      const newStructure = buildFileStructure(importedFiles);
-      setFileStructure(newStructure);
-    } else {
-      // Fallback to demo structure if no imported files
-      setFileStructure([
-        {
-          name: 'src',
-          type: 'folder',
-          isOpen: true,
-          children: [
-            {
-              name: 'components',
-              type: 'folder',
-              isOpen: true,
-              children: [
-                { name: 'ChatPanel.tsx', type: 'file', isModified: true },
-                { name: 'CodePanel.tsx', type: 'file' },
-                { name: 'FileTree.tsx', type: 'file', isModified: true },
-                { name: 'Terminal.tsx', type: 'file' },
-                { name: 'Header.tsx', type: 'file', isModified: true }
-              ]
-            },
-            { name: 'App.tsx', type: 'file' },
-            { name: 'main.tsx', type: 'file' },
-            { name: 'index.css', type: 'file' }
-          ]
-        },
-        { name: 'package.json', type: 'file', isModified: true },
-        { name: 'tailwind.config.js', type: 'file' },
-        { name: 'vite.config.ts', type: 'file' }
-      ]);
-    }
-  }, [importedFiles]);
-
-  // Build file structure from imported files
-  const buildFileStructure = (files: ImportedFile[]): FileNode[] => {
-    const structure: FileNode[] = [];
-    const fileMap = new Map<string, FileNode>();
-
-    files.forEach(file => {
-      const pathParts = file.path.split('/');
-      let currentPath = '';
-      
-      pathParts.forEach((part, index) => {
-        const isLast = index === pathParts.length - 1;
-        const isFile = isLast && file.type === 'file';
-        
-        if (currentPath) {
-          currentPath += '/' + part;
+    websocketService.on('agent_update', (update: AgentUpdate) => {
+      setActiveAgents(prev => {
+        const newMap = new Map(prev);
+        if (update.status === 'inactive' || update.status === 'completed') {
+          newMap.delete(update.agentId);
         } else {
-          currentPath = part;
+          newMap.set(update.agentId, update);
         }
-
-        if (!fileMap.has(currentPath)) {
-          const node: FileNode = {
-            name: part,
-            type: isFile ? 'file' : 'folder',
-            isOpen: true,
-            children: isFile ? undefined : [],
-            content: isFile ? file.content : undefined,
-            size: isFile ? file.size : undefined
-          };
-          
-          fileMap.set(currentPath, node);
-          
-          // Add to parent or root
-          if (index === 0) {
-            structure.push(node);
-          } else {
-            const parentPath = pathParts.slice(0, index).join('/');
-            const parent = fileMap.get(parentPath);
-            if (parent && parent.children) {
-              parent.children.push(node);
-            }
-          }
-        }
+        return newMap;
       });
     });
 
-    return structure;
-  };
-
-  // Simulate real-time file monitoring (in real implementation, this would come from WebSocket)
-  useEffect(() => {
-    if (fileStructure.length === 0) return;
-
-    // Simulate files being actively changed by the AI model
-    const simulateFileChanges = () => {
-      setFileStructure(prev => {
-        const newStructure = [...prev];
-        
-        // Simulate random file being actively changed
-        const allFiles = getAllFiles(newStructure);
-        if (allFiles.length > 0) {
-          const randomFile = allFiles[Math.floor(Math.random() * allFiles.length)];
-          if (randomFile) {
-            // Set the file as being changed
-            updateFileStatus(newStructure, randomFile.path, { isBeingChanged: true });
-            
-            // After 3-8 seconds, mark it as modified and stop being changed
-            setTimeout(() => {
-              setFileStructure(current => {
-                const updatedStructure = [...current];
-                updateFileStatus(updatedStructure, randomFile.path, { 
-                  isBeingChanged: false, 
-                  isModified: true 
-                });
-                return updatedStructure;
-              });
-            }, 3000 + Math.random() * 5000);
-          }
-        }
-        
-        return newStructure;
-      });
-    };
-
-    // Start simulation after initial load
-    const timer = setTimeout(simulateFileChanges, 2000);
-    
-    // Set up periodic simulation
-    const interval = setInterval(simulateFileChanges, 8000);
-
     return () => {
-      clearTimeout(timer);
-      clearInterval(interval);
+      websocketService.off('agent_update');
     };
-  }, [fileStructure.length]);
+  }, []);
 
-  // Helper function to get all files in the structure
-  const getAllFiles = (nodes: FileNode[], path: string[] = []): Array<{ node: FileNode; path: string[] }> => {
-    let files: Array<{ node: FileNode; path: string[] }> = [];
-    
-    for (const node of nodes) {
-      const currentPath = [...path, node.name];
-      if (node.type === 'file') {
-        files.push({ node, path: currentPath });
-      } else if (node.children) {
-        files = [...files, ...getAllFiles(node.children, currentPath)];
+  const toggleFolder = (path: string) => {
+    setExpandedFolders(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(path)) {
+        newSet.delete(path);
+      } else {
+        newSet.add(path);
       }
-    }
-    
-    return files;
+      return newSet;
+    });
   };
 
-  // Helper function to update file status
-  const updateFileStatus = (nodes: FileNode[], targetPath: string[], updates: Partial<FileNode>) => {
-    for (let i = 0; i < nodes.length; i++) {
-      const node = nodes[i];
-      if (node.name === targetPath[0]) {
-        if (targetPath.length === 1) {
-          // Found the target file/folder
-          Object.assign(node, updates);
-          return true;
-        } else if (node.children) {
-          // Continue searching in children
-          return updateFileStatus(node.children, targetPath.slice(1), updates);
-        }
+  const handleFileClick = (node: FileNode) => {
+    if (node.type === 'file') {
+      setSelectedFile(node.path);
+      onFileSelect?.(node.path, node.content);
+    } else {
+      toggleFolder(node.path);
+    }
+  };
+
+  const getFileIcon = (fileName: string) => {
+    const extension = fileName.split('.').pop()?.toLowerCase();
+    
+    switch (extension) {
+      case 'js':
+      case 'jsx':
+      case 'ts':
+      case 'tsx':
+        return <Code className="w-4 h-4 text-yellow-400" />;
+      case 'json':
+      case 'md':
+      case 'txt':
+        return <FileText className="w-4 h-4 text-blue-400" />;
+      case 'png':
+      case 'jpg':
+      case 'jpeg':
+      case 'gif':
+      case 'svg':
+        return <Image className="w-4 h-4 text-green-400" />;
+      case 'css':
+      case 'scss':
+      case 'sass':
+        return <FileText className="w-4 h-4 text-pink-400" />;
+      case 'html':
+        return <FileText className="w-4 h-4 text-orange-400" />;
+      default:
+        return <File className="w-4 h-4 text-gray-400" />;
+    }
+  };
+
+  const isAgentActive = (path: string): boolean => {
+    // Check if any agent is working on this file or directory
+    for (const [agentId, agent] of activeAgents) {
+      if (agentId.includes(path) || path.includes(agentId)) {
+        return agent.status === 'active';
       }
     }
     return false;
   };
 
-  // Helper function to find file by path
-  const findFileByPath = (nodes: FileNode[], targetPath: string[]): FileNode | null => {
-    for (const node of nodes) {
-      if (node.name === targetPath[0]) {
-        if (targetPath.length === 1) {
-          return node;
-        } else if (node.children) {
-          return findFileByPath(node.children, targetPath.slice(1));
-        }
-      }
-    }
-    return null;
-  };
+  const renderNode = (node: FileNode, depth: number = 0) => {
+    const isExpanded = expandedFolders.has(node.path);
+    const isSelected = selectedFile === node.path;
+    const isActive = isAgentActive(node.path);
 
-  const toggleFolder = (path: string[]) => {
-    setFileStructure(prev => {
-      const newStructure = [...prev];
-      let current = newStructure;
-      
-      for (let i = 0; i < path.length - 1; i++) {
-        const folder = current.find(item => item.name === path[i]);
-        if (folder?.children) {
-          current = folder.children;
-        }
-      }
-      
-      const target = current.find(item => item.name === path[path.length - 1]);
-      if (target) {
-        target.isOpen = !target.isOpen;
-      }
-      
-      return newStructure;
-    });
-  };
-
-  const handleFileClick = (path: string[]) => {
-    const filePath = path.join('/');
-    const fileNode = findFileByPath(fileStructure, path);
-    onFileSelect?.(filePath, fileNode?.content);
-  };
-
-  const renderNode = (node: FileNode, path: string[] = [], depth: number = 0) => {
-    const currentPath = [...path, node.name];
-    
-    // Determine file status and colors
-    let fileIconColor = 'text-gray-400'; // Default: unchanged
-    let fileNameColor = 'text-gray-300'; // Default: unchanged
-    
-    if (node.type === 'file') {
-      if (node.isBeingChanged) {
-        fileIconColor = 'text-yellow-400';
-        fileNameColor = 'text-yellow-400';
-      } else if (node.isModified) {
-        fileIconColor = 'text-green-400';
-        fileNameColor = 'text-green-400';
-      }
-    }
-    
     return (
-      <div key={currentPath.join('/')}>
+      <div key={node.path}>
         <div
-          className={`flex items-center gap-2 px-2 py-1 hover:bg-yellow-400/10 cursor-pointer rounded transition-colors duration-150`}
+          className={`flex items-center gap-2 px-2 py-1 hover:bg-gray-800 cursor-pointer transition-colors ${
+            isSelected ? 'bg-gray-800 border-l-2 border-yellow-400' : ''
+          }`}
           style={{ paddingLeft: `${depth * 16 + 8}px` }}
-          onClick={() => {
-            if (node.type === 'folder') {
-              toggleFolder(currentPath);
-            } else {
-              handleFileClick(currentPath);
-            }
-          }}
+          onClick={() => handleFileClick(node)}
         >
-          {node.type === 'folder' ? (
-            <>
-              {node.isOpen ? (
-                <ChevronDown className="w-4 h-4 text-yellow-400" />
-              ) : (
-                <ChevronRight className="w-4 h-4 text-yellow-400" />
-              )}
-              {node.isOpen ? (
-                <FolderOpen className="w-4 h-4 text-yellow-400" />
-              ) : (
-                <Folder className="w-4 h-4 text-yellow-400" />
-              )}
-            </>
-          ) : (
-            <>
-              <div className="w-4" />
-              <File className={`w-4 h-4 transition-colors ${fileIconColor}`} />
-            </>
+          {node.type === 'directory' && (
+            <span className="text-gray-400">
+              {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+            </span>
           )}
-          <span className={`text-sm transition-colors ${
-            node.type === 'folder' 
-              ? 'text-gray-200' 
-              : fileNameColor
-          }`}>
+          
+          {node.type === 'directory' ? (
+            isExpanded ? (
+              <FolderOpen className="w-4 h-4 text-yellow-400" />
+            ) : (
+              <Folder className="w-4 h-4 text-yellow-400" />
+            )
+          ) : (
+            getFileIcon(node.name)
+          )}
+          
+          <span className={`text-sm flex-1 ${isSelected ? 'text-yellow-400' : 'text-gray-300'}`}>
             {node.name}
           </span>
-          {node.type === 'file' && (
-            <div className="ml-auto flex items-center gap-1">
-              {node.isBeingChanged && (
-                <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>
-              )}
-              {node.isModified && !node.isBeingChanged && (
-                <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-              )}
-            </div>
+          
+          {isActive && (
+            <Loader2 className="w-3 h-3 animate-spin text-yellow-400" />
           )}
         </div>
         
-        {node.type === 'folder' && node.isOpen && node.children && (
+        {node.type === 'directory' && isExpanded && node.children && (
           <div>
-            {node.children.map(child => renderNode(child, currentPath, depth + 1))}
+            {node.children.map(child => renderNode(child, depth + 1))}
           </div>
         )}
       </div>
     );
   };
 
+  // Convert imported files to FileNode structure if needed
+  const convertImportedFiles = (files: ImportedFile[]): FileNode[] => {
+    const root: FileNode[] = [];
+    
+    files.forEach(file => {
+      const parts = file.path.split('/');
+      let current = root;
+      
+      parts.forEach((part, index) => {
+        const isLast = index === parts.length - 1;
+        const path = parts.slice(0, index + 1).join('/');
+        
+        let node = current.find(n => n.name === part);
+        if (!node) {
+          node = {
+            name: part,
+            path: path,
+            type: isLast && file.type === 'file' ? 'file' : 'directory',
+            content: isLast ? file.content : undefined,
+            children: isLast && file.type === 'file' ? undefined : []
+          };
+          current.push(node);
+        }
+        
+        if (node.children) {
+          current = node.children;
+        }
+      });
+    });
+    
+    return root;
+  };
+
+  // Use project files if available, otherwise fall back to imported files
+  const filesToDisplay = projectFiles.length > 0 ? projectFiles : convertImportedFiles(importedFiles);
+
   return (
-    <div className="h-full bg-gray-900 border-r border-yellow-400/20 overflow-y-auto">
-      <div className="p-3 border-b border-yellow-400/20 bg-gradient-to-r from-gray-900 to-gray-800">
-        <h3 className="text-yellow-400 font-medium text-sm">PROJECT FILES</h3>
-        <div className="flex items-center gap-4 mt-2 text-xs">
-          <div className="flex items-center gap-1">
-            <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
-            <span className="text-gray-400">Unchanged</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>
-            <span className="text-yellow-400">Being Changed</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-            <span className="text-green-400">Modified</span>
-          </div>
+    <div className="h-full bg-gray-900 border-r border-yellow-400/20 flex flex-col">
+      {/* Header */}
+      <div className="p-4 border-b border-yellow-400/20 bg-gradient-to-r from-gray-900 to-gray-800">
+        <div className="flex items-center justify-between">
+          <h2 className="text-yellow-400 font-semibold text-lg">Project Files</h2>
         </div>
-      </div>
-      <div className="p-2">
-        {fileStructure.length > 0 ? (
-          fileStructure.map(node => renderNode(node))
-        ) : (
-          <div className="text-gray-500 text-sm p-4 text-center">
-            No files loaded
-          </div>
+        {activeAgents.size > 0 && (
+          <p className="text-xs text-gray-400 mt-1">
+            {activeAgents.size} agent{activeAgents.size > 1 ? 's' : ''} working
+          </p>
         )}
+      </div>
+
+      {/* File Tree */}
+      <div className="flex-1 overflow-y-auto p-2">
+        {filesToDisplay.length === 0 ? (
+          <div className="text-center text-gray-500 text-sm mt-8">
+            <Folder className="w-12 h-12 mx-auto mb-2 opacity-20" />
+            <p>No files yet</p>
+            <p className="text-xs mt-1">Start a conversation to generate code</p>
+          </div>
+        ) : (
+          filesToDisplay.map(node => renderNode(node))
+        )}
+      </div>
+
+      {/* Footer */}
+      <div className="p-2 border-t border-yellow-400/20 text-xs text-gray-400">
+        <div className="flex items-center justify-between">
+          <span>{filesToDisplay.length} items</span>
+          <span className="text-yellow-400">
+            {activeAgents.size > 0 ? 'Building...' : 'Ready'}
+          </span>
+        </div>
       </div>
     </div>
   );

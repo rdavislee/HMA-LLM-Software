@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Settings, User, Upload, Hexagon } from 'lucide-react';
-import LanguageDropdown from './ui/LanguageDropdown';
 import SettingsModal from './ui/SettingsModal';
 import ImportModal from './ui/ImportModal';
 
@@ -101,10 +100,6 @@ const Header: React.FC<HeaderProps> = ({
 
         {/* Right Section - Controls */}
         <div className="flex items-center gap-4 ml-auto">
-          <LanguageDropdown />
-          
-          <div className="h-6 w-px bg-yellow-400/20"></div>
-          
           <button
             onClick={handleImportClick}
             className="flex items-center gap-2 px-3 py-2 bg-yellow-400 hover:bg-yellow-300 text-black rounded-lg transition-colors font-medium text-sm"

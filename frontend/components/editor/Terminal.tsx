@@ -33,7 +33,7 @@ const Terminal: React.FC<TerminalProps> = ({ onFileTreeUpdate, onCodeEditorUpdat
   const [isMinimized, setIsMinimized] = useState(false);
   const [commandHistory, setCommandHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
-  const [currentWorkingDir, setCurrentWorkingDir] = useState('frontend');
+  const [currentWorkingDir, setCurrentWorkingDir] = useState('~');
   const [runningProcess, setRunningProcess] = useState<{ id: string; command: string } | null>(null);
   const terminalRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -82,12 +82,26 @@ const Terminal: React.FC<TerminalProps> = ({ onFileTreeUpdate, onCodeEditorUpdat
           stdout = currentWorkingDir;
         } else if (command.startsWith('cd ')) {
           const newDir = command.substring(3).trim();
-          if (newDir === '..' && currentWorkingDir !== 'frontend') {
-            setCurrentWorkingDir('frontend');
-            stdout = `Changed directory to: frontend`;
+          if (newDir === '~' || newDir === '') {
+            setCurrentWorkingDir('~');
+            stdout = `Changed directory to: ~`;
+          } else if (newDir === '..' && currentWorkingDir !== '~') {
+            // Go up one directory
+            const parts = currentWorkingDir.split('/');
+            if (parts.length > 1) {
+              parts.pop();
+              const parentDir = parts.join('/') || '~';
+              setCurrentWorkingDir(parentDir);
+              stdout = `Changed directory to: ${parentDir}`;
+            } else {
+              setCurrentWorkingDir('~');
+              stdout = `Changed directory to: ~`;
+            }
           } else if (newDir && newDir !== '..') {
-            setCurrentWorkingDir(newDir);
-            stdout = `Changed directory to: ${newDir}`;
+            // Navigate to new directory
+            const fullPath = currentWorkingDir === '~' ? newDir : `${currentWorkingDir}/${newDir}`;
+            setCurrentWorkingDir(fullPath);
+            stdout = `Changed directory to: ${fullPath}`;
           } else {
             stderr = `cd: ${newDir}: No such file or directory`;
             code = 1;

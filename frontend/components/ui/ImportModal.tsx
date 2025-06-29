@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { X, Upload, Folder, File, AlertCircle, CheckCircle, Loader2, FolderOpen } from 'lucide-react';
 
 interface ImportedFile {
@@ -25,6 +25,19 @@ const ImportModal: React.FC<ImportModalProps> = ({
   const [isImporting, setIsImporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [importMode, setImportMode] = useState<'files' | 'folder'>('files');
+  
+  // Ref for folder input to set webkitdirectory attribute
+  const folderInputRef = useRef<HTMLInputElement>(null);
+  
+  // Set webkitdirectory attribute directly on mount
+  useEffect(() => {
+    if (folderInputRef.current) {
+      // Set the attribute directly on the DOM element
+      folderInputRef.current.setAttribute('webkitdirectory', '');
+      folderInputRef.current.setAttribute('directory', '');
+      folderInputRef.current.setAttribute('mozdirectory', ''); // For Firefox compatibility
+    }
+  }, []);
 
   const validateFile = (file: File): boolean => {
     const validExtensions = [
@@ -42,9 +55,19 @@ const ImportModal: React.FC<ImportModalProps> = ({
     const invalidFiles: string[] = [];
     const processedPaths = new Set<string>();
 
+    console.log('ImportModal: Processing files:', files.length);
+
     for (const file of Array.from(files)) {
       // For folder imports, webkitRelativePath will contain the full path
       const relativePath = file.webkitRelativePath || file.name;
+      
+      console.log('ImportModal: Processing file:', {
+        name: file.name,
+        webkitRelativePath: file.webkitRelativePath,
+        relativePath: relativePath,
+        type: file.type,
+        size: file.size
+      });
       
       // Skip if we've already processed this file
       if (processedPaths.has(relativePath)) {
@@ -81,8 +104,8 @@ const ImportModal: React.FC<ImportModalProps> = ({
     setImportedFiles(prev => [...prev, ...validFiles]);
     
     // Log for debugging
-    console.log('Processed files:', validFiles);
-    console.log('Files with paths:', validFiles.map(f => f.path));
+    console.log('ImportModal: Processed files:', validFiles);
+    console.log('ImportModal: Files with paths:', validFiles.map(f => ({ name: f.name, path: f.path })));
   }, [importMode]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -112,14 +135,51 @@ const ImportModal: React.FC<ImportModalProps> = ({
       setError(null);
       processFiles(files);
     }
+    // Reset the input to allow selecting the same files again
+    e.target.value = '';
   }, [processFiles]);
+
+  // Check browser support for folder selection
+  const checkFolderSupport = useCallback(() => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    
+    // Check if webkitdirectory is supported
+    const isSupported = 'webkitdirectory' in input || 'directory' in input || 'mozdirectory' in input;
+    
+    if (!isSupported && importMode === 'folder') {
+      setError('Your browser does not support folder selection. Please use Chrome, Edge, or another Chromium-based browser.');
+      return false;
+    }
+    
+    return true;
+  }, [importMode]);
 
   const handleFolderInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
+    console.log('Folder input triggered, files:', files);
+    
     if (files && files.length > 0) {
       setError(null);
+      console.log('Processing folder with', files.length, 'files');
+      
+      // Log first few files to see their paths
+      for (let i = 0; i < Math.min(5, files.length); i++) {
+        console.log(`File ${i}:`, {
+          name: files[i].name,
+          webkitRelativePath: files[i].webkitRelativePath,
+          size: files[i].size,
+          type: files[i].type
+        });
+      }
+      
       processFiles(files);
+    } else {
+      console.log('No files selected from folder input');
     }
+    
+    // Reset the input to allow selecting the same folder again
+    e.target.value = '';
   }, [processFiles]);
 
   const handleImport = async () => {
@@ -245,15 +305,22 @@ const ImportModal: React.FC<ImportModalProps> = ({
             <input
               type="file"
               webkitdirectory={true}
+              directory={true}
               multiple
               onChange={handleFolderInput}
               className="hidden"
               id="folder-input"
+              ref={folderInputRef}
             />
             
             <label
               htmlFor={importMode === 'files' ? 'file-input' : 'folder-input'}
               className="inline-flex items-center gap-2 px-4 py-2 bg-yellow-400 hover:bg-yellow-300 text-black rounded-lg transition-colors cursor-pointer font-medium"
+              onClick={(e) => {
+                if (importMode === 'folder' && !checkFolderSupport()) {
+                  e.preventDefault();
+                }
+              }}
             >
               {importMode === 'files' ? (
                 <>
