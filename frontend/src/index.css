@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* CSS Custom Properties for dynamic accent color */
+:root {
+  --accent-color: #facc15;
+  --accent-color-hover: #eab308;
+  --accent-color-light: #fef3c7;
+  --accent-color-dark: #a16207;
+}
+
+/* Utility classes for accent color */
+.accent-color {
+  color: var(--accent-color);
+}
+
+.accent-bg {
+  background-color: var(--accent-color);
+}
+
+.accent-border {
+  border-color: var(--accent-color);
+}
+
+.accent-hover:hover {
+  color: var(--accent-color-hover);
+}
+
+.accent-bg-hover:hover {
+  background-color: var(--accent-color-hover);
+}
+
+/* Performance mode classes */
+.performance-mode-performance {
+  /* Optimize for speed */
+  will-change: auto;
+  contain: layout style paint;
+}
+
+.performance-mode-quality {
+  /* Optimize for visual quality */
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+/* Font size utilities */
+.text-size-10 { font-size: 10px; }
+.text-size-11 { font-size: 11px; }
+.text-size-12 { font-size: 12px; }
+.text-size-13 { font-size: 13px; }
+.text-size-14 { font-size: 14px; }
+.text-size-15 { font-size: 15px; }
+.text-size-16 { font-size: 16px; }
+.text-size-17 { font-size: 17px; }
+.text-size-18 { font-size: 18px; }
+.text-size-19 { font-size: 19px; }
+.text-size-20 { font-size: 20px; }
