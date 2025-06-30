@@ -13,6 +13,7 @@ from jinja2 import Environment, FileSystemLoader
 from pathlib import Path
 import src
 import os
+from src.config import get_global_language, get_language_extension, Language
 
 class TesterAgent(EphemeralAgent):
     """
@@ -55,6 +56,7 @@ class TesterAgent(EphemeralAgent):
         """
         Create a scratch pad file for this tester agent.
         File is created in ROOT_DIR/scratch_pads/ with name based on parent path.
+        Uses the correct file extension based on the global language setting.
         """
         if src.ROOT_DIR is None:
             print("[TesterAgent] Warning: ROOT_DIR not set, cannot create scratch pad")
@@ -66,7 +68,7 @@ class TesterAgent(EphemeralAgent):
             scratch_pads_dir.mkdir(exist_ok=True)
             
             # Convert parent path to scratch pad filename
-            # Example: src/auth/user.py -> src.auth.user.py
+            # Example: src/auth/user.ts -> src.auth.user.ts
             try:
                 relative_parent_path = Path(self.parent_path).relative_to(src.ROOT_DIR)
                 scratch_pad_name = str(relative_parent_path).replace("/", ".").replace("\\", ".")
@@ -75,30 +77,50 @@ class TesterAgent(EphemeralAgent):
                 if Path(self.parent_path).is_dir():
                     scratch_pad_name += "_manager"
                 
-                # Add .py extension for Python scratch pad
-                scratch_pad_name += "_scratch.py"
+                # Add appropriate extension based on global language
+                extension = get_language_extension()
+                scratch_pad_name += f"_scratch{extension}"
                 
             except ValueError:
                 # Fallback if parent path is not relative to ROOT_DIR
-                scratch_pad_name = "tester_scratch.py"
+                extension = get_language_extension()
+                scratch_pad_name = f"tester_scratch{extension}"
             
             scratch_pad_path = scratch_pads_dir / scratch_pad_name
             
-            # Create the scratch pad file with initial content
-            initial_content = f"""# Tester Agent Scratch Pad
-            # Parent: {self.parent_path}
-            # Created for debugging and temporary code
+            # Create the scratch pad file with initial content based on language
+            current_language = get_global_language()
+            if current_language == Language.TYPESCRIPT:
+                initial_content = f"""// Tester Agent Scratch Pad
+// Parent: {self.parent_path}
+// Created for debugging and temporary code
 
-            # You can write any Python code here for testing purposes
-            # This file is ephemeral and will be cleaned up when the tester agent completes
+// You can write any TypeScript code here for testing purposes
+// This file is ephemeral and will be cleaned up when the tester agent completes
 
-            def debug_helper():
-                \"\"\"Helper function for debugging.\"\"\"
-                pass
+function debugHelper(): void {{
+    // Helper function for debugging
+}}
 
-            # Add your debugging code below:
+// Add your debugging code below:
 
-            """
+"""
+            else:
+                # Default to Python-style content for backward compatibility
+                initial_content = f"""# Tester Agent Scratch Pad
+# Parent: {self.parent_path}
+# Created for debugging and temporary code
+
+# You can write any code here for testing purposes
+# This file is ephemeral and will be cleaned up when the tester agent completes
+
+def debug_helper():
+    \"\"\"Helper function for debugging.\"\"\"
+    pass
+
+# Add your debugging code below:
+
+"""
             
             with open(scratch_pad_path, 'w', encoding='utf-8') as f:
                 f.write(initial_content)

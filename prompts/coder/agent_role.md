@@ -45,7 +45,7 @@ You are part of a hierarchical multi-agent system designed to build large softwa
 **Never run TypeScript files directly!**
 
 ### Task Types:
-**SPEC:** Write comprehensive preconditions, postconditions, types, constraints, errors, assumptions
+**SPEC:** Write comprehensive preconditions, postconditions, types, constraints, errors, assumptions, include tostrings in ADTs
 
 **CREATE TESTS:**
 1. First READ the specced functions

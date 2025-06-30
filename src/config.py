@@ -2,6 +2,35 @@
 Configuration constants for the HMA-LLM-Software project.
 """
 
+from enum import Enum
+from typing import Optional
+
+# Global Language Configuration
+class Language(Enum):
+    """Programming language environments supported by the system."""
+    TYPESCRIPT = "typescript"
+    # Future: PYTHON = "python"
+
+# Global language setting
+_CURRENT_LANGUAGE: Optional[Language] = None
+
+def set_global_language(language: Language) -> None:
+    """Set the global language for the project."""
+    global _CURRENT_LANGUAGE
+    _CURRENT_LANGUAGE = language
+
+def get_global_language() -> Optional[Language]:
+    """Get the current global language."""
+    return _CURRENT_LANGUAGE
+
+def get_language_extension(language: Optional[Language] = None) -> str:
+    """Get the file extension for the given language (or current global language)."""
+    lang = language or _CURRENT_LANGUAGE
+    if lang == Language.TYPESCRIPT:
+        return ".ts"
+    # Default fallback
+    return ".py"
+
 # Global constants for allowed terminal commands
 ALLOWED_COMMANDS = {
     # File operations
@@ -41,3 +70,13 @@ COLLAPSED_DIR_NAMES = {
     "npm-packages",
     "typescript",
 }
+
+# Export public API
+__all__ = [
+    'Language',
+    'set_global_language', 
+    'get_global_language',
+    'get_language_extension',
+    'ALLOWED_COMMANDS',
+    'COLLAPSED_DIR_NAMES'
+]
