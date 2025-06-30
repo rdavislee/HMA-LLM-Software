@@ -1,8 +1,15 @@
-# Main package initialization
+"""
+HMA-LLM Software Construction System
+"""
 
-ROOT_DIR = None
+from pathlib import Path
 
-def set_root_dir(path: str):
+# Set the root directory
+ROOT_DIR = Path(__file__).parent.parent
+
+def set_root_dir(path: Path):
+    """Set the root directory for the project."""
     global ROOT_DIR
-    from pathlib import Path
-    ROOT_DIR = Path(path).resolve()
+    ROOT_DIR = path
+
+__all__ = ['ROOT_DIR', 'set_root_dir']

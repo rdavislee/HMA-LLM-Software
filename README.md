@@ -9,7 +9,7 @@ HMA-LLM is a sophisticated system that uses multiple AI agents working in a hier
 - **Manager Agents**: High-level agents that plan and coordinate project structure
 - **Coder Agents**: Specialized agents that write and modify code files
 - **Real-time Frontend**: Modern React interface for interacting with the system
-- **WebSocket Backend**: Real-time communication between frontend and agents
+- **Socket.IO Backend**: Real-time communication between frontend and agents
 
 ## ✨ Features
 
@@ -27,8 +27,8 @@ HMA-LLM is a sophisticated system that uses multiple AI agents working in a hier
 - **Responsive Design**: Works on desktop and mobile devices
 
 ### 🔧 Backend Infrastructure
-- **WebSocket Server**: Real-time bidirectional communication
-- **Multi-LLM Support**: OpenAI, Anthropic, Google AI integration
+- **Socket.IO Server**: Real-time bidirectional communication
+- **Multi-LLM Support**: OpenAI, Anthropic, Google AI, DeepSeek integration
 - **Project Management**: Automatic project creation and file management
 - **Error Handling**: Robust error handling and recovery
 
@@ -39,7 +39,7 @@ HMA-LLM is a sophisticated system that uses multiple AI agents working in a hier
 - **Python 3.8+**
 - **Node.js 18+**
 - **npm or yarn**
-- **LLM API Key** (OpenAI, Anthropic, or Google AI)
+- **LLM API Key** (OpenAI, Anthropic, Google AI, or DeepSeek)
 
 ### Installation
 
@@ -56,15 +56,18 @@ HMA-LLM is a sophisticated system that uses multiple AI agents working in a hier
 
 3. **Install frontend dependencies:**
    ```bash
-   cd new_frontend
+   cd frontend
    npm install
    cd ..
    ```
 
 4. **Configure environment:**
    ```bash
+   # Copy the example environment file
    cp config/env_example .env
+   
    # Edit .env and add your API keys
+   # You need at least one of: OPENAI_API_KEY, ANTHROPIC_API_KEY, GOOGLE_GEMINI_API_KEY, or DEEPSEEK_API_KEY
    ```
 
 ### Running the System
@@ -73,23 +76,40 @@ HMA-LLM is a sophisticated system that uses multiple AI agents working in a hier
    ```bash
    python scripts/start_dev.py
    ```
+   
+   You should see:
+   ```
+   ✅ Server starting on http://localhost:8080
+   📝 To start the frontend, run: cd frontend && npm run dev
+   ```
 
 2. **In a new terminal, start the frontend:**
    ```bash
-   cd new_frontend
+   cd frontend
    npm run dev
    ```
+   
+   The frontend will start on `http://localhost:5173`
 
-3. **Open your browser** to the URL shown by Vite (usually `http://localhost:5173`)
+3. **Open your browser** and navigate to `http://localhost:5173`
 
 ## 📖 Usage
 
 ### Creating a Project
 
-1. **Describe your project** in the chat interface
-2. **Watch agents work** - The system will create a hierarchical structure
-3. **Monitor progress** - See real-time updates in the file tree and chat
-4. **View generated code** - Click on files to see the generated content
+1. **Wait for connection**: The chat panel will show "Connected" when ready
+2. **Describe your project** in the chat interface:
+   - "Create a React todo app with TypeScript"
+   - "Build a Python Flask API with user authentication"
+   - "Make a Node.js Express server with MongoDB"
+3. **Watch agents work**: 
+   - See real-time messages as agents plan and implement
+   - Watch the file tree grow as files are created
+   - View generated code in the code editor
+4. **Monitor progress**: 
+   - Agent status indicators show which agents are active
+   - Progress messages appear in the chat
+   - Files appear in the tree as they're created
 
 ### Example Prompts
 
@@ -97,44 +117,53 @@ HMA-LLM is a sophisticated system that uses multiple AI agents working in a hier
 - "Build a React todo app with TypeScript and Tailwind CSS"
 - "Make a Python data analysis script that processes CSV files"
 - "Create a Node.js microservice with Express and MongoDB"
+- "Build a Vue.js dashboard with charts and real-time data"
 
 ### Agent Status Indicators
 
 - 🟢 **Active** - Agent is currently working
 - 🔵 **Delegating** - Agent is assigning tasks to children
 - 🟡 **Waiting** - Agent is waiting for dependencies
-- 🟣 **Completion** - Agent is finishing up
+- 🟣 **Completed** - Agent has finished its task
 - ⚪ **Inactive** - Agent is idle
+- 🔴 **Error** - Agent encountered an error
 
 ## 🏗️ Architecture
 
 ### Agent Hierarchy
 
 ```
-Root Manager Agent
-├── Project Manager Agent
-│   ├── Frontend Coder Agent
-│   ├── Backend Coder Agent
-│   └── Database Coder Agent
+Root Manager Agent (Project Coordinator)
+├── Frontend Manager Agent
+│   ├── React Component Coder
+│   ├── CSS Styles Coder
+│   └── TypeScript Types Coder
+├── Backend Manager Agent
+│   ├── API Routes Coder
+│   ├── Database Models Coder
+│   └── Authentication Coder
 └── Documentation Manager Agent
-    └── README Coder Agent
+    └── README Coder
 ```
 
-### Communication Protocol
+### Communication Flow
 
-Agents communicate through a hierarchical message protocol:
+1. **User Input** → Socket.IO → Backend Server
+2. **Task Creation** → Root Manager Agent
+3. **Task Delegation** → Child Agents (recursive)
+4. **Code Generation** → Real-time streaming to frontend
+5. **Status Updates** → Live UI updates
 
-- **Delegation Messages**: Parent → Child task assignment
-- **Result Messages**: Child → Parent task completion
-- **Status Updates**: Real-time agent state changes
-- **Code Streaming**: Live code generation updates
+### Message Protocol
 
-### Frontend-Backend Integration
+The system uses Socket.IO for real-time communication with these message types:
 
-- **WebSocket Connection**: Real-time bidirectional communication
-- **Message Types**: Prompts, agent updates, code streams, delegations
-- **Auto-reconnect**: Handles connection loss gracefully
-- **Error Handling**: Robust error recovery and user feedback
+- **prompt**: User input to agents
+- **message**: Agent responses and status updates
+- **code_stream**: Real-time code generation
+- **agent_update**: Agent status changes
+- **file_tree_update**: File system changes
+- **project_status**: Overall project status
 
 ## 🧪 Testing
 
@@ -143,42 +172,38 @@ Agents communicate through a hierarchical message protocol:
 python -m pytest test/
 ```
 
-### Run Frontend Tests
-```bash
-cd new_frontend
-npm test
-```
-
 ### Run Integration Tests
 ```bash
 python test/test_server_integration.py
+python test/test_full_integration.py
 ```
 
-## 🎬 Demo
-
-Run the demo to see the system in action:
-
+### Test Socket.IO Connection
 ```bash
+# Run the test server
+python test_socketio_connection.py
+
+# Then open the frontend and check the connection
+```
+
+### Manual Testing
+```bash
+# Run the demo script
 python scripts/demo.py
 ```
-
-This will show:
-- Agent hierarchy creation
-- Task delegation
-- Code generation
-- Project structure evolution
 
 ## 🔧 Configuration
 
 ### Environment Variables
 
-Copy `config/env_example` to `.env` and configure:
+Create a `.env` file in the root directory:
 
-```bash
-# LLM Provider (choose one)
-OPENAI_API_KEY=your_key_here
-ANTHROPIC_API_KEY=your_key_here
-GOOGLE_API_KEY=your_key_here
+```env
+# LLM Provider API Keys (need at least one)
+OPENAI_API_KEY=your_openai_key_here
+ANTHROPIC_API_KEY=your_anthropic_key_here
+GOOGLE_GEMINI_API_KEY=your_google_key_here
+DEEPSEEK_API_KEY=your_deepseek_key_here
 
 # Server Configuration
 HOST=localhost
@@ -194,8 +219,9 @@ LOG_LEVEL=INFO
 The system supports multiple LLM providers:
 
 - **OpenAI**: GPT-4, GPT-3.5-turbo
-- **Anthropic**: Claude-3 Sonnet, Claude-3 Haiku
+- **Anthropic**: Claude-3 Sonnet, Claude-3 Opus
 - **Google AI**: Gemini Pro, Gemini Flash
+- **DeepSeek**: DeepSeek V3, DeepSeek R1
 
 ## 📁 Project Structure
 
@@ -203,38 +229,60 @@ The system supports multiple LLM providers:
 HMA-LLM-Software/
 ├── src/                    # Backend source code
 │   ├── agents/            # Agent implementations
-│   ├── llm/               # LLM provider integrations
-│   ├── messages/          # Communication protocol
-│   ├── orchestrator/      # Agent orchestration
-│   └── server.py          # WebSocket server
-├── new_frontend/          # React frontend
-│   ├── src/
-│   │   ├── components/    # React components
-│   │   ├── services/      # WebSocket service
-│   │   ├── types/         # TypeScript types
-│   │   └── App.tsx        # Main app component
-│   └── package.json
-├── scripts/               # Utility scripts
-├── test/                  # Test files
-├── config/                # Configuration files
-└── requirements.txt       # Python dependencies
+│   ├── llm/              # LLM provider integrations
+│   ├── manager_language/ # Manager agent DSL
+│   ├── coder_language/   # Coder agent DSL
+│   └── server.py         # Socket.IO server
+├── frontend/              # React frontend
+│   ├── src/              # Frontend source
+│   ├── components/       # React components
+│   └── package.json      # Frontend dependencies
+├── test/                  # Test suite
+├── scripts/              # Utility scripts
+├── prompts/              # Agent prompt templates
+└── requirements.txt      # Python dependencies
 ```
+
+## 🚨 Troubleshooting
+
+### Connection Issues
+
+If the frontend shows "Disconnected":
+1. Check the backend server is running
+2. Verify the Socket.IO URL matches (default: `ws://localhost:8080`)
+3. Check browser console for errors
+4. Try the test server: `python test_socketio_connection.py`
+
+### Socket.IO Specific Issues
+
+If you see WebSocket errors:
+1. Make sure both `socket.io-client` (frontend) and `python-socketio` (backend) are installed
+2. Check that the Socket.IO path is `/ws` on both frontend and backend
+3. Verify CORS is enabled on the backend (`cors_allowed_origins='*'`)
+
+### No Agent Responses
+
+If agents don't respond:
+1. Check you have at least one API key configured in `.env`
+2. Verify the API key is valid and has credits
+3. Check the backend server logs for errors
+
+### File Creation Issues
+
+If files aren't appearing:
+1. Check the `generated_projects` directory exists
+2. Verify write permissions
+3. Check backend logs for file system errors
 
 ## 🤝 Contributing
 
-1. **Fork the repository**
-2. **Create a feature branch**: `git checkout -b feature/amazing-feature`
-3. **Make your changes**
-4. **Add tests** for new functionality
-5. **Run tests** to ensure everything works
-6. **Submit a pull request**
+Contributions are welcome! Please:
 
-### Development Guidelines
-
-- **Code Style**: Follow PEP 8 for Python, ESLint for TypeScript
-- **Testing**: Add tests for new features
-- **Documentation**: Update docs for API changes
-- **Commits**: Use conventional commit messages
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests for new functionality
+5. Submit a pull request
 
 ## 📄 License
 
@@ -242,11 +290,9 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## 🙏 Acknowledgments
 
-- **OpenAI** for GPT models
-- **Anthropic** for Claude models
-- **Google AI** for Gemini models
-- **React** and **Vite** for the frontend framework
-- **Tailwind CSS** for styling
+- Built with React, TypeScript, Python, and Socket.IO
+- Powered by advanced LLMs from OpenAI, Anthropic, Google, and DeepSeek
+- Inspired by hierarchical software development practices
 
 ## 📞 Support
 

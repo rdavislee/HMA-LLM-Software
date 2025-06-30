@@ -30,10 +30,18 @@ const CodePanel: React.FC<CodePanelProps> = ({
 
   // Update content when imported content changes
   useEffect(() => {
-    if (importedContent) {
+    if (importedContent !== undefined) {
       setCodeContent(importedContent);
+      console.log('CodePanel: Content updated from imported content');
     }
   }, [importedContent]);
+
+  // Update content when current file name changes (in case content is passed separately)
+  useEffect(() => {
+    if (currentFileName && importedContent) {
+      console.log('CodePanel: File changed to:', currentFileName);
+    }
+  }, [currentFileName, importedContent]);
 
   const clearCode = useCallback(() => {
     setCodeContent('');
@@ -191,8 +199,8 @@ const CodePanel: React.FC<CodePanelProps> = ({
                 <div className="flex items-center justify-center h-64 text-gray-500">
                   <div className="text-center">
                     <Code className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                    <p>No code to display</p>
-                    <p className="text-sm">Start typing or import a file to begin</p>
+                    <p>No file selected</p>
+                    <p className="text-sm">Click on a file in the file tree to view its contents</p>
                   </div>
                 </div>
               )}

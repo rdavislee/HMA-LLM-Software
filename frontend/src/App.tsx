@@ -6,6 +6,7 @@ import FileTree from '../components/filetree/FileStructure';
 import Terminal from '../components/editor/Terminal';
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import websocketService, { CodeStream, FileTreeUpdate, ProjectStatus } from './services/websocket';
 
 interface Settings {
   theme: 'light' | 'dark' | 'system';
@@ -26,12 +27,23 @@ interface ImportedFile {
   content?: string;
 }
 
+interface FileNode {
+  name: string;
+  path: string;
+  type: 'file' | 'directory';
+  content?: string;
+  children?: FileNode[];
+}
+
 function App() {
   const [isChatCollapsed, setIsChatCollapsed] = useState(false);
   const [isFileTreeCollapsed, setIsFileTreeCollapsed] = useState(false);
   const [currentFile, setCurrentFile] = useState<{ name: string; content: string; language: string } | null>(null);
   const [clearCodeEditor, setClearCodeEditor] = useState<(() => void) | null>(null);
   const [importedFiles, setImportedFiles] = useState<ImportedFile[]>([]);
+  const [projectFiles, setProjectFiles] = useState<FileNode[]>([]);
+  const [streamingContent, setStreamingContent] = useState<Map<string, string>>(new Map());
+  const [projectStatus, setProjectStatus] = useState<ProjectStatus | null>(null);
   const [settings, setSettings] = useState<Settings>(() => {
     // Load settings from localStorage
     const saved = localStorage.getItem('hive-settings');
@@ -53,6 +65,188 @@ function App() {
       autoSave: true
     };
   });
+
+  // Set up WebSocket event listeners for real-time updates
+  useEffect(() => {
+    // Handle code streaming
+    websocketService.on('code_stream', (stream: CodeStream) => {
+      console.log('Code stream received:', stream);
+      
+      setStreamingContent(prev => {
+        const newMap = new Map(prev);
+        if (stream.isComplete) {
+          // Final content, update the file tree
+          updateFileContent(stream.filePath, stream.content);
+          newMap.delete(stream.filePath);
+        } else {
+          // Accumulate streaming content
+          const existing = newMap.get(stream.filePath) || '';
+          newMap.set(stream.filePath, existing + stream.content);
+        }
+        return newMap;
+      });
+
+      // If this is the currently selected file, update the editor
+      if (currentFile && stream.filePath === currentFile.name) {
+        const content = stream.isComplete 
+          ? stream.content 
+          : (streamingContent.get(stream.filePath) || '') + stream.content;
+        
+        setCurrentFile(prev => prev ? {
+          ...prev,
+          content: content
+        } : null);
+      }
+    });
+
+    // Handle file tree updates
+    websocketService.on('file_tree_update', (update: FileTreeUpdate) => {
+      console.log('File tree update:', update);
+      
+      switch (update.action) {
+        case 'create':
+          if (update.fileType === 'file') {
+            createFile(update.filePath, update.content || '');
+          } else {
+            createFolder(update.filePath);
+          }
+          break;
+        case 'update':
+          updateFileContent(update.filePath, update.content || '');
+          break;
+        case 'delete':
+          deleteFileOrFolder(update.filePath);
+          break;
+      }
+    });
+
+    // Handle project status updates
+    websocketService.on('project_status', (status: ProjectStatus) => {
+      console.log('Project status:', status);
+      setProjectStatus(status);
+      
+      // Clear imported files when project becomes active (files have been processed)
+      if (status.status === 'active') {
+        setImportedFiles([]);
+      }
+    });
+
+    // Cleanup
+    return () => {
+      websocketService.off('code_stream');
+      websocketService.off('file_tree_update');
+      websocketService.off('project_status');
+    };
+  }, [currentFile, streamingContent]);
+
+  // File tree manipulation functions
+  const createFile = (filePath: string, content: string) => {
+    const parts = filePath.split('/');
+    const fileName = parts.pop() || '';
+    
+    setProjectFiles(prev => {
+      const newFiles = [...prev];
+      let current = { children: newFiles } as any;
+      
+      // Navigate to the parent directory
+      for (const part of parts) {
+        let found = current.children?.find((f: FileNode) => f.name === part && f.type === 'directory');
+        if (!found) {
+          // Create directory if it doesn't exist
+          found = {
+            name: part,
+            path: parts.slice(0, parts.indexOf(part) + 1).join('/'),
+            type: 'directory',
+            children: []
+          };
+          current.children.push(found);
+        }
+        current = found;
+      }
+      
+      // Add the file if it doesn't exist
+      if (!current.children?.find((f: FileNode) => f.name === fileName)) {
+        current.children.push({
+          name: fileName,
+          path: filePath,
+          type: 'file',
+          content: content
+        });
+      }
+      
+      return newFiles;
+    });
+  };
+
+  const createFolder = (folderPath: string) => {
+    const parts = folderPath.split('/');
+    
+    setProjectFiles(prev => {
+      const newFiles = [...prev];
+      let current = { children: newFiles } as any;
+      
+      for (const part of parts) {
+        let found = current.children?.find((f: FileNode) => f.name === part && f.type === 'directory');
+        if (!found) {
+          found = {
+            name: part,
+            path: parts.slice(0, parts.indexOf(part) + 1).join('/'),
+            type: 'directory',
+            children: []
+          };
+          current.children.push(found);
+        }
+        current = found;
+      }
+      
+      return newFiles;
+    });
+  };
+
+  const updateFileContent = (filePath: string, content: string) => {
+    setProjectFiles(prev => {
+      const updateNode = (nodes: FileNode[]): FileNode[] => {
+        return nodes.map(node => {
+          if (node.path === filePath && node.type === 'file') {
+            return { ...node, content };
+          } else if (node.children) {
+            return { ...node, children: updateNode(node.children) };
+          }
+          return node;
+        });
+      };
+      
+      return updateNode(prev);
+    });
+
+    // Update current file if it's the one being updated
+    if (currentFile && filePath === currentFile.name) {
+      setCurrentFile(prev => prev ? { ...prev, content } : null);
+    }
+  };
+
+  const deleteFileOrFolder = (path: string) => {
+    setProjectFiles(prev => {
+      const deleteFromNodes = (nodes: FileNode[]): FileNode[] => {
+        return nodes.filter(node => {
+          if (node.path === path) {
+            return false;
+          }
+          if (node.children) {
+            node.children = deleteFromNodes(node.children);
+          }
+          return true;
+        });
+      };
+      
+      return deleteFromNodes(prev);
+    });
+
+    // Clear current file if it was deleted
+    if (currentFile && path === currentFile.name) {
+      setCurrentFile(null);
+    }
+  };
 
   // Apply accent color changes
   useEffect(() => {
@@ -95,17 +289,10 @@ function App() {
     console.log('Project imported with files:', files);
     setImportedFiles(files);
     
-    // If there are files, load the first one into the code editor
-    if (files.length > 0) {
-      const firstFile = files[0];
-      if (firstFile.content) {
-        setCurrentFile({
-          name: firstFile.name,
-          content: firstFile.content,
-          language: getLanguageFromExtension(firstFile.name)
-        });
-      }
-    }
+    // Send to backend
+    websocketService.importProject(files);
+    
+    // Don't clear imported files - let them be cleared when backend successfully processes them
   };
 
   const getLanguageFromExtension = (filename: string): string => {
@@ -143,6 +330,12 @@ function App() {
     if (clearCodeEditor) {
       clearCodeEditor();
     }
+    
+    // Clear project files
+    setProjectFiles([]);
+    setStreamingContent(new Map());
+    setCurrentFile(null);
+    setProjectStatus(null);
   };
 
   const handleSaveFile = () => {
@@ -263,16 +456,29 @@ function App() {
             {!isFileTreeCollapsed && (
               <FileTree 
                 onFileSelect={(filePath, content) => {
-                  console.log('File selected:', filePath);
-                  if (content) {
+                  console.log('App: File selected:', filePath);
+                  console.log('App: File content length:', content?.length || 0);
+                  
+                  if (content !== undefined) {
+                    const fileName = filePath.split('/').pop() || 'Unknown';
+                    const language = getLanguageFromExtension(filePath);
+                    
                     setCurrentFile({
-                      name: filePath.split('/').pop() || 'Unknown',
+                      name: filePath,
                       content: content,
-                      language: getLanguageFromExtension(filePath)
+                      language: language
                     });
+                    
+                    // Notify backend of file selection
+                    websocketService.selectFile(filePath);
+                    
+                    console.log('App: Set current file:', fileName, 'Language:', language);
+                  } else {
+                    console.warn('App: No content provided for file:', filePath);
                   }
                 }}
                 importedFiles={importedFiles}
+                projectFiles={projectFiles}
               />
             )}
           </div>
@@ -320,7 +526,7 @@ function App() {
       {/* Status Bar */}
       <div className="h-6 bg-gray-900 border-t border-yellow-400/20 flex items-center justify-between px-4 text-xs">
         <div className="flex items-center gap-4">
-          <span className="text-yellow-400">● Ready</span>
+          <span className="text-yellow-400">● {projectStatus?.status || 'Ready'}</span>
           <span className="text-gray-400">Lines: {statusData.lines}</span>
           <span className="text-gray-400">Characters: {statusData.characters.toLocaleString()}</span>
         </div>
