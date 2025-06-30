@@ -27,7 +27,7 @@ lark>=1.1.0
 ## Quick Start
 
 ```python
-from manager_language import parse_directive, execute_directive
+from src.languages.manager_language import parse_directive, execute_directive
 
 # Parse and execute a single directive
 directive = 'CREATE file "example.txt"'
@@ -129,7 +129,7 @@ Main interpreter class for advanced usage.
 ### Basic File Operations
 
 ```python
-from manager_language import execute_directives
+from src.languages.manager_language import execute_directives
 
 # Create a project structure
 directives = """
@@ -169,7 +169,7 @@ print(result)
 ### Using the Interpreter Class
 
 ```python
-from manager_language import ManagerLanguageInterpreter
+from src.languages.manager_language import ManagerLanguageInterpreter
 
 # Create interpreter with custom base path
 interpreter = ManagerLanguageInterpreter(base_path="./workspace")

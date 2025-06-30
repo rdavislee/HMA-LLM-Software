@@ -252,8 +252,8 @@ class ManagerAgent(BaseAgent):
             # Clear prompt queue
             self.prompt_queue.clear()
 
-            # Process response via manager language interpreter
-            from src.manager_language.interpreter import execute_directive
-            execute_directive(response, agent=self)
+                    # Process response via manager language interpreter
+        from src.languages.manager_language.interpreter import execute_directive
+        execute_directive(response, agent=self)
         
         

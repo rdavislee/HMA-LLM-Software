@@ -5,7 +5,7 @@ This module provides a language for coder agents to communicate their actions.
 Coder agents can read files, run commands, change their own file, and finish tasks.
 
 Example usage:
-    from src.coder_language import CoderLanguageInterpreter
+    from src.languages.coder_language import CoderLanguageInterpreter
     
     interpreter = CoderLanguageInterpreter(own_file="my_file.py")
     context = interpreter.execute('READ "dependencies.py"')

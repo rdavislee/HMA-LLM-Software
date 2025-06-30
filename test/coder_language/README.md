@@ -159,7 +159,7 @@ python -m pytest -v
 python -m pytest test_interpreter.py -v
 
 # Run with coverage reporting
-python -m pytest --cov=src.coder_language --cov-report=html
+python -m pytest --cov=src.languages.coder_language --cov-report=html
 ```
 
 ## Test Maintenance

@@ -6,7 +6,7 @@ import traceback
 from typing import Optional, Any, Dict, List
 from src.agents.coder_agent import CoderAgent
 from src.messages.protocol import *
-from src.coder_language.ast import (
+from src.languages.coder_language.ast import (
     ReadDirective, RunDirective, ChangeDirective, FinishDirective
 )
 

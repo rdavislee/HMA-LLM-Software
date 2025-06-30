@@ -14,7 +14,7 @@ from typing import Dict, Any, List, Optional
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
-from manager_language.ast import (
+from src.languages.manager_language.ast import (
     # Basic data classes
     Target,
     PromptField,
@@ -45,7 +45,7 @@ from manager_language.ast import (
     TokenType
 )
 
-from manager_language.interpreter import (
+from src.languages.manager_language.interpreter import (
     execute_directive
 )
 

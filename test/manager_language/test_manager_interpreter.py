@@ -17,8 +17,8 @@ import pytest
 sys.path.insert(0, str(_P(__file__).parent.parent.parent))
 
 from src import set_root_dir  # noqa: E402
-from manager_language.interpreter import ManagerLanguageInterpreter, execute_directive  # noqa: E402
-from manager_language.ast import (  # noqa: E402
+from src.languages.manager_language.interpreter import ManagerLanguageInterpreter, execute_directive  # noqa: E402
+from src.languages.manager_language.ast import (  # noqa: E402
     Target,
     ActionDirective,
     WaitDirective,

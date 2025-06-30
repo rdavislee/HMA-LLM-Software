@@ -15,13 +15,13 @@ from typing import List
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
-from manager_language.parser import (
+from src.languages.manager_language.parser import (
     ManagerLanguageParser,
     ManagerLanguageTransformer,
     parse_directive,
     parse_directives
 )
-from manager_language.ast import (
+from src.languages.manager_language.ast import (
     DelegateDirective,
     FinishDirective,
     ActionDirective,

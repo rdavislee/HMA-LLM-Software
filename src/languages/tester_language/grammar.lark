@@ -1,0 +1,36 @@
+// Tester Language Grammar for Lark
+// Based on the coder language grammar but adapted for tester agents
+// Supports READ, RUN, and FINISH directives only
+
+// Comments
+COMMENT: /\/\/.*/
+
+// Directives
+directive: read | run | finish
+
+// Read directive - read any file in the codebase
+read: "READ" filename
+
+// Run directive - run terminal commands
+run: "RUN" command
+
+// Finish directive - complete the task
+finish: "FINISH" prompt_field
+
+// Filename is a quoted string
+filename: string
+
+// Command is a quoted string
+command: string
+
+// Prompt field
+prompt_field: "PROMPT" "=" string
+
+// Regular string literals (for filenames, commands, prompts)
+string: STRING
+STRING: /"(\\.|[^\\"])*"/
+
+// Ignore whitespace and comments
+%import common.WS
+%ignore WS
+%ignore COMMENT 

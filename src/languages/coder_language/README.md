@@ -59,7 +59,7 @@ A typical coder agent workflow follows this pattern:
 ## Example Usage
 
 ```python
-from src.coder_language import CoderLanguageInterpreter
+from src.languages.coder_language import CoderLanguageInterpreter
 
 # Initialize interpreter for a specific file
 interpreter = CoderLanguageInterpreter(own_file="src/auth/user.py")

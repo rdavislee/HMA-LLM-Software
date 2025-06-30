@@ -7,7 +7,7 @@ from typing import Optional, Any, Dict, List
 from src.agents.manager_agent import ManagerAgent
 from src.agents.coder_agent import CoderAgent
 from src.messages.protocol import *
-from src.manager_language.ast import (
+from src.languages.manager_language.ast import (
     DelegateDirective, FinishDirective, ActionDirective, 
     WaitDirective, RunDirective, UpdateReadmeDirective
 )

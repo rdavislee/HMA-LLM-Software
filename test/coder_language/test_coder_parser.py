@@ -12,13 +12,13 @@ from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
-from coder_language.parser import (
+from src.languages.coder_language.parser import (
     CoderLanguageParser,
     CoderLanguageTransformer,
     parse_directive,
     parse_directives
 )
-from coder_language.ast import (
+from src.languages.coder_language.ast import (
     ReadDirective,
     RunDirective,
     ChangeDirective,

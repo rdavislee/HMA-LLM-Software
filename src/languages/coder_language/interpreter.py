@@ -11,7 +11,7 @@ import uuid
 from typing import Dict, Any, Optional
 from pathlib import Path
 from .ast import DirectiveType, ReadDirective, RunDirective, ChangeDirective, FinishDirective
-from src import ROOT_DIR
+import src
 from src.config import ALLOWED_COMMANDS
 from .parser import parse_directive
 from src.messages.protocol import ResultMessage, MessageType
@@ -37,7 +37,7 @@ class CoderLanguageInterpreter:
         self.own_file = own_file
         
         # Use ROOT_DIR if set, else find project root
-        self.project_root = ROOT_DIR if ROOT_DIR is not None else self._find_project_root()
+        self.project_root = src.ROOT_DIR if src.ROOT_DIR is not None else self._find_project_root()
     
     def _find_project_root(self) -> Path:
         """Find the project root directory."""

@@ -9,10 +9,10 @@ import inspect
 from src import set_root_dir
 from src.agents.coder_agent import CoderAgent
 from src.agents.manager_agent import ManagerAgent
-from src.coder_language.parser import parse_directive as parse_coder
-from src.coder_language.interpreter import CoderLanguageInterpreter
-from src.manager_language.parser import parse_directive as parse_manager
-from src.manager_language.interpreter import ManagerLanguageInterpreter
+from src.languages.coder_language.parser import parse_directive as parse_coder
+from src.languages.coder_language.interpreter import CoderLanguageInterpreter
+from src.languages.manager_language.parser import parse_directive as parse_manager
+from src.languages.manager_language.interpreter import ManagerLanguageInterpreter
 
 
 class DummyLLM:
