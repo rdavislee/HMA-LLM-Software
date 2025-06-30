@@ -7,8 +7,8 @@ import os
 from typing import List, Union
 from lark import Lark, Transformer, v_args
 from .ast import (
-    Directive, DelegateDirective, FinishDirective, ActionDirective, WaitDirective, RunDirective, UpdateReadmeDirective,
-    DelegateItem, Target, PromptField, DirectiveType
+    Directive, DelegateDirective, SpawnDirective, FinishDirective, ActionDirective, WaitDirective, RunDirective, UpdateReadmeDirective,
+    DelegateItem, SpawnItem, Target, EphemeralType, PromptField, DirectiveType
 )
 
 
@@ -32,6 +32,17 @@ class ManagerLanguageTransformer(Transformer):
     def delegate_item(self, target, prompt_field):
         """Transform delegate item."""
         return DelegateItem(target=target, prompt=prompt_field)
+    
+    @v_args(inline=True)
+    def spawn(self, first_item, *other_items):
+        """Transform spawn directive."""
+        items = [first_item] + list(other_items)
+        return SpawnDirective(items=items)
+    
+    @v_args(inline=True)
+    def spawn_item(self, ephemeral_type, prompt_field):
+        """Transform spawn item."""
+        return SpawnItem(ephemeral_type=ephemeral_type, prompt=prompt_field)
     
     @v_args(inline=True)
     def finish(self, prompt_field):
@@ -92,6 +103,16 @@ class ManagerLanguageTransformer(Transformer):
     def folder(self, filename):
         """Transform folder target."""
         return Target(name=filename, is_folder=True)
+    
+    @v_args(inline=True)
+    def ephemeral_type(self, type_name):
+        """Transform ephemeral type."""
+        return EphemeralType(type_name=type_name)
+    
+    @v_args(inline=True)
+    def TESTER(self, token):
+        """Transform TESTER token."""
+        return "tester"
     
     @v_args(inline=True)
     def filename(self, value):

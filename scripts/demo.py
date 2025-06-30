@@ -52,8 +52,8 @@ async def demo_simple_project():
     
     task_message = TaskMessage(
         message_type=MessageType.DELEGATION,
-        sender_id="demo_user",
-        recipient_id="root_manager",
+        sender="demo_user",
+        recipient=root_agent,
         message_id="demo_msg_001",
         task=task
     )

@@ -51,7 +51,8 @@ Complete the testing task and report findings back to the parent agent.
 Each tester agent automatically gets a personal scratch pad file:
 
 - **Location**: `scratch_pads/` directory in the project root
-- **Naming**: Based on the parent agent's path with dots instead of slashes (e.g., `src.auth.user.py_scratch.py`)
+- **Naming**: Based on the parent agent's path with dots instead of slashes, plus a unique number (e.g., `src.auth.user.py_scratch_0.py`, `src.auth.user.py_scratch_1.py`)
+- **Uniqueness**: Multiple testers from the same parent get different numbers (0, 1, 2, etc.) to avoid conflicts
 - **Cleanup**: Automatically deleted when the tester agent finishes
 - **Purpose**: For debugging code, temporary functions, and testing experiments
 
@@ -105,7 +106,7 @@ if __name__ == "__main__":
 interpreter.execute(f'CHANGE CONTENT="{debug_code}"')
 
 # Run the debug script
-interpreter.execute('RUN "python scratch_pads/src.auth.user.py_scratch.py"')
+interpreter.execute('RUN "python scratch_pads/src.auth.user.py_scratch_0.py"')
 
 # Run additional analysis
 interpreter.execute('RUN "python -m pytest tests/test_auth.py --cov=src.auth --cov-report=term"')

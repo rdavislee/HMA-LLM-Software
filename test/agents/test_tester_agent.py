@@ -23,10 +23,16 @@ class DummyLLMClient(BaseLLMClient):
     
     def __init__(self):
         super().__init__()
-        self.supports_system_role = True
+    
+    @property
+    def supports_system_role(self) -> bool:
+        return True
     
     async def generate_response(self, messages, system_prompt=None):
         return "FINISH PROMPT=\"Test completed\""
+    
+    async def generate_structured_response(self, messages, schema, system_prompt=None, temperature=0.7):
+        return {"result": "test"}
 
 
 class DummyParentAgent(BaseAgent):
@@ -131,7 +137,7 @@ def test_scratch_pad_creation(workspace, parent_agent):
     assert scratch_pad is not None
     assert scratch_pad.exists()
     assert scratch_pad.parent.name == "scratch_pads"
-    assert scratch_pad.name.endswith("_scratch.py")
+    assert "_scratch_" in scratch_pad.name and scratch_pad.name.endswith(".py")
     
     # Check initial content
     content = scratch_pad.read_text()
@@ -153,7 +159,7 @@ def test_scratch_pad_naming_file_parent(workspace, parent_agent):
     )
     
     scratch_pad = agent.personal_file
-    expected_name = "src.auth.user.py_scratch.py"
+    expected_name = "src.auth.user.py_scratch_0.py"
     assert scratch_pad.name == expected_name
 
 
@@ -169,7 +175,7 @@ def test_scratch_pad_naming_directory_parent(workspace, parent_agent):
     )
     
     scratch_pad = agent.personal_file
-    expected_name = "src.auth_manager_scratch.py"
+    expected_name = "src.auth_manager_scratch_0.py"
     assert scratch_pad.name == expected_name
 
 
@@ -184,7 +190,54 @@ def test_scratch_pad_fallback_naming(workspace, parent_agent):
     )
     
     scratch_pad = agent.personal_file
-    assert scratch_pad.name == "tester_scratch.py"
+    assert scratch_pad.name == "tester_scratch_0.py"
+
+
+def test_multiple_testers_unique_naming(workspace, parent_agent):
+    """Test that multiple tester agents from the same parent get unique numbered names."""
+    # Parent is a file
+    file_parent = workspace / "src" / "auth" / "user.py"
+    file_parent.parent.mkdir(parents=True)
+    file_parent.write_text("# user module")
+    
+    # Create first tester agent
+    agent1 = TesterAgent(
+        parent=parent_agent,
+        parent_path=str(file_parent)
+    )
+    
+    # Create second tester agent from same parent
+    agent2 = TesterAgent(
+        parent=parent_agent,
+        parent_path=str(file_parent)
+    )
+    
+    # Create third tester agent from same parent
+    agent3 = TesterAgent(
+        parent=parent_agent,
+        parent_path=str(file_parent)
+    )
+    
+    # Check that they have different numbered names
+    assert agent1.personal_file.name == "src.auth.user.py_scratch_0.py"
+    assert agent2.personal_file.name == "src.auth.user.py_scratch_1.py"
+    assert agent3.personal_file.name == "src.auth.user.py_scratch_2.py"
+    
+    # Verify all files exist
+    assert agent1.personal_file.exists()
+    assert agent2.personal_file.exists()
+    assert agent3.personal_file.exists()
+    
+    # Cleanup one and create another to test number reuse
+    agent2.cleanup_scratch_pad()
+    
+    agent4 = TesterAgent(
+        parent=parent_agent,
+        parent_path=str(file_parent)
+    )
+    
+    # Should reuse the lowest available number (1)
+    assert agent4.personal_file.name == "src.auth.user.py_scratch_1.py"
 
 
 def test_scratch_pad_memory_addition(workspace, parent_agent):
@@ -263,11 +316,16 @@ def test_cleanup_scratch_pad_permission_error(workspace, parent_agent, monkeypat
         parent_path=str(parent_agent.path)
     )
     
-    # Mock unlink to raise permission error
-    def mock_unlink():
-        raise PermissionError("Cannot delete file")
+    # Mock the pathlib.Path.unlink method to raise permission error
+    import pathlib
+    original_unlink = pathlib.Path.unlink
     
-    monkeypatch.setattr(agent.personal_file, "unlink", mock_unlink)
+    def mock_unlink(self):
+        if str(self) == str(agent.personal_file):
+            raise PermissionError("Cannot delete file")
+        return original_unlink(self)
+    
+    monkeypatch.setattr(pathlib.Path, "unlink", mock_unlink)
     
     # Should not raise exception but should handle error
     agent.cleanup_scratch_pad()
@@ -300,10 +358,16 @@ async def test_api_call_without_system_role_support(workspace, parent_agent):
     class NoSystemRoleLLMClient(DummyLLMClient):
         def __init__(self):
             super().__init__()
-            self.supports_system_role = False
+        
+        @property
+        def supports_system_role(self) -> bool:
+            return False
         
         async def generate_response(self, prompt):
             return "FINISH PROMPT=\"Test completed without system role\""
+        
+        async def generate_structured_response(self, messages, schema, system_prompt=None, temperature=0.7):
+            return {"result": "test_no_system"}
     
     llm_client = NoSystemRoleLLMClient()
     agent = TesterAgent(
@@ -469,10 +533,13 @@ def test_string_representation(workspace, parent_agent):
 
 @pytest.mark.asyncio
 async def test_api_call_exception_handling(workspace, parent_agent):
-    """Test API call exception handling."""
+    """Test API call exception handling through process_task."""
     class FailingLLMClient(DummyLLMClient):
         async def generate_response(self, messages, system_prompt=None):
             raise Exception("LLM failure")
+        
+        async def generate_structured_response(self, messages, schema, system_prompt=None, temperature=0.7):
+            raise Exception("Structured LLM failure")
     
     agent = TesterAgent(
         parent=parent_agent,
@@ -480,30 +547,24 @@ async def test_api_call_exception_handling(workspace, parent_agent):
         llm_client=FailingLLMClient()
     )
     
-    agent.prompt_queue.append("Test prompt")
+    # Should not raise exception when using process_task (has exception handling)
+    await agent.process_task("Test prompt")
     
-    # Should not raise exception
-    await agent.api_call()
-    
-    # Should handle error gracefully
-    assert agent.stall is True  # Remains stalled after error
+    # Should handle error gracefully - prompt queue should contain error message
+    assert "Exception during api_call" in "\n".join(agent.prompt_queue)
 
 
 def test_scratch_pad_creation_io_error(workspace, parent_agent, monkeypatch):
     """Test scratch pad creation with I/O error."""
-    def mock_write_text(content):
-        raise IOError("Cannot write file")
-    
-    # This is tricky to test since the file creation happens in __init__
-    # We'll test the error handling by mocking at a higher level
-    original_open = __builtins__['open']
+    import builtins
+    original_open = builtins.open
     
     def mock_open(*args, **kwargs):
-        if 'scratch_pads' in str(args[0]) and 'w' in args[1]:
+        if len(args) > 0 and 'scratch_pads' in str(args[0]) and len(args) > 1 and 'w' in str(args[1]):
             raise IOError("Cannot write file")
         return original_open(*args, **kwargs)
     
-    monkeypatch.setattr(__builtins__, 'open', mock_open)
+    monkeypatch.setattr(builtins, 'open', mock_open)
     
     # Should handle the error gracefully
     agent = TesterAgent(

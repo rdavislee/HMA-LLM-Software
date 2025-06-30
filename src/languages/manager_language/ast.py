@@ -14,12 +14,14 @@ class TokenType(Enum):
     DELETE = "DELETE"
     READ = "READ"
     DELEGATE = "DELEGATE"
+    SPAWN = "SPAWN"
     FINISH = "FINISH"
     WAIT = "WAIT"
     UPDATE_README = "UPDATE_README"
     FILE = "FILE"
     FOLDER = "FOLDER"
     IDENTIFIER = "IDENTIFIER"
+    TESTER = "TESTER"
 
 
 class NodeType(Enum):
@@ -88,6 +90,15 @@ class Target:
 
 
 @dataclass
+class EphemeralType:
+    """Represents an ephemeral agent type."""
+    type_name: str
+    
+    def __str__(self) -> str:
+        return f"ephemeral_type:{self.type_name}"
+
+
+@dataclass
 class PromptField:
     """Represents a prompt field with a string value."""
     value: str
@@ -104,6 +115,16 @@ class DelegateItem:
     
     def __str__(self) -> str:
         return f"{self.target} {self.prompt}"
+
+
+@dataclass
+class SpawnItem:
+    """Represents a single spawn item with ephemeral type and prompt."""
+    ephemeral_type: EphemeralType
+    prompt: PromptField
+    
+    def __str__(self) -> str:
+        return f"{self.ephemeral_type} {self.prompt}"
 
 
 class Directive(ABC):
@@ -142,6 +163,29 @@ class DelegateDirective(Directive):
     def __str__(self) -> str:
         items_str = ", ".join(str(item) for item in self.items)
         return f"DELEGATE {items_str}"
+
+
+@dataclass
+class SpawnDirective(Directive):
+    """Represents a SPAWN directive for ephemeral agents."""
+    items: List[SpawnItem]
+    
+    def execute(self, context: dict) -> dict:
+        """Execute spawn directive by adding spawn tasks to context."""
+        if 'spawns' not in context:
+            context['spawns'] = []
+        
+        for item in self.items:
+            context['spawns'].append({
+                'ephemeral_type': item.ephemeral_type.type_name,
+                'prompt': item.prompt.value
+            })
+        
+        return context
+    
+    def __str__(self) -> str:
+        items_str = ", ".join(str(item) for item in self.items)
+        return f"SPAWN {items_str}"
 
 
 @dataclass
@@ -240,7 +284,7 @@ class UpdateReadmeDirective(Directive):
 
 
 # Type alias for any directive
-DirectiveType = Union[DelegateDirective, FinishDirective, ActionDirective, WaitDirective, RunDirective, UpdateReadmeDirective]
+DirectiveType = Union[DelegateDirective, SpawnDirective, FinishDirective, ActionDirective, WaitDirective, RunDirective, UpdateReadmeDirective]
 
 
 @dataclass

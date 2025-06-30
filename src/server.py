@@ -217,8 +217,8 @@ class HMAServer:
         
         task_message = TaskMessage(
             message_type=MessageType.DELEGATION,
-            sender_id="user",
-            recipient_id=root_agent_id,
+            sender="user",  # String for user, not agent object
+            recipient=root_agent,
             message_id=str(uuid.uuid4()),
             task=task
         )

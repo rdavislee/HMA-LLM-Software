@@ -19,12 +19,15 @@ from .interpreter import (
 from .ast import (
     Directive,
     DelegateDirective,
+    SpawnDirective,
     FinishDirective,
     ActionDirective,
     WaitDirective,
     UpdateReadmeDirective,
     DelegateItem,
+    SpawnItem,
     Target,
+    EphemeralType,
     PromptField,
     DirectiveType
 )
@@ -42,12 +45,15 @@ __all__ = [
     # AST Classes
     'Directive',
     'DelegateDirective',
+    'SpawnDirective',
     'FinishDirective',
     'ActionDirective',
     'WaitDirective',
     'UpdateReadmeDirective',
     'DelegateItem',
+    'SpawnItem',
     'Target',
+    'EphemeralType',
     'PromptField',
     'DirectiveType'
 ]

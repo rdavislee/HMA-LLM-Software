@@ -71,9 +71,41 @@ RUN "node tools/compile-typescript.js"
 RUN "node tools/run-mocha.js"
 FINISH PROMPT="TypeScript errors fixed"
 
+## File Operations (Use Sparingly)
+
+### Creating Files/Folders 
+CREATE file "src/config.json"  // Only when delegation isn't appropriate
+CREATE folder "src/utils"       // Only for empty structure setup
+
+### Deleting Files/Folders
+DELETE file "old-config.json"   // Only when truly obsolete
+DELETE folder "deprecated"      // Be very careful with deletions
+
+## Spawning Tester Agents
+
+### Test Verification for Specific Files
+SPAWN tester PROMPT="Verify tests pass for calculator.ts and parser.ts files"
+WAIT
+SPAWN tester PROMPT="Check test coverage for all files in src/auth/ folder"
+WAIT
+
+### After Delegating Implementation
+DELEGATE file "calculator.ts" PROMPT="Fix implementation"
+WAIT
+SPAWN tester PROMPT="Verify calculator.ts tests are now passing"
+WAIT
+
+### Multiple File Testing
+DELEGATE file "userAuth.ts", file "sessionManager.ts" PROMPT="Implement authentication"
+WAIT
+SPAWN tester PROMPT="Test userAuth.ts and sessionManager.ts implementations"
+WAIT
+
 ## Key Rules
 - One command per line
-- WAIT after delegations
+- WAIT after delegations and spawns
 - Paths relative to root
 - Update README before FINISH
 - Always compile before testing TypeScript
+- Use CREATE/DELETE sparingly - prefer delegation
+- Spawn testers only for complex debugging needs

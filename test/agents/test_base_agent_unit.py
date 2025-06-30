@@ -71,8 +71,8 @@ def test_set_personal_file_manager(manager_agent: DummyAgent, tmp_path: Path):
 async def test_activate_and_deactivate(coder_agent: DummyAgent):
     task = TaskMessage(
         message_type=MessageType.DELEGATION,
-        sender_id="tester",
-        recipient_id="coder",
+        sender="tester",
+        recipient=coder_agent,
         message_id="1",
         task=Task(task_id="t1", task_string="do something")
     )
@@ -94,8 +94,8 @@ async def test_activate_and_deactivate(coder_agent: DummyAgent):
 def test_activate_twice_raises(coder_agent: DummyAgent):
     fake_task = TaskMessage(
         message_type=MessageType.DELEGATION,
-        sender_id="x",
-        recipient_id="y",
+        sender="x",
+        recipient=coder_agent,
         message_id="2",
         task=Task(task_id="t", task_string="foo")
     )

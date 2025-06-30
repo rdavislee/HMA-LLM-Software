@@ -72,9 +72,30 @@ def patch_async(monkeypatch):
     monkeypatch.setattr(
         "src.orchestrator.coder_prompter.coder_prompter", _fake_prompt, raising=False
     )
-    monkeypatch.setattr(
-        "asyncio.create_task", lambda coro: asyncio.get_event_loop().run_until_complete(coro)
-    )
+    
+    def sync_create_task(coro):
+        try:
+            loop = asyncio.get_running_loop()
+            # If loop is already running, create a new thread to run the coroutine
+            import concurrent.futures
+            import threading
+            
+            def run_in_thread():
+                new_loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(new_loop)
+                try:
+                    return new_loop.run_until_complete(coro)
+                finally:
+                    new_loop.close()
+            
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(run_in_thread)
+                return future.result()
+        except RuntimeError:
+            # No event loop running, safe to use run_until_complete
+            return asyncio.get_event_loop().run_until_complete(coro)
+    
+    monkeypatch.setattr("asyncio.create_task", sync_create_task)
 
 
 # ---------------------- READ ----------------------

@@ -5,7 +5,7 @@
 COMMENT: /\/\/.*/
 
 // Directives
-directive: read | run | change | finish
+directive: read | run | change | spawn | wait | finish
 
 // Read directive - read any file in the codebase
 read: "READ" filename
@@ -16,6 +16,13 @@ run: "RUN" command
 // Change directive - replace entire file contents
 change: "CHANGE" "CONTENT" "=" content_string
 
+// Spawn directive - spawn ephemeral agents
+spawn: "SPAWN" spawn_item ("," spawn_item)*
+spawn_item: ephemeral_type prompt_field
+
+// Wait directive - wait for ephemeral agents to complete
+wait: "WAIT"
+
 // Finish directive - complete the task
 finish: "FINISH" prompt_field
 
@@ -24,6 +31,9 @@ filename: string
 
 // Command is a quoted string
 command: string
+
+// Ephemeral types
+ephemeral_type: TESTER
 
 // Prompt field
 prompt_field: "PROMPT" "=" string
@@ -34,6 +44,9 @@ content_string: string
 // Regular string literals (for filenames, commands, prompts, content)
 string: STRING
 STRING: /"(\\.|[^\\"])*"/
+
+// Ephemeral type tokens
+TESTER: "tester"
 
 // Ignore whitespace and comments
 %import common.WS

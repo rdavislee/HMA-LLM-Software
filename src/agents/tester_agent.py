@@ -57,6 +57,7 @@ class TesterAgent(EphemeralAgent):
         Create a scratch pad file for this tester agent.
         File is created in ROOT_DIR/scratch_pads/ with name based on parent path.
         Uses the correct file extension based on the global language setting.
+        Adds a unique number suffix to support multiple testers from the same parent.
         """
         if src.ROOT_DIR is None:
             print("[TesterAgent] Warning: ROOT_DIR not set, cannot create scratch pad")
@@ -67,26 +68,37 @@ class TesterAgent(EphemeralAgent):
             scratch_pads_dir = src.ROOT_DIR / "scratch_pads"
             scratch_pads_dir.mkdir(exist_ok=True)
             
-            # Convert parent path to scratch pad filename
+            # Convert parent path to scratch pad filename base
             # Example: src/auth/user.ts -> src.auth.user.ts
             try:
                 relative_parent_path = Path(self.parent_path).relative_to(src.ROOT_DIR)
-                scratch_pad_name = str(relative_parent_path).replace("/", ".").replace("\\", ".")
+                scratch_pad_base = str(relative_parent_path).replace("/", ".").replace("\\", ".")
                 
                 # If parent path is a directory, add a suffix to distinguish it
                 if Path(self.parent_path).is_dir():
-                    scratch_pad_name += "_manager"
+                    scratch_pad_base += "_manager"
                 
                 # Add appropriate extension based on global language
                 extension = get_language_extension()
-                scratch_pad_name += f"_scratch{extension}"
                 
             except ValueError:
                 # Fallback if parent path is not relative to ROOT_DIR
+                scratch_pad_base = "tester"
                 extension = get_language_extension()
-                scratch_pad_name = f"tester_scratch{extension}"
             
-            scratch_pad_path = scratch_pads_dir / scratch_pad_name
+            # Find the lowest available number for the scratch pad file
+            # Start from 0 and increment until we find an available name
+            scratch_pad_number = 0
+            while True:
+                scratch_pad_name = f"{scratch_pad_base}_scratch_{scratch_pad_number}{extension}"
+                scratch_pad_path = scratch_pads_dir / scratch_pad_name
+                
+                # If this name doesn't exist, we can use it
+                if not scratch_pad_path.exists():
+                    break
+                
+                # Increment and try the next number
+                scratch_pad_number += 1
             
             # Create the scratch pad file with initial content based on language
             current_language = get_global_language()

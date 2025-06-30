@@ -7,8 +7,8 @@ import os
 from typing import List, Union
 from lark import Lark, Transformer, v_args
 from .ast import (
-    Directive, ReadDirective, RunDirective, ChangeDirective, FinishDirective,
-    Target, PromptField, DirectiveType
+    Directive, ReadDirective, RunDirective, ChangeDirective, SpawnDirective, WaitDirective, FinishDirective,
+    Target, PromptField, EphemeralType, SpawnItem, DirectiveType
 )
 
 
@@ -38,6 +38,22 @@ class CoderLanguageTransformer(Transformer):
         return ChangeDirective(content=content)
     
     @v_args(inline=True)
+    def spawn(self, first_item, *other_items):
+        """Transform spawn directive."""
+        items = [first_item] + list(other_items)
+        return SpawnDirective(items=items)
+    
+    @v_args(inline=True)
+    def spawn_item(self, ephemeral_type, prompt_field):
+        """Transform spawn item."""
+        return SpawnItem(ephemeral_type=ephemeral_type, prompt=prompt_field)
+    
+    @v_args(inline=True)
+    def wait(self):
+        """Transform wait directive."""
+        return WaitDirective()
+    
+    @v_args(inline=True)
     def finish(self, prompt_field):
         """Transform finish directive."""
         return FinishDirective(prompt=prompt_field)
@@ -61,6 +77,16 @@ class CoderLanguageTransformer(Transformer):
     def content_string(self, string):
         """Transform content string."""
         return string
+    
+    @v_args(inline=True)
+    def ephemeral_type(self, type_name):
+        """Transform ephemeral type."""
+        return EphemeralType(type_name=type_name)
+    
+    @v_args(inline=True)
+    def TESTER(self, token):
+        """Transform TESTER token."""
+        return "tester"
     
     @v_args(inline=True)
     def string(self, token):

@@ -15,8 +15,8 @@ Example usage:
 """
 
 from .ast import (
-    Directive, ReadDirective, RunDirective, ChangeDirective, FinishDirective,
-    Target, PromptField, DirectiveType,
+    Directive, ReadDirective, RunDirective, ChangeDirective, SpawnDirective, WaitDirective, FinishDirective,
+    Target, PromptField, EphemeralType, SpawnItem, DirectiveType,
     ActionNode, TargetNode, PromptFieldNode, ParamSetNode, DirectiveNode,
     TokenType, NodeType, ASTNode, ASTVisitor
 )
@@ -33,8 +33,8 @@ from .interpreter import (
 
 __all__ = [
     # AST classes
-    'Directive', 'ReadDirective', 'RunDirective', 'ChangeDirective', 'FinishDirective',
-    'Target', 'PromptField', 'DirectiveType',
+    'Directive', 'ReadDirective', 'RunDirective', 'ChangeDirective', 'SpawnDirective', 'WaitDirective', 'FinishDirective',
+    'Target', 'PromptField', 'EphemeralType', 'SpawnItem', 'DirectiveType',
     'ActionNode', 'TargetNode', 'PromptFieldNode', 'ParamSetNode', 'DirectiveNode',
     'TokenType', 'NodeType', 'ASTNode', 'ASTVisitor',
     

@@ -6,12 +6,13 @@ import traceback
 from typing import Optional, Any, Dict, List
 from src.agents.tester_agent import TesterAgent
 from src.agents.base_agent import BaseAgent
-from src.messages.protocol import *
+from src.messages.protocol import Task
 from src.llm.providers import get_llm_client
 
 async def tester_spawner(
     parent_agent: BaseAgent, 
     prompt: str, 
+    task: Optional[Task] = None,
     llm_client_name: Optional[str] = None
 ) -> None:
     """
@@ -22,6 +23,7 @@ async def tester_spawner(
     1. CREATION PHASE:
        - create TesterAgent with parent and parent_path
        - set up LLM client if provided
+       - set the task on the tester agent
     
     2. LLM RESPONSE PHASE:
        - add prompt to tester agent's prompt queue using agent.process_task(prompt)
@@ -47,6 +49,13 @@ async def tester_spawner(
             parent_path=str(parent_agent.path),
             llm_client=llm_client
         )
+        
+        # Set the task on the tester agent if provided
+        if task is not None:
+            tester_agent.active_task = task
+        
+        # Add the ephemeral agent to parent's tracking
+        parent_agent.add_ephemeral_agent(tester_agent)
         
         # 2. LLM RESPONSE PHASE
         # Add prompt to tester agent's prompt queue using agent.process_task(prompt)

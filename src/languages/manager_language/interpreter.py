@@ -10,7 +10,7 @@ import subprocess
 import time
 from typing import Dict, List, Any, Optional
 from pathlib import Path
-from .ast import DirectiveType, DelegateDirective, FinishDirective, ActionDirective, WaitDirective, RunDirective, UpdateReadmeDirective
+from .ast import DirectiveType, DelegateDirective, SpawnDirective, FinishDirective, ActionDirective, WaitDirective, RunDirective, UpdateReadmeDirective
 from src.messages.protocol import TaskMessage, Task, MessageType, ResultMessage
 from src.config import ALLOWED_COMMANDS
 from .parser import parse_directive
@@ -44,6 +44,8 @@ class ManagerLanguageInterpreter:
         try:
             if isinstance(directive, DelegateDirective):
                 self._execute_delegate(directive)
+            elif isinstance(directive, SpawnDirective):
+                self._execute_spawn(directive)
             elif isinstance(directive, FinishDirective):
                 self._execute_finish(directive)
             elif isinstance(directive, ActionDirective):
@@ -111,8 +113,8 @@ class ManagerLanguageInterpreter:
             )
             task_message = TaskMessage(
                 message_type=MessageType.DELEGATION,
-                sender_id=str(self.agent.path),
-                recipient_id=str(child_agent.path),
+                sender=self.agent,
+                recipient=child_agent,
                 message_id=str(hash(task.task_id)),
                 task=task
             )
@@ -126,25 +128,60 @@ class ManagerLanguageInterpreter:
             # Track delegation in agent (call delegate_task)
             self.agent.delegate_task(child_agent, item.prompt.value)
 
+        # Queue completion message
+        self._queue_self_prompt("Delegate complete")
         return None
+    
+    def _execute_spawn(self, directive: SpawnDirective) -> None:
+        """Execute a SPAWN directive for ephemeral agents."""
+        if not self.agent:
+            return
+
+        # Spawn ephemeral agents for each item
+        for item in directive.items:
+            ephemeral_type = item.ephemeral_type.type_name
+            prompt = item.prompt.value
+            
+            # Currently only support tester ephemeral agents
+            if ephemeral_type == "tester":
+                # Create a proper Task object for the tester
+                task = Task(
+                    task_id=str(hash(ephemeral_type + prompt + str(time.time()))),
+                    task_string=prompt
+                )
+                
+                from src.orchestrator.tester_spawner import tester_spawner
+                asyncio.create_task(tester_spawner(self.agent, prompt, task))
+            else:
+                self._queue_self_prompt(f"SPAWN failed: Unknown ephemeral type: {ephemeral_type}")
+                return
+
+        # Queue completion message
+        self._queue_self_prompt("Spawn complete")
     
     def _execute_finish(self, directive: FinishDirective) -> None:
         """Execute a FINISH directive."""
         if not self.agent:
             return
+        
+        # Check if there are active ephemeral agents
+        if hasattr(self.agent, 'active_ephemeral_agents') and self.agent.active_ephemeral_agents:
+            self._queue_self_prompt(f"FINISH failed: Cannot finish with {len(self.agent.active_ephemeral_agents)} active ephemeral agents still running")
+            return
+            
         try:
             self.agent.deactivate()
             # Notify parent with ResultMessage
             parent = getattr(self.agent, 'parent', None)
             if parent:
-                task = getattr(self.agent, 'active_task', None)
+                task = self.agent.active_task
                 if task is None:
                     # Fallback: create a dummy task
                     task = Task(task_id=str(hash(str(self.agent.path))), task_string="Task finished")
                 result_message = ResultMessage(
                     message_type=MessageType.RESULT,
-                    sender_id=str(self.agent.path),
-                    recipient_id=str(parent.path),
+                    sender=self.agent,
+                    recipient=parent,
                     message_id=str(hash(str(self.agent.path))),
                     task=task,
                     result=directive.prompt.value
@@ -180,7 +217,7 @@ class ManagerLanguageInterpreter:
     def _execute_wait(self, directive: WaitDirective) -> None:
         """Execute a WAIT directive.
 
-        If the manager currently has no active children the instruction makes
+        If the manager currently has no active children or ephemeral agents the instruction makes
         no sense – in that case immediately queue a follow-up prompt so that
         the LLM can react instead of stalling indefinitely.
         """
@@ -188,14 +225,15 @@ class ManagerLanguageInterpreter:
             return
 
         active_children = getattr(self.agent, "active_children", {})
+        active_ephemeral_agents = getattr(self.agent, "active_ephemeral_agents", [])
 
-        if active_children:
-            # There are still running children – do nothing (the prompt loop
+        if active_children or active_ephemeral_agents:
+            # There are still running children or ephemeral agents – do nothing (the prompt loop
             # will naturally resume once they complete).
             return None
 
-        # No active children ➔ inform the LLM so it can decide the next step.
-        self._queue_self_prompt("WAIT failed: No active children to wait for")
+        # No active children or ephemeral agents ➔ inform the LLM so it can decide the next step.
+        self._queue_self_prompt("WAIT failed: No active children or ephemeral agents to wait for")
         return None
     
     def _execute_run(self, directive: RunDirective) -> None:
@@ -273,7 +311,8 @@ class ManagerLanguageInterpreter:
             self._queue_self_prompt(f"Update README result:\n{result}")
     
     def _create_target(self, target) -> str:
-        """Create a file or folder at the path relative to the project root, but only if within the manager's scope."""
+        """Create a file or folder at the path relative to the project root, but only if within the manager's scope.
+        Also creates the appropriate agent object and adds it to the manager's children."""
         if not self.agent or not hasattr(self.agent, 'path'):
             return "No agent path available"
         
@@ -284,23 +323,59 @@ class ManagerLanguageInterpreter:
             target_path.resolve().relative_to(agent_path.resolve())
         except ValueError:
             return f"Action failed: Destination {target.name} is out of scope"
+        
+        # Check if agent already exists for this target
+        if hasattr(self.agent, 'children'):
+            for child in self.agent.children:
+                if str(child.path) == str(target_path):
+                    return f"Action failed: Agent already exists for {target.name}"
+        
         try:
             if target.is_folder:
                 if target_path.exists():
                     return f"Action failed: Folder {target.name} already exists"
                 target_path.mkdir(parents=True, exist_ok=True)
-                return f"Action succeeded: Created folder {target.name}"
+                
+                # Create manager agent for the folder
+                # Import locally to avoid circular imports
+                from src.agents.manager_agent import ManagerAgent
+                child_agent = ManagerAgent(
+                    path=str(target_path),
+                    parent=self.agent,
+                    llm_client=self.agent.llm_client if hasattr(self.agent, 'llm_client') else None
+                )
+                
+                # Add to manager's children
+                if hasattr(self.agent, 'children'):
+                    self.agent.children.append(child_agent)
+                
+                return f"Action succeeded: Created folder {target.name} with manager agent"
             else:
                 if target_path.exists():
                     return f"Action failed: File {target.name} already exists"
                 target_path.parent.mkdir(parents=True, exist_ok=True)
                 target_path.touch()
-                return f"Action succeeded: Created file {target.name}"
+                
+                # Create coder agent for the file
+                # Import locally to avoid circular imports
+                from src.agents.coder_agent import CoderAgent
+                child_agent = CoderAgent(
+                    path=str(target_path),
+                    parent=self.agent,
+                    llm_client=self.agent.llm_client if hasattr(self.agent, 'llm_client') else None
+                )
+                
+                # Add to manager's children
+                if hasattr(self.agent, 'children'):
+                    self.agent.children.append(child_agent)
+                
+                return f"Action succeeded: Created file {target.name} with coder agent"
         except Exception as e:
             return f"Action failed: {str(e)}"
     
     def _delete_target(self, target) -> str:
-        """Delete a file or folder at the path relative to the project root, but only if within the manager's scope."""
+        """Delete a file or folder at the path relative to the project root, but only if within the manager's scope.
+        Also checks if the corresponding agent is active and removes it from the manager's children."""
         if not self.agent or not hasattr(self.agent, 'path'):
             return "No agent path available"
         
@@ -311,16 +386,42 @@ class ManagerLanguageInterpreter:
             target_path.resolve().relative_to(agent_path.resolve())
         except ValueError:
             return f"Action failed: Destination {target.name} is out of scope"
+        
+        # Find the corresponding agent in children
+        agent_to_remove = None
+        if hasattr(self.agent, 'children'):
+            for child in self.agent.children:
+                if str(child.path) == str(target_path):
+                    agent_to_remove = child
+                    break
+        
+        # Check if the agent is active
+        if agent_to_remove is not None:
+            if hasattr(agent_to_remove, 'is_active') and agent_to_remove.is_active:
+                return f"Action failed: Cannot delete {target.name} - agent is currently active"
+        
         try:
             if not target_path.exists():
                 return f"Action failed: {target.name} does not exist"
+            
             if target.is_folder:
                 import shutil
                 shutil.rmtree(target_path)
-                return f"Action succeeded: Deleted folder {target.name}"
+                result_msg = f"Action succeeded: Deleted folder {target.name}"
             else:
                 target_path.unlink()
-                return f"Action succeeded: Deleted file {target.name}"
+                result_msg = f"Action succeeded: Deleted file {target.name}"
+            
+            # Remove the agent from manager's children if it exists
+            if agent_to_remove is not None and hasattr(self.agent, 'children'):
+                try:
+                    self.agent.children.remove(agent_to_remove)
+                    result_msg += " and removed agent"
+                except ValueError:
+                    # Agent not in children list, that's okay
+                    pass
+            
+            return result_msg
         except Exception as e:
             return f"Action failed: {str(e)}"
     

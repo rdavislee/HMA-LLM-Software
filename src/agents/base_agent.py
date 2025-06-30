@@ -105,6 +105,9 @@ class BaseAgent(ABC):
         # Task Tracking
         self.active_task = None
 
+        # Ephemeral Agent Tracking (for all agents)
+        self.active_ephemeral_agents = []
+
         # Set personal file based on agent type
         self._set_personal_file()
 
@@ -222,6 +225,26 @@ class BaseAgent(ABC):
         '''
         pass
 
+    def add_ephemeral_agent(self, ephemeral_agent) -> None:
+        '''
+        Add an ephemeral agent to the tracking list.
+        
+        Args:
+            ephemeral_agent: The ephemeral agent to track
+        '''
+        if ephemeral_agent not in self.active_ephemeral_agents:
+            self.active_ephemeral_agents.append(ephemeral_agent)
+
+    def remove_ephemeral_agent(self, ephemeral_agent) -> None:
+        '''
+        Remove an ephemeral agent from the tracking list.
+        
+        Args:
+            ephemeral_agent: The ephemeral agent to remove
+        '''
+        if ephemeral_agent in self.active_ephemeral_agents:
+            self.active_ephemeral_agents.remove(ephemeral_agent)
+
     def read_file(self, file_path: str) -> None:
         '''
         Add a file to memory for reading.
@@ -309,6 +332,7 @@ class BaseAgent(ABC):
             'prompt_queue_size': len(self.prompt_queue),
             'stall': self.stall,
             'active_children': getattr(self, 'active_children', {}).__len__() if hasattr(self, 'active_children') else 0,
+            'active_ephemeral_agents': len(self.active_ephemeral_agents),
         }
     
     def __repr__(self) -> str:

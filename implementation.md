@@ -46,8 +46,8 @@ Agents communicate through a structured hierarchical protocol:
 ```typescript
 interface TaskMessage {
   message_type: "delegation"
-  sender_id: string
-  recipient_id: string
+  sender: Any  // Agent object that sent this message
+  recipient: Any  // Agent object that should receive this message
   timestamp: number
   message_id: string
   task: {
@@ -58,8 +58,8 @@ interface TaskMessage {
 
 interface ResultMessage {
   message_type: "result"
-  sender_id: string
-  recipient_id: string
+  sender: Any  // Agent object that sent this message
+  recipient: Any  // Agent object that should receive this message
   timestamp: number
   message_id: string
   task: Task

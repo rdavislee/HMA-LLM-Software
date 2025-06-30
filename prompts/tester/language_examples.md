@@ -52,7 +52,7 @@ READ "src/auth/user.py"
 READ "test/test_auth.py"
 RUN "python -m pytest test/test_auth.py -v"
 CHANGE CONTENT = "# Debug password hashing issue\nimport sys\nsys.path.append('src')\nfrom auth.user import hash_password, verify_password\n\ndef debug_password_flow():\n    password = \"test123\"\n    hashed = hash_password(password)\n    print(f\"Password: {password}\")\n    print(f\"Hashed: {hashed}\")\n    print(f\"Hash type: {type(hashed)}\")\n    \n    verified = verify_password(password, hashed)\n    print(f\"Verification: {verified}\")\n\nif __name__ == \"__main__\":\n    debug_password_flow()\n"
-RUN "python scratch_pads/debug_script.py"
+RUN "python scratch_pads/debug_script_scratch_0.py"
 FINISH PROMPT = "Password hashing returns bytes but test expects string. Issue in auth/user.py line 23: bcrypt.hashpw() returns bytes. Fix: add .decode('utf-8') to hash_password() return statement. Also found: no validation for None/empty passwords"
 
 ### Code Quality Investigation
@@ -67,7 +67,7 @@ READ "src/main.py"
 READ "test/test_main.py"
 RUN "python -m pytest test/test_main.py -v"
 CHANGE CONTENT = "# Debug import path issues\nimport sys\nprint(\"Python path:\")\nfor p in sys.path:\n    print(f\"  {p}\")\n\ntry:\n    import src.main\n    print(\"✓ src.main imported successfully\")\nexcept ImportError as e:\n    print(f\"✗ src.main failed: {e}\")\n\n# Check if __init__.py exists\nimport os\ninit_files = []\nfor root, dirs, files in os.walk('src'):\n    if '__init__.py' in files:\n        init_files.append(os.path.join(root, '__init__.py'))\n\nprint(f\"__init__.py files found: {len(init_files)}\")\n"
-RUN "python scratch_pads/debug_imports.py"
+RUN "python scratch_pads/debug_imports_scratch_0.py"
 FINISH PROMPT = "Import error: Missing __init__.py in src/utils/ directory. Python treats it as namespace package, breaking relative imports. Fix: Create empty src/utils/__init__.py file"
 
 ## Key Investigation Patterns

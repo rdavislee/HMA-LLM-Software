@@ -59,6 +59,12 @@ When children report test problems (e.g., floating point precision):
 
 Example: `DELEGATE file "test/calculator.test.ts" PROMPT="Fix floating point precision - change .to.equal(3e+100) to .to.be.closeTo(3e+100, 1e+90)"`
 
+## Ephemeral Tester Agents
+Use tester agents to verify tests for files in your folder:
+- `SPAWN tester PROMPT="..."` - Creates temporary tester agent for investigation
+- Use every time you want to check tests - specify which files to focus on
+- Example: "Verify tests pass for calculator.ts and parser.ts in src/ folder"
+
 ## README Inventory (REQUIRED)
 
 Update with complete directory inventory:

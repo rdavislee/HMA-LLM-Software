@@ -33,8 +33,8 @@ class Message:
     Base message structure for hierarchical agent communication.
     '''
     message_type: MessageType
-    sender_id: str
-    recipient_id: str
+    sender: Any  # Agent object that sent this message
+    recipient: Any  # Agent object that should receive this message
     message_id: str
 
 @dataclass

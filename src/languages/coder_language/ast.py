@@ -13,9 +13,12 @@ class TokenType(Enum):
     READ = "READ"
     RUN = "RUN"
     CHANGE = "CHANGE"
+    SPAWN = "SPAWN"
+    WAIT = "WAIT"
     FINISH = "FINISH"
     FILE = "FILE"
     IDENTIFIER = "IDENTIFIER"
+    TESTER = "TESTER"
 
 
 class NodeType(Enum):
@@ -84,6 +87,25 @@ class PromptField:
     
     def __str__(self) -> str:
         return f'PROMPT="{self.value}"'
+
+
+@dataclass
+class EphemeralType:
+    """Represents an ephemeral agent type."""
+    type_name: str
+    
+    def __str__(self) -> str:
+        return f"ephemeral_type:{self.type_name}"
+
+
+@dataclass
+class SpawnItem:
+    """Represents a single spawn item with ephemeral type and prompt."""
+    ephemeral_type: EphemeralType
+    prompt: PromptField
+    
+    def __str__(self) -> str:
+        return f"{self.ephemeral_type} {self.prompt}"
 
 
 class Directive(ABC):
@@ -167,6 +189,42 @@ class ChangeDirective(Directive):
 
 
 @dataclass
+class SpawnDirective(Directive):
+    """Represents a SPAWN directive for ephemeral agents."""
+    items: List[SpawnItem]
+    
+    def execute(self, context: dict) -> dict:
+        """Execute spawn directive by adding spawn tasks to context."""
+        if 'spawns' not in context:
+            context['spawns'] = []
+        
+        for item in self.items:
+            context['spawns'].append({
+                'ephemeral_type': item.ephemeral_type.type_name,
+                'prompt': item.prompt.value
+            })
+        
+        return context
+    
+    def __str__(self) -> str:
+        items_str = ", ".join(str(item) for item in self.items)
+        return f"SPAWN {items_str}"
+
+
+@dataclass
+class WaitDirective(Directive):
+    """Represents a WAIT directive."""
+    
+    def execute(self, context: dict) -> dict:
+        """Execute wait directive by setting wait status."""
+        context['waiting'] = True
+        return context
+    
+    def __str__(self) -> str:
+        return "WAIT"
+
+
+@dataclass
 class FinishDirective(Directive):
     """Represents a FINISH directive."""
     prompt: PromptField
@@ -182,7 +240,7 @@ class FinishDirective(Directive):
 
 
 # Type alias for all directive types
-DirectiveType = Union[ReadDirective, RunDirective, ChangeDirective, FinishDirective]
+DirectiveType = Union[ReadDirective, RunDirective, ChangeDirective, SpawnDirective, WaitDirective, FinishDirective]
 
 
 @dataclass

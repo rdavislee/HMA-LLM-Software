@@ -10,7 +10,7 @@ import time
 import uuid
 from typing import Dict, Any, Optional
 from pathlib import Path
-from .ast import DirectiveType, ReadDirective, RunDirective, ChangeDirective, FinishDirective
+from .ast import DirectiveType, ReadDirective, RunDirective, ChangeDirective, SpawnDirective, WaitDirective, FinishDirective
 import src
 from src.config import ALLOWED_COMMANDS
 from .parser import parse_directive
@@ -61,6 +61,10 @@ class CoderLanguageInterpreter:
                 self._execute_run(directive)
             elif isinstance(directive, ChangeDirective):
                 self._execute_change(directive)
+            elif isinstance(directive, SpawnDirective):
+                self._execute_spawn(directive)
+            elif isinstance(directive, WaitDirective):
+                self._execute_wait(directive)
             elif isinstance(directive, FinishDirective):
                 self._execute_finish(directive)
             else:
@@ -145,9 +149,63 @@ class CoderLanguageInterpreter:
             return
         self._queue_self_prompt(prompt)
 
+    def _execute_spawn(self, directive: SpawnDirective) -> None:
+        """Execute a SPAWN directive for ephemeral agents."""
+        if not self.agent:
+            return
+
+        # Spawn ephemeral agents for each item
+        for item in directive.items:
+            ephemeral_type = item.ephemeral_type.type_name
+            prompt = item.prompt.value
+            
+            # Currently only support tester ephemeral agents
+            if ephemeral_type == "tester":
+                # Create a proper Task object for the tester
+                from src.messages.protocol import Task
+                task = Task(
+                    task_id=str(hash(ephemeral_type + prompt + str(time.time()))),
+                    task_string=prompt
+                )
+                
+                from src.orchestrator.tester_spawner import tester_spawner
+                asyncio.create_task(tester_spawner(self.agent, prompt, task))
+            else:
+                self._queue_self_prompt(f"SPAWN failed: Unknown ephemeral type: {ephemeral_type}")
+                return
+
+        # Queue completion message
+        self._queue_self_prompt("Spawn complete")
+
+    def _execute_wait(self, directive: WaitDirective) -> None:
+        """Execute a WAIT directive.
+        
+        If the coder currently has no active ephemeral agents the instruction makes
+        no sense – in that case immediately queue a follow-up prompt so that
+        the LLM can react instead of stalling indefinitely.
+        """
+        if not self.agent:
+            return
+
+        active_ephemeral_agents = getattr(self.agent, "active_ephemeral_agents", [])
+
+        if active_ephemeral_agents:
+            # There are still running ephemeral agents – do nothing (the prompt loop
+            # will naturally resume once they complete).
+            return None
+
+        # No active ephemeral agents ➔ inform the LLM so it can decide the next step.
+        self._queue_self_prompt("WAIT failed: No active ephemeral agents to wait for")
+        return None
+
     def _execute_finish(self, directive: FinishDirective) -> None:
         """Execute a FINISH directive."""
         if self.agent:
+            # Check if there are active ephemeral agents
+            if hasattr(self.agent, 'active_ephemeral_agents') and self.agent.active_ephemeral_agents:
+                self._queue_self_prompt(f"FINISH failed: Cannot finish with {len(self.agent.active_ephemeral_agents)} active ephemeral agents still running")
+                return
+                
             try:
                 self.agent.deactivate()
             except Exception as e:
@@ -157,17 +215,15 @@ class CoderLanguageInterpreter:
             parent = getattr(self.agent, 'parent', None)
             if parent is not None:
                 # Build ResultMessage
-                task = getattr(self.agent, 'active_task', None)
-                if task is None and hasattr(self.agent, 'active_task'):
-                    task = self.agent.active_task
+                task = self.agent.active_task
                 # Fallback: create a dummy task if needed
                 if task is None:
                     from src.messages.protocol import Task
                     task = Task(task_id=str(uuid.uuid4()), task_string="Task finished")
                 result_message = ResultMessage(
                     message_type=MessageType.RESULT,
-                    sender_id=str(self.agent.path),
-                    recipient_id=str(parent.path),
+                    sender=self.agent,
+                    recipient=parent,
                     message_id=str(uuid.uuid4()),
                     task=task.task if hasattr(task, 'task') else task,
                     result=directive.prompt.value
@@ -223,7 +279,6 @@ def execute_directive(directive_text: str, base_path: str = ".", agent=None, own
 
         # Ensure the agent is unstalled so that the follow-up api_call can run.
         if agent is not None:
-            agent.stall = False
             if hasattr(agent, 'prompt_queue') and hasattr(agent, 'api_call') and agent.prompt_queue:
                 try:
                     asyncio.create_task(agent.api_call())

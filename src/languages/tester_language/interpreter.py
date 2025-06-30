@@ -14,6 +14,7 @@ from .ast import DirectiveType, ReadDirective, RunDirective, ChangeDirective, Fi
 import src
 from src.config import ALLOWED_COMMANDS
 from .parser import parse_directive
+from src.messages.protocol import ResultMessage, MessageType, Task
 
 
 class TesterLanguageInterpreter:
@@ -149,14 +150,34 @@ class TesterLanguageInterpreter:
             if hasattr(self.agent, 'cleanup_scratch_pad'):
                 self.agent.cleanup_scratch_pad()
             
-            # Ephemeral agents don't deactivate like regular agents
-            # Instead, they report their results back to the parent
+            # Ephemeral agents report their results back to the parent using proper orchestrator functions
             parent = getattr(self.agent, 'parent', None)
             if parent is not None:
-                # Since this is an ephemeral agent, we don't need to create full TaskMessage/ResultMessage
-                # Instead, we queue a prompt directly to the parent agent
+                # Create a proper ResultMessage
+                task = self.agent.active_task
+                if task is None:
+                    # Create a dummy task for ephemeral agents
+                    task = Task(task_id=str(uuid.uuid4()), task_string="Ephemeral tester task")
+                
+                result_message = ResultMessage(
+                    message_type=MessageType.RESULT,
+                    sender=self.agent,  # Use the ephemeral agent itself as sender
+                    recipient=parent,
+                    message_id=str(uuid.uuid4()),
+                    task=task.task if hasattr(task, 'task') else task,
+                    result=directive.prompt.value
+                )
+                
+                # Use appropriate prompter based on parent type
                 result_prompt = f"Tester agent completed: {directive.prompt.value}"
-                self._queue_parent_prompt(result_prompt)
+                if hasattr(parent, 'is_manager') and parent.is_manager:
+                    # Parent is a manager agent
+                    from src.orchestrator.manager_prompter import manager_prompter
+                    asyncio.create_task(manager_prompter(parent, result_prompt, result_message))
+                else:
+                    # Parent is a coder agent
+                    from src.orchestrator.coder_prompter import coder_prompter
+                    asyncio.create_task(coder_prompter(parent, result_prompt, result_message))
             else:
                 # No parent: store result on agent for caller to access
                 setattr(self.agent, "final_result", directive.prompt.value)
@@ -178,26 +199,7 @@ class TesterLanguageInterpreter:
         if prompt not in self.agent.prompt_queue:
             self.agent.prompt_queue.append(prompt)
 
-    def _queue_parent_prompt(self, prompt: str) -> None:
-        """Queue a prompt to the parent agent."""
-        if self.agent is None:
-            return
-        parent = getattr(self.agent, 'parent', None)
-        if parent is None:
-            return
-        
-        # Queue the prompt to the parent agent
-        if hasattr(parent, 'prompt_queue'):
-            if prompt not in parent.prompt_queue:
-                parent.prompt_queue.append(prompt)
-            
-            # Trigger parent's api_call if not stalled
-            if hasattr(parent, 'stall') and not parent.stall:
-                if hasattr(parent, 'api_call'):
-                    try:
-                        asyncio.create_task(parent.api_call())
-                    except Exception:
-                        pass
+
 
 
 # Convenience function
@@ -225,12 +227,8 @@ def execute_directive(directive_text: str, agent=None) -> None:
 
         # Ensure the agent is unstalled so that the follow-up api_call can run.
         if agent is not None:
-            agent.stall = False
             if hasattr(agent, 'prompt_queue') and hasattr(agent, 'api_call') and agent.prompt_queue:
-                try:
-                    asyncio.create_task(agent.api_call())
-                except Exception:
-                    pass
+                asyncio.create_task(agent.api_call())
         return  # Abort further execution since parsing did not succeed.
 
     # Normal execution path if parsing succeeded

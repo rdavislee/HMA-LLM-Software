@@ -131,6 +131,17 @@ RUN "node tools/compile-typescript.js"
 RUN "node tools/run-mocha.js"
 FINISH PROMPT = "Config loader implemented with error handling"
 
+### Using Tester Agent for Complex Debugging
+// After first attempt fails
+READ "test/auth.test.ts"
+CHANGE CONTENT = """// Fixed auth implementation..."""
+RUN "node tools/compile-typescript.js"
+RUN "node tools/run-mocha.js"
+// Still failing? Spawn tester for deep investigation
+SPAWN tester PROMPT="Debug why authentication tests are still failing after token validation fix"
+WAIT
+// Use tester's findings for next attempt
+
 ### Reporting Test Issues
 READ "test/dateUtils.test.ts"
 READ "src/utils/dateUtils.ts"

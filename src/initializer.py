@@ -237,8 +237,8 @@ async def _async_execute_root_prompt(root_agent: ManagerAgent, prompt: str) -> s
     task = Task(task_id=str(uuid.uuid4()), task_string=prompt)
     task_message = TaskMessage(
         message_type=MessageType.DELEGATION,
-        sender_id="USER",
-        recipient_id=str(root_agent.path),
+        sender="USER",  # String for user, not agent object
+        recipient=root_agent,
         message_id=str(uuid.uuid4()),
         task=task,
     )

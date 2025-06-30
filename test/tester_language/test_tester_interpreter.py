@@ -38,6 +38,7 @@ class StubTesterAgent:
         self.scratch_pad_cleaned = False
         self.parent = None
         self.parent_path = _P("/test/parent")
+        self.active_task = None
 
     # Hooks used by interpreter
     def read_file(self, path: str):
@@ -60,6 +61,12 @@ class StubParentAgent:
         self.prompt_queue: list[str] = []
         self.prompts: list[str] = []
         self.stall = False
+        self.is_manager = False  # Default to coder agent behavior
+    
+    async def process_task(self, prompt: str):
+        """Process task method expected by orchestrator functions."""
+        self.prompt_queue.append(prompt)
+        await self.api_call()
     
     async def api_call(self):
         """Process prompt queue for testing."""

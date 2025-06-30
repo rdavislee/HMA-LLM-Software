@@ -5,11 +5,15 @@
 COMMENT: /\/\/.*/
 
 // Directives
-directive: delegate | finish | action | wait | run | update_readme
+directive: delegate | spawn | finish | action | wait | run | update_readme
 
 // Delegate directive
 delegate: "DELEGATE" delegate_item ("," delegate_item)*
 delegate_item: target prompt_field
+
+// Spawn directive
+spawn: "SPAWN" spawn_item ("," spawn_item)*
+spawn_item: ephemeral_type prompt_field
 
 // Finish directive  
 finish: "FINISH" prompt_field
@@ -30,6 +34,9 @@ wait: "WAIT"
 // Targets
 target: "file" filename   -> file
       | "folder" filename -> folder
+
+// Ephemeral types
+ephemeral_type: TESTER
 
 // Filename is a quoted string
 filename: string
@@ -53,6 +60,9 @@ DELETE: "DELETE"
 READ: "READ"
 UPDATE_README: "UPDATE_README"
 RUN: "RUN"
+
+// Ephemeral type tokens
+TESTER: "tester"
 
 // Ignore whitespace and comments
 %import common.WS

@@ -54,7 +54,7 @@ node tools/check-typescript.js
 - `python -m pytest -v` - Run all tests with verbose output
 - `python -m pytest path/to/test.py::test_name -v` - Run specific test
 - `python -m pytest --cov=src --cov-report=term` - Run tests with coverage
-- `python scratch_pads/debug.py` - Run your scratch pad debugging code
+- `python scratch_pads/debug_scratch_0.py` - Run your scratch pad debugging code
 - `flake8 src/` - Python style checking
 - `mypy src/` - Python static type analysis
 
@@ -90,19 +90,19 @@ python -c "import sys; print(sys.path)"
 ### **Python Profiling:**
 ```bash
 # Profile a specific script
-python -m cProfile -o profile.stats scratch_pads/your_script.py
+python -m cProfile -o profile.stats scratch_pads/your_scratch_0.py
 
 # Memory profiling (if memory_profiler installed)
-python -m memory_profiler scratch_pads/your_script.py
+python -m memory_profiler scratch_pads/your_scratch_0.py
 
 # Line profiling (if line_profiler installed)
-kernprof -l -v scratch_pads/your_script.py
+kernprof -l -v scratch_pads/your_scratch_0.py
 ```
 
 ### **Load Testing:**
 ```bash
 # If your scratch pad creates a load test
-python scratch_pads/load_test.py
+python scratch_pads/load_test_scratch_0.py
 ```
 
 ## Dependency and Environment Analysis
