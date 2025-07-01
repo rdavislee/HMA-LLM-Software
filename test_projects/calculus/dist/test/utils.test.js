@@ -268,8 +268,8 @@ describe('ExpressionDifferentiator', () => {
         });
         it('should simplify x+x to 2x before differentiation: d/dx(x+x) = 2', () => {
             const expr = op(variable('x'), 'add', variable('x'));
-            const expected = num(2);
-            (0, chai_1.expect)(differentiator.differentiate(expr, 'x')).to.deep.equal(expected);
+            const expected = op(num(2), 'multiply', variable('x'));
+            (0, chai_1.expect)(differentiator.differentiate(expr, 'x')).to.deep.equal(num(2)); // d/dx(2x) = 2
         });
     });
 });
@@ -456,7 +456,7 @@ describe('ExpressionSimplifier', () => {
         // --- Fraction Simplification ---
         it('should simplify 1 / (-1 * x) to -1 / x', () => {
             const expr = op(num(1), 'divide', op(num(-1), 'multiply', variable('x')));
-            const expected = op(unaryOp('negate', num(1)), 'divide', variable('x')); // -1/x
+            const expected = op(num(-1), 'divide', variable('x')); // -1/x
             expectSimplified(expr, expected);
         });
         it('should simplify (A*B)/A to B', () => {
@@ -649,14 +649,14 @@ describe('ExpressionIntegrator', () => {
             const expr = op(variable('x'), 'add', num(5));
             const expectedTerm1 = op(op(variable('x'), 'power', num(2)), 'divide', num(2));
             const expectedTerm2 = op(num(5), 'multiply', variable('x'));
-            const expected = op(op(expectedTerm1, 'add', expectedTerm2), 'add', variable('C'));
+            const expected = op(op(expectedTerm2, 'add', expectedTerm1), 'add', variable('C'));
             checkIndefiniteResult(expr, 'x', expected, false, 'C');
         });
         it('should apply difference rule: ∫ (x^2 - x) dx = x^3/3 - x^2/2 + C', () => {
             const expr = op(op(variable('x'), 'power', num(2)), 'subtract', variable('x'));
             const expectedTerm1 = op(op(variable('x'), 'power', num(3)), 'divide', num(3));
             const expectedTerm2 = op(op(variable('x'), 'power', num(2)), 'divide', num(2));
-            const expected = op(op(expectedTerm1, 'subtract', expectedTerm2), 'add', variable('C'));
+            const expected = op(op(unaryOp('negate', expectedTerm2), 'add', expectedTerm1), 'add', variable('C'));
             checkIndefiniteResult(expr, 'x', expected, false, 'C');
         });
         it('should apply constant multiple rule: ∫ 2x dx = x^2 + C', () => {
@@ -681,12 +681,27 @@ describe('ExpressionIntegrator', () => {
         });
         it('should integrate ln(x) to xln(x) - x + C', () => {
             const expr = func('ln', [variable('x')]);
-            const expected = op(op(op(variable('x'), 'multiply', func('ln', [variable('x')])), 'subtract', variable('x')), 'add', variable('C'));
+            const expected = op(op(unaryOp('negate', variable('x')), 'add', op(variable('x'), 'multiply', func('ln', [variable('x')]))), 'add', variable('C'));
             checkIndefiniteResult(expr, 'x', expected, false, 'C');
         });
         it('should integrate a^x (e.g. 2^x) to a^x/ln(a) + C', () => {
             const expr = op(num(2), 'power', variable('x'));
             const expected = op(op(num(2), 'power', variable('x')), 'divide', func('ln', [num(2)]));
+            const expectedWithC = op(expected, 'add', variable('C'));
+            checkIndefiniteResult(expr, 'x', expectedWithC, false, 'C');
+        });
+        it('should integrate 1^x to x + C', () => {
+            const expr = op(num(1), 'power', variable('x'));
+            const expected = op(variable('x'), 'add', variable('C'));
+            checkIndefiniteResult(expr, 'x', expected, false, 'C');
+        });
+        it('should mark 0^x as unintegratable', () => {
+            const expr = op(num(0), 'power', variable('x'));
+            checkIndefiniteResult(expr, 'x', "UNINTEGRATABLE_EXPRESSION", true, null);
+        });
+        it('should integrate pi^x to pi^x/ln(pi) + C', () => {
+            const expr = op(new expression_1.ConstantNode('pi'), 'power', variable('x'));
+            const expected = op(op(new expression_1.ConstantNode('pi'), 'power', variable('x')), 'divide', func('ln', [new expression_1.ConstantNode('pi')]));
             const expectedWithC = op(expected, 'add', variable('C'));
             checkIndefiniteResult(expr, 'x', expectedWithC, false, 'C');
         });
@@ -699,7 +714,7 @@ describe('ExpressionIntegrator', () => {
             // (3x^2 + sin(x) - 4e^x)
             const expr = op(op(op(num(3), 'multiply', op(variable('x'), 'power', num(2))), 'add', func('sin', [variable('x')])), 'subtract', op(num(4), 'multiply', new expression_1.ExponentialNode(variable('x'))));
             // x^3 - cos(x) - 4e^x
-            const expectedIntegrated = op(op(op(variable('x'), 'power', num(3)), 'subtract', func('cos', [variable('x')])), 'subtract', op(num(4), 'multiply', new expression_1.ExponentialNode(variable('x'))));
+            const expectedIntegrated = op(op(unaryOp('negate', func('cos', [variable('x')])), 'add', unaryOp('negate', op(num(4), 'multiply', new expression_1.ExponentialNode(variable('x'))))), 'add', op(variable('x'), 'power', num(3)));
             const expectedWithC = op(expectedIntegrated, 'add', variable('C'));
             checkIndefiniteResult(expr, 'x', expectedWithC, false, 'C');
         });
@@ -727,6 +742,13 @@ describe('ExpressionIntegrator', () => {
         it('should mark complex power rule like x^y as unintegratable', () => {
             const expr = op(variable('x'), 'power', variable('y'));
             checkIndefiniteResult(expr, 'x', "UNINTEGRATABLE_EXPRESSION", true, null);
+        });
+        it('should integrate e^(ax) (e.g. e^(2x)) to (1/a)e^(ax) + C', () => {
+            // ∫ e^(2x) dx = (1/2)e^(2x) + C
+            const innerExpr = op(num(2), 'multiply', variable('x'));
+            const expr = new expression_1.ExponentialNode(innerExpr);
+            const expected = op(op(num(0.5), 'multiply', new expression_1.ExponentialNode(innerExpr)), 'add', variable('C'));
+            checkIndefiniteResult(expr, 'x', expected, false, 'C');
         });
     });
     describe('integrateDefinite()', () => {

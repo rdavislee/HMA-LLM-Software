@@ -82,7 +82,11 @@ REPLACE FROM="console.log('Hello');" TO="console.log('Hello\\nWorld');"
 RUN "node tools/compile-typescript.js"
 RUN "node tools/check-typescript.js"
 
-## Testing via Tester Agents
+### Direct Test (Allowed ONCE per task)
+RUN "node tools/run-mocha.js"
+RUN "python -m pytest"
+
+## Testing via Tester Agents (After First Direct Test)
 
 ### Specific File Testing
 SPAWN tester PROMPT="Test calculator.ts implementation against test suite"
@@ -177,6 +181,8 @@ READ "test/auth.test.ts"
 READ "src/middleware/auth.ts"
 CHANGE CONTENT = "// Initial implementation attempt..."
 RUN "node tools/compile-typescript.js"
+RUN "node tools/run-mocha.js"  // Direct test (allowed ONCE)
+// If tests fail, try ONE fix, then:
 SPAWN tester PROMPT="Test auth middleware implementation"
 WAIT
 // Based on tester feedback, make fixes

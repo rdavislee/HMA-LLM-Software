@@ -23,18 +23,22 @@ READ "other-dependency.ts"   // Read related implementations
 // THEN start your work based on what you learned
 ```
 
-## ⚠️ CRITICAL: COMPILE-FIX LOOP PREVENTION ⚠️
+## ⚠️ CRITICAL: TESTING & TEST-FIX LOOP PREVENTION ⚠️
 
-**FORBIDDEN: Compilation loops. After 1 failed compile attempt, you MUST spawn tester for analysis.**
+**You may run ONE direct test (e.g., `node tools/run-mocha.js` or `python -m pytest`) per task. After your first direct test, ALL further testing must use tester agents.**
+
+**FORBIDDEN: Test-fix loops. After 1 failed direct test attempt, you MUST spawn tester for analysis.**
 
 ```
-SPAWN tester PROMPT="Analyze compilation errors in [your-file] - identify missing dependencies"
+RUN "node tools/run-mocha.js"   // (or python -m pytest) - allowed ONCE per task
+// If tests fail, you may try ONE fix, then you MUST:
+SPAWN tester PROMPT="Analyze test failures in [your-file] - identify missing dependencies"
 WAIT
 ```
 
 ## Tester Agent Usage (MANDATORY for Testing & Error Analysis)
 
-**ALL testing AND error analysis must use tester agents:**
+**ALL further testing AND error analysis after your first direct test must use tester agents:**
 
 **For Testing:**
 - `SPAWN tester PROMPT="Test [specific file]"` - Test single file implementation
@@ -101,13 +105,15 @@ You are part of a hierarchical multi-agent system designed to build large softwa
 
 **TypeScript workflow:**
 1. `RUN "node tools/compile-typescript.js"`
-2. `SPAWN tester PROMPT="Test [file/module]"` 
-3. `WAIT` for tester results
-4. If failures: Fix and repeat
+2. You may run ONE direct test: `RUN "node tools/run-mocha.js"`
+3. If tests fail, you may try ONE fix, then you MUST:
+4. `SPAWN tester PROMPT="Test [file/module]"` (or for debugging)
+5. `WAIT` for tester results
+6. If failures: Fix and repeat using tester guidance only
 
 **Debug compilation:** `RUN "node tools/check-typescript.js"` for diagnostics
 
-**⚠️ NEVER run tests directly - always use tester agents!**
+**⚠️ NEVER run more than one direct test per task - always use tester agents after your first test! ⚠️**
 
 ### Task Types:
 

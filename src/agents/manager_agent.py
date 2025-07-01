@@ -257,4 +257,3 @@ class ManagerAgent(BaseAgent):
         from src.languages.manager_language.interpreter import execute_directive
         execute_directive(response, agent=self)
         
-        

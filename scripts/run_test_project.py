@@ -1,13 +1,19 @@
 #!/usr/bin/env python
-"""Automated testing entry-point using Gemini 2.5 Flash.
+"""Automated testing entry-point for running agent hierarchy on test projects.
 
-This script lets you run the agent hierarchy on a test project using Google's Gemini 2.5 Flash model.
+This script lets you run the agent hierarchy on a test project using a configurable LLM.
 It will:
 1. Prompt you for a folder name contained within *test_projects/*.
 2. Validate that the folder exists; abort otherwise.
 3. Prompt for an initial task description.
-4. Spin up the agent hierarchy targeting that directory and use Gemini 2.5 Flash for all LLM calls.
+4. Spin up the agent hierarchy targeting that directory and use the specified LLM for all calls.
 """
+
+# Configure which LLM model to use for testing
+# Available options: "gpt-4o", "gpt-4.1", "o3", "o3-pro", "claude-sonnet-4", "claude-opus-4", 
+# "claude-3.7-sonnet", "claude-3.5-sonnet", "gemini-2.5-flash", "gemini-2.5-pro", 
+# "deepseek-v3", "deepseek-r1", "grok-3", "grok-3-mini", "console"
+LLM_MODEL = "gemini-2.5-flash"
 
 import sys
 from pathlib import Path
@@ -41,8 +47,8 @@ def main() -> None:
         print("Initial prompt cannot be empty.")
         sys.exit(1)
 
-    print("\n=== Running agents with Gemini 2.5 Flash – LLM calls will be handled automatically ===\n")
-    llm_client = get_llm_client("gemini-2.5-flash")
+    print(f"\n=== Running agents with {LLM_MODEL} – LLM calls will be handled automatically ===\n")
+    llm_client = get_llm_client(LLM_MODEL)
     result = initialize_and_run(
         project_path,
         initial_prompt,

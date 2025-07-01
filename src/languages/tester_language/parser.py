@@ -161,9 +161,7 @@ class TesterLanguageParser:
             Exception: If parsing fails
         """
         try:
-            print(f"[DEBUG] Parsing text: {repr(text)}")
             result = self.parser.parse(text.strip())
-            print(f"[DEBUG] Parse result: {result}")
             return result
         except Exception as e:
             raise Exception(f"Failed to parse tester directive: {text}\nError: {str(e)}")

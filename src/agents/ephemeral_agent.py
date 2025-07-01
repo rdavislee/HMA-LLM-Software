@@ -18,6 +18,9 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Set, Tuple, Union
 from dataclasses import dataclass
+import threading
+import asyncio
+import time
 
 # Local imports
 from src.llm.base import BaseLLMClient
@@ -30,6 +33,8 @@ from src.config import COLLAPSED_DIR_NAMES
 class ContextEntry:
     prompt: str
     response: str
+
+AGENT_TIMEOUT_SECONDS = 600
 
 class EphemeralAgent(ABC):
     '''
@@ -82,6 +87,46 @@ class EphemeralAgent(ABC):
         # Task tracking
         self.active_task = None
 
+        self.last_activity = time.time()
+        self._watchdog_task = None
+        self._watchdog_started = False
+
+    def start_watchdog(self):
+        if not self._watchdog_started:
+            try:
+                loop = asyncio.get_running_loop()
+                self._watchdog_task = loop.create_task(self._watchdog_loop())
+                self._watchdog_started = True
+            except RuntimeError:
+                # No running loop, will try again later
+                pass
+
+    async def _watchdog_loop(self):
+        while True:
+            await asyncio.sleep(10)
+            if getattr(self, 'stall', False) is False and self.active_task is not None:
+                if time.time() - self.last_activity > AGENT_TIMEOUT_SECONDS:
+                    await self.handle_timeout()
+                    break
+
+    async def handle_timeout(self):
+        # Ephemeral agents are destroyed after completion, so just report to parent
+        if self.parent:
+            await self.parent.process_task(
+                f"Ephemeral agent timed out after {AGENT_TIMEOUT_SECONDS} seconds of inactivity."
+            )
+        self.stall = True
+        self.active_task = None
+        # Cancel watchdog if running
+        if hasattr(self, '_watchdog_task') and self._watchdog_task is not None:
+            try:
+                if not self._watchdog_task.done():
+                    self._watchdog_task.cancel()
+            except Exception:
+                pass
+            self._watchdog_task = None
+            self._watchdog_started = False
+
     async def process_task(self, prompt: str) -> None:
         '''
         Process a task by adding prompt to queue and calling API if not stalled.
@@ -90,6 +135,8 @@ class EphemeralAgent(ABC):
         Args:
             prompt: The prompt to process
         '''
+        self.start_watchdog()
+        self.update_activity()
         self.prompt_queue.append(prompt)
         
         if not self.stall:
@@ -116,6 +163,7 @@ class EphemeralAgent(ABC):
         This method must be implemented by subclasses to handle
         their specific tasks and response processing.
         '''
+        self.start_watchdog()
         pass
 
     def read_file(self, file_path: str) -> None:
@@ -126,6 +174,7 @@ class EphemeralAgent(ABC):
         Args:
             file_path: Path to the file to add to memory
         '''
+        self.update_activity()
         full_path = Path(file_path).resolve()
         filename = full_path.name
         self.memory[filename] = full_path
@@ -138,6 +187,7 @@ class EphemeralAgent(ABC):
         Returns:
             Dict[str, str]: Dictionary of filenames to file contents
         '''
+        self.update_activity()
         contents = {}
         
         for filename, file_path in self.memory.items():
@@ -156,6 +206,7 @@ class EphemeralAgent(ABC):
         '''
         Returns a tree-style ASCII representation of the codebase starting at the project root directory (ROOT_DIR from src).
         '''
+        self.update_activity()
         def tree(dir_path: Path, prefix: str = "") -> list:
             entries = []
             try:
@@ -193,6 +244,7 @@ class EphemeralAgent(ABC):
                 - Active task and memory usage
                 - Context and stall state
         '''
+        self.update_activity()
         return {
             'agent_type': 'ephemeral',
             'parent_path': str(self.parent_path),
@@ -213,4 +265,7 @@ class EphemeralAgent(ABC):
             str: Agent representation including type, parent path, and task status
         '''
         task_status = f"task={str(self.active_task)[:50]}..." if self.active_task else "no_task"
-        return f"EphemeralAgent(parent_path={self.parent_path}, {task_status})" 
+        return f"EphemeralAgent(parent_path={self.parent_path}, {task_status})"
+
+    def update_activity(self):
+        self.last_activity = time.time() 

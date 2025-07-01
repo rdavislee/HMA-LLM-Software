@@ -155,6 +155,17 @@ def debug_helper():
             except Exception as e:
                 print(f"[TesterAgent] Failed to cleanup scratch pad: {e}")
 
+    def _truncate_change_command(self, prompt: str) -> str:
+        """
+        Truncate CHANGE commands in context to prevent context window bloat.
+        Only keeps first 100 characters of CHANGE commands since the actual content 
+        is stored in memory files.
+        """
+        if prompt.strip().startswith('CHANGE'):
+            if len(prompt) > 100:
+                return prompt[:100] + "..."
+        return prompt
+
     async def api_call(self) -> None:
         '''
         Make an API call with current context and memory for tester agent.
@@ -282,10 +293,11 @@ def debug_helper():
                 )
                 response = await self.llm_client.generate_response(formatted_prompt)
 
-            # Save context
+            # Save context (truncate CHANGE commands to prevent context bloat)
             action = response.split()[0] if response.strip() else "NO_ACTION"
             print(f"[{self.parent_path}_tester] Prompt: {current_prompt} | Output: {response}")
-            self.context.append(ContextEntry(prompt=current_prompt, response=response))
+            truncated_prompt = self._truncate_change_command(current_prompt)
+            self.context.append(ContextEntry(prompt=truncated_prompt, response=response))
             
             # Clear prompt queue
             self.prompt_queue.clear()

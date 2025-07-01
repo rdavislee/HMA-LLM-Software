@@ -3,25 +3,26 @@
 **IMPORTANT: All terminal commands are executed from the root directory of the project, regardless of which file or folder the agent is responsible for.**
 
 ## **TESTING RESTRICTIONS**
-**⚠️ CODER AGENTS CANNOT RUN TESTS DIRECTLY ⚠️**
+**⚠️ CODER AGENTS MAY RUN ONE TEST DIRECTLY PER TASK ⚠️**
 
-- **NO direct test execution** - You cannot run `node tools/run-mocha.js` or `python -m pytest`
-- **Use tester agents instead** - All testing must be done via `SPAWN tester` commands
-- **Compilation only** - You can compile code but not execute tests
+- **ONE direct test execution allowed per task** - You may run `node tools/run-mocha.js` or `python -m pytest` ONCE before using tester agents
+- **After your first direct test run, ALL further testing must use tester agents** - Use `SPAWN tester` for all subsequent test runs, retests, or debugging
+- **Compilation is always allowed** - You can compile code as many times as needed, but only one direct test run is permitted
 
-**⚠️ COMPILE-FIX LOOP PREVENTION:**
-- **After 1 failed compilation**: MANDATORY tester spawn for error analysis
-- **NO repeated compilation attempts** without tester guidance
-- **Example**: `SPAWN tester PROMPT="Analyze compilation errors in [file] - identify missing dependencies"`
+**⚠️ COMPILE-FIX/TEST-FIX LOOP PREVENTION:**
+- **After 1 failed direct test or compile attempt**: MANDATORY tester spawn for error analysis or retesting
+- **NO repeated direct test or compilation attempts** without tester guidance
+- **Example**: `SPAWN tester PROMPT="Analyze test failures in [file] - identify missing dependencies"`
 
 **For testing, you MUST:**
-1. `SPAWN tester PROMPT="Test [specific file or broad scope]"`
-2. `WAIT` for tester results
-3. Use their findings to guide your implementation
+1. You may run ONE direct test (e.g., `node tools/run-mocha.js` or `python -m pytest`) per task
+2. After that, use `SPAWN tester PROMPT="Test [specific file or broad scope]"` for all further testing
+3. `WAIT` for tester results
+4. Use their findings to guide your implementation
 
-**For compilation errors, you MUST:**
+**For compilation or test errors, you MUST:**
 1. First attempt: Fix obvious syntax/import errors only
-2. After any failure: `SPAWN tester PROMPT="Analyze compilation errors in [file] - identify missing dependencies"`
+2. After any failure: `SPAWN tester PROMPT="Analyze compilation or test errors in [file] - identify missing dependencies"`
 3. `WAIT` and follow tester guidance - NO GUESSING
 
 ## Compilation and Diagnostics

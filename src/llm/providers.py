@@ -26,6 +26,7 @@ ENV_OPENAI_KEY = os.getenv("OPENAI_API_KEY")
 ENV_ANTHROPIC_KEY = os.getenv("ANTHROPIC_API_KEY")
 ENV_GOOGLE_KEY = os.getenv("GOOGLE_GEMINI_API_KEY")
 ENV_DEEPSEEK_KEY = os.getenv("DEEPSEEK_API_KEY")
+ENV_XAI_KEY = os.getenv("XAI_API_KEY")
 
 
 def _ensure_api_key(var_name: str, value: Optional[str]):
@@ -463,7 +464,7 @@ class DeepSeekClient(BaseLLMClient):
         messages: Union[str, List[Dict[str, str]]],
         system_prompt: Optional[str] = None,
         temperature: float = 0.7,
-        max_tokens: int = 1000,
+        max_tokens: int = 65536,
     ) -> str:
         from openai import AsyncOpenAI
         
@@ -600,6 +601,101 @@ class ConsoleLLMClient(BaseLLMClient):
         except json.JSONDecodeError:
             print("[ConsoleLLMClient] Warning: Could not parse JSON – returning empty dict.")
             return {}
+        
+class GrokClient(BaseLLMClient):
+    """Base xAI Grok client using OpenAI-compatible API."""
+    
+    def __init__(self, model: str = "grok-beta") -> None:
+        _ensure_api_key("XAI_API_KEY", ENV_XAI_KEY)
+        self.model = model
+        self.api_key = ENV_XAI_KEY
+
+    @property
+    def supports_system_role(self) -> bool:
+        return True
+
+    async def generate_response(
+        self,
+        messages: Union[str, List[Dict[str, str]]],
+        system_prompt: Optional[str] = None,
+        temperature: float = 0.7,
+        max_tokens: int = 100000,
+    ) -> str:
+        from openai import AsyncOpenAI
+        
+        # xAI uses OpenAI-compatible API
+        client = AsyncOpenAI(
+            api_key=self.api_key,
+            base_url="https://api.x.ai/v1"
+        )
+        
+        if isinstance(messages, str):
+            msgs = [{"role": "user", "content": messages}]
+            if system_prompt:
+                msgs.insert(0, {"role": "system", "content": system_prompt})
+        else:
+            msgs = messages
+
+        response = await client.chat.completions.create(
+            model=self.model,
+            messages=msgs,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+        
+        return response.choices[0].message.content.strip()
+
+    async def generate_structured_response(
+        self,
+        messages: Union[str, List[Dict[str, str]]],
+        schema: Dict[str, Any],
+        system_prompt: Optional[str] = None,
+        temperature: float = 0.7,
+    ) -> Dict[str, Any]:
+        import json
+        
+        if isinstance(messages, str):
+            prompt = messages
+        else:
+            prompt = messages[-1]["content"] if messages else ""
+        
+        structured_prompt = f"""Please respond with valid JSON matching this schema:
+{json.dumps(schema, indent=2)}
+
+User request: {prompt}"""
+        
+        response = await self.generate_response(
+            structured_prompt,
+            system_prompt=system_prompt,
+            temperature=temperature
+        )
+        
+        # Extract JSON from response
+        try:
+            # Try to find JSON in the response
+            import re
+            json_match = re.search(r'\{.*\}', response, re.DOTALL)
+            if json_match:
+                return json.loads(json_match.group())
+            else:
+                return json.loads(response)
+        except:
+            # Fallback: return empty dict if parsing fails
+            return {}
+
+
+class Grok3Client(GrokClient):
+    """Grok 3 - flagship model for enterprise tasks."""
+    
+    def __init__(self) -> None:
+        super().__init__(model="grok-3-beta")
+
+
+class Grok3MiniClient(GrokClient):
+    """Grok 3 Mini - lightweight reasoning model for math and quantitative tasks."""
+    
+    def __init__(self) -> None:
+        super().__init__(model="grok-3-mini")
 
 
 # Convenience mapping for easy model selection
@@ -623,6 +719,10 @@ MODEL_CLIENTS = {
     # DeepSeek
     "deepseek-v3": DeepSeekV3Client,
     "deepseek-r1": DeepSeekR1Client,
+    
+    # xAI Grok - NEW!
+    "grok-3": Grok3Client,
+    "grok-3-mini": Grok3MiniClient,
 
     # Console
     "console": ConsoleLLMClient,
