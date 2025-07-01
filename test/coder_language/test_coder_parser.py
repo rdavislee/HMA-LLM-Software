@@ -352,4 +352,31 @@ class TestConvenienceFunctions:
     def test_parse_directives_function_error(self):
         """Test error handling in parse_directives function."""
         with pytest.raises(Exception):
-            parse_directives('INVALID "directive"') 
+            parse_directives('INVALID "directive"')
+
+
+def test_change_content_multiline_newlines():
+    # LLM outputs single-backslash \n in quoted string
+    directive = 'CHANGE CONTENT = "line1\nline2\nline3"'
+    result = parse_directive(directive)
+    assert result.content == "line1\nline2\nline3"
+    # Should be real newlines after parsing
+    assert result.content.split("\n") == ["line1", "line2", "line3"]
+
+
+def test_change_content_real_newlines():
+    # LLM outputs real newlines in quoted string (should also work)
+    directive = 'CHANGE CONTENT = "line1\nline2\nline3"'.replace("\\n", "\n")
+    result = parse_directive(directive)
+    assert result.content == "line1\nline2\nline3"
+    assert result.content.split("\n") == ["line1", "line2", "line3"]
+
+
+def test_change_content_double_backslash():
+    # LLM outputs double-backslash \n (should NOT be treated as newline)
+    directive = r'CHANGE CONTENT = "line1\\nline2\\nline3"'
+    result = parse_directive(directive)
+    # Should be literal backslash-n, not a newline
+    assert result.content == "line1\\nline2\\nline3"
+    assert "\n" not in result.content  # No real newlines
+    assert "\\n" in result.content 

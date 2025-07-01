@@ -34,7 +34,7 @@ content_string: string
 
 // Regular string literals (for filenames, commands, prompts, content)
 string: STRING
-STRING: /"(\\.|[^\\"])*"/
+STRING: /"([^"\\]|\\.)*"/
 
 // Ignore whitespace and comments
 %import common.WS

@@ -82,9 +82,9 @@ WAIT
 ### UPDATE_README Directive
 Update or maintain a personal README for the agent:
 ```
-UPDATE_README CONTENT_STRING="This is the new README content for the agent."
+UPDATE_README CONTENT="This is the new README content for the agent."
 ```
-- The `CONTENT_STRING` field completely replaces the current README content for the agent.
+- The `CONTENT` field completely replaces the current README content for the agent.
 - This directive allows agents to persist important information for future instances of themselves.
 
 ## API Reference
@@ -160,7 +160,7 @@ print(result)
 from manager_language import execute_directive
 
 # Update the agent's personal README
-directive = 'UPDATE_README CONTENT_STRING="Document the agent\'s new capabilities and usage."'
+directive = 'UPDATE_README CONTENT="Document the agent\'s new capabilities and usage."'
 result = execute_directive(directive)
 print(result)
 # The result context will include a 'readme_updates' key with the new content
@@ -179,7 +179,7 @@ directives = [
     'CREATE folder "project"',
     'CREATE file "project/config.json"',
     'DELEGATE file "project/config.json" PROMPT="Create a JSON configuration"',
-    'UPDATE_README CONTENT_STRING="Project initialized with config."',
+    'UPDATE_README CONTENT="Project initialized with config."',
     'FINISH PROMPT="Project setup complete"'
 ]
 

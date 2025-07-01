@@ -78,7 +78,6 @@ def patch_async(monkeypatch):
             loop = asyncio.get_running_loop()
             # If loop is already running, create a new thread to run the coroutine
             import concurrent.futures
-            import threading
             
             def run_in_thread():
                 new_loop = asyncio.new_event_loop()
@@ -87,13 +86,20 @@ def patch_async(monkeypatch):
                     return new_loop.run_until_complete(coro)
                 finally:
                     new_loop.close()
+                    asyncio.set_event_loop(None)
             
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 future = executor.submit(run_in_thread)
                 return future.result()
         except RuntimeError:
-            # No event loop running, safe to use run_until_complete
-            return asyncio.get_event_loop().run_until_complete(coro)
+            # No event loop running, create one and run the coroutine
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                return loop.run_until_complete(coro)
+            finally:
+                loop.close()
+                asyncio.set_event_loop(None)
     
     monkeypatch.setattr("asyncio.create_task", sync_create_task)
 

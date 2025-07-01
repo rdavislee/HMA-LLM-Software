@@ -23,7 +23,7 @@ action: action_type target ("," target)*
 action_type: CREATE | DELETE | READ
 
 // Update readme directive
-update_readme: "UPDATE_README" content_string
+update_readme: "UPDATE_README" "CONTENT" "=" string
 
 // Run directive
 run: RUN command
@@ -47,12 +47,9 @@ command: string
 // Prompt field
 prompt_field: "PROMPT" "=" string
 
-// File content field (completely replaces current file contents)
-content_string: "CONTENT_STRING" "=" string
-
 // String literals as a terminal (preserve whitespace and escapes)
 string: STRING
-STRING: /"(\\.|[^\\"])*"/
+STRING: /"([^"\\]|\\.)*"/
 
 // Action type tokens
 CREATE: "CREATE"

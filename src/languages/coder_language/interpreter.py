@@ -10,7 +10,7 @@ import time
 import uuid
 from typing import Dict, Any, Optional
 from pathlib import Path
-from .ast import DirectiveType, ReadDirective, RunDirective, ChangeDirective, SpawnDirective, WaitDirective, FinishDirective
+from .ast import DirectiveType, ReadDirective, RunDirective, ChangeDirective, ReplaceDirective, SpawnDirective, WaitDirective, FinishDirective
 import src
 from src.config import ALLOWED_COMMANDS
 from .parser import parse_directive
@@ -61,6 +61,8 @@ class CoderLanguageInterpreter:
                 self._execute_run(directive)
             elif isinstance(directive, ChangeDirective):
                 self._execute_change(directive)
+            elif isinstance(directive, ReplaceDirective):
+                self._execute_replace(directive)
             elif isinstance(directive, SpawnDirective):
                 self._execute_spawn(directive)
             elif isinstance(directive, WaitDirective):
@@ -149,6 +151,40 @@ class CoderLanguageInterpreter:
             return
         self._queue_self_prompt(prompt)
 
+    def _execute_replace(self, directive: ReplaceDirective) -> None:
+        """Execute a REPLACE directive."""
+        prompt = None
+        try:
+            if self.own_file is not None:
+                file_path = self.base_path / self.own_file
+                
+                # Check if file exists, create if it doesn't
+                if not file_path.exists():
+                    file_path.parent.mkdir(parents=True, exist_ok=True)
+                    current_content = ""
+                else:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        current_content = f.read()
+                
+                # Check if the from_string exists in the file
+                if directive.from_string not in current_content:
+                    prompt = f"REPLACE failed: String '{directive.from_string}' not found in {self.own_file}"
+                else:
+                    # Perform string replacement
+                    new_content = current_content.replace(directive.from_string, directive.to_string)
+                    
+                    # Write back to file
+                    with open(file_path, 'w', encoding='utf-8') as f:
+                        f.write(new_content)
+                    
+                    prompt = f"REPLACE succeeded: Replaced '{directive.from_string}' with '{directive.to_string}' in {self.own_file}"
+            else:
+                prompt = "REPLACE failed: This agent has no assigned file."
+        except Exception as e:
+            self._queue_self_prompt(f"REPLACE failed: Could not replace in {self.own_file}: {str(e)}")
+            return
+        self._queue_self_prompt(prompt)
+
     def _execute_spawn(self, directive: SpawnDirective) -> None:
         """Execute a SPAWN directive for ephemeral agents."""
         if not self.agent:
@@ -206,16 +242,19 @@ class CoderLanguageInterpreter:
                 self._queue_self_prompt(f"FINISH failed: Cannot finish with {len(self.agent.active_ephemeral_agents)} active ephemeral agents still running")
                 return
                 
+            # Save task BEFORE deactivating (deactivate sets active_task to None)
+            task = self.agent.active_task
+            parent = getattr(self.agent, 'parent', None)
+            
             try:
                 self.agent.deactivate()
             except Exception as e:
                 self._queue_self_prompt(f"FINISH failed: {str(e)}")
                 return
+                
             # Propagate result to parent if possible
-            parent = getattr(self.agent, 'parent', None)
             if parent is not None:
                 # Build ResultMessage
-                task = self.agent.active_task
                 # Fallback: create a dummy task if needed
                 if task is None:
                     from src.messages.protocol import Task
@@ -290,8 +329,9 @@ def execute_directive(directive_text: str, base_path: str = ".", agent=None, own
     interpreter.execute(directive)
 
     if agent is not None:
-        # Check agent prompt queue and if not empty, call api_call
+        # Always unstall the agent so it can process future prompts
+        agent.stall = False
+        
+        # If there are queued prompts, schedule api_call to process them
         if hasattr(agent, 'prompt_queue') and hasattr(agent, 'api_call') and agent.prompt_queue:
             asyncio.create_task(agent.api_call())
-        else:
-            agent.stall = False

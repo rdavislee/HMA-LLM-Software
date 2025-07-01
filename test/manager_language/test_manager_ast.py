@@ -502,7 +502,7 @@ class TestUpdateReadmeDirective:
         """Test string representation of UPDATE_README directive."""
         directive = UpdateReadmeDirective(content="New README content with \"quotes\"")
         
-        expected = 'UPDATE_README CONTENT_STRING="New README content with "quotes""'
+        expected = 'UPDATE_README CONTENT="New README content with "quotes""'
         assert str(directive) == expected
     
     def test_update_readme_directive_complex_content(self):
@@ -521,7 +521,7 @@ Use this agent for managing project files and coordinating with child agents.
 ```bash
 CREATE file "config.json"
 DELEGATE file "src/main.py" PROMPT="Create main function"
-UPDATE_README CONTENT_STRING="Updated documentation"
+UPDATE_README CONTENT="Updated documentation"
 ```
 """
         directive = UpdateReadmeDirective(content=complex_content)
@@ -545,7 +545,7 @@ UPDATE_README CONTENT_STRING="Updated documentation"
         assert 'readme_updates' in result
         assert len(result['readme_updates']) == 1
         assert result['readme_updates'][0]['content'] == ""
-        assert str(directive) == 'UPDATE_README CONTENT_STRING=""'
+        assert str(directive) == 'UPDATE_README CONTENT=""'
     
     def test_update_readme_directive_context_preservation(self):
         """Test UPDATE_README directive preserves existing context."""
@@ -587,7 +587,7 @@ UPDATE_README CONTENT_STRING="Updated documentation"
         assert result['readme_updates'][0]['content'] == content_with_escapes
         
         # Test string representation with escaped characters
-        expected_str = 'UPDATE_README CONTENT_STRING="README with \\n newlines and \\t tabs and \\"quotes\\""'
+        expected_str = 'UPDATE_README CONTENT="README with \\n newlines and \\t tabs and \\"quotes\\""'
         assert str(directive) == expected_str
 
 

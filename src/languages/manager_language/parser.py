@@ -138,7 +138,10 @@ class ManagerLanguageTransformer(Transformer):
         return self._unescape_string(raw_string)
     
     def _unescape_string(self, s: str) -> str:
-        """Unescape string literals."""
+        """Unescape string literals, handling double-backslash correctly (matches coder parser)."""
+        # First, replace double-backslash with a placeholder
+        placeholder = "\0BACKSLASH\0"
+        s = s.replace('\\\\', placeholder)
         escape_map = {
             '\\': '\\',
             '"': '"',
@@ -150,7 +153,6 @@ class ManagerLanguageTransformer(Transformer):
             't': '\t',
             'v': '\v'
         }
-        
         result = []
         i = 0
         while i < len(s):
@@ -165,8 +167,8 @@ class ManagerLanguageTransformer(Transformer):
             else:
                 result.append(s[i])
                 i += 1
-        
-        return ''.join(result)
+        # Restore double-backslash
+        return ''.join(result).replace(placeholder, '\\')
     
     @v_args(inline=True)
     def run(self, run_token, command):
@@ -174,14 +176,9 @@ class ManagerLanguageTransformer(Transformer):
         return RunDirective(command=command)
     
     @v_args(inline=True)
-    def update_readme(self, content_string):
+    def update_readme(self, content):
         """Transform update_readme directive."""
-        return UpdateReadmeDirective(content=content_string)
-    
-    @v_args(inline=True)
-    def content_string(self, string):
-        """Transform content_string field."""
-        return string
+        return UpdateReadmeDirective(content=content)
 
 
 class ManagerLanguageParser:

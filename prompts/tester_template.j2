@@ -32,11 +32,11 @@
 ## Personal Scratch Pad
 {{ personal_file_name }} (content available in Memory Files above)
 
-**Scratch Pad Purpose:**
-- Write debugging code and temporary functions
-- Test hypotheses and explore code behavior
-- Create helper scripts for analysis
-- Experiment with code modifications
+**Scratch Pad Usage Rules:**
+- **ONLY use when tests are FAILING and you need to debug**
+- **For debugging existing functions by calling them with test inputs**
+- **NOT for writing test suites or implementations**
+- **NOT needed when all tests pass - just FINISH with summary**
 - The scratch pad will be automatically cleaned up when you FINISH
 
 {% endif %}
@@ -66,7 +66,7 @@ As a tester agent, you can:
 
 ## Response Format Requirements
 Return exactly the command(s) with no surrounding prose or code fences.
-Use escaped quotes (\") and `\\n` only when needed inside quoted arguments. Ensure the response ends with a single newline.
+Use escaped quotes (\") and `\n` (single backslash n) for newlines inside quoted arguments. Ensure the response ends with a single newline.
 
 {% if current_prompt %}
 ## Current Prompt

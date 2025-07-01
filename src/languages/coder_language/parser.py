@@ -7,7 +7,7 @@ import os
 from typing import List, Union
 from lark import Lark, Transformer, v_args
 from .ast import (
-    Directive, ReadDirective, RunDirective, ChangeDirective, SpawnDirective, WaitDirective, FinishDirective,
+    Directive, ReadDirective, RunDirective, ChangeDirective, ReplaceDirective, SpawnDirective, WaitDirective, FinishDirective,
     Target, PromptField, EphemeralType, SpawnItem, DirectiveType
 )
 
@@ -36,6 +36,11 @@ class CoderLanguageTransformer(Transformer):
     def change(self, content):
         """Transform change directive."""
         return ChangeDirective(content=content)
+    
+    @v_args(inline=True)
+    def replace(self, from_string, to_string):
+        """Transform replace directive."""
+        return ReplaceDirective(from_string=from_string, to_string=to_string)
     
     @v_args(inline=True)
     def spawn(self, first_item, *other_items):
@@ -79,6 +84,16 @@ class CoderLanguageTransformer(Transformer):
         return string
     
     @v_args(inline=True)
+    def from_string(self, string):
+        """Transform from string."""
+        return string
+    
+    @v_args(inline=True)
+    def to_string(self, string):
+        """Transform to string."""
+        return string
+    
+    @v_args(inline=True)
     def ephemeral_type(self, type_name):
         """Transform ephemeral type."""
         return EphemeralType(type_name=type_name)
@@ -97,7 +112,11 @@ class CoderLanguageTransformer(Transformer):
         return self._unescape_string(raw_string)
     
     def _unescape_string(self, s: str) -> str:
-        """Unescape string literals."""
+        """Unescape string literals, handling double-backslash correctly."""
+        # First, replace double-backslash with a placeholder
+        placeholder = "\0BACKSLASH\0"
+        s = s.replace('\\\\', placeholder)
+        
         escape_map = {
             '\\': '\\',
             '"': '"',
@@ -109,7 +128,6 @@ class CoderLanguageTransformer(Transformer):
             't': '\t',
             'v': '\v'
         }
-        
         result = []
         i = 0
         while i < len(s):
@@ -124,8 +142,8 @@ class CoderLanguageTransformer(Transformer):
             else:
                 result.append(s[i])
                 i += 1
-        
-        return ''.join(result)
+        # Restore double-backslash
+        return ''.join(result).replace(placeholder, '\\')
     
     def escape_string(self, s: str) -> str:
         """Escape string literals for use in directives."""
@@ -187,9 +205,7 @@ class CoderLanguageParser:
             Exception: If parsing fails
         """
         try:
-            print(f"[DEBUG] Parsing text: {repr(text)}")
             result = self.parser.parse(text.strip())
-            print(f"[DEBUG] Parse result: {result}")
             return result
         except Exception as e:
             raise Exception(f"Failed to parse coder directive: {text}\nError: {str(e)}")

@@ -1,0 +1,16 @@
+{
+  "extensions": [
+    "js"
+  ],
+  "spec": [
+    "dist/test/**/*.test.js"
+  ],
+  "reporter": "spec",
+  "no-colors": true,
+  "full-trace": true,
+  "bail": false,
+  "timeout": 10000,
+  "recursive": true,
+  "diff": true,
+  "inline-diffs": false
+} 

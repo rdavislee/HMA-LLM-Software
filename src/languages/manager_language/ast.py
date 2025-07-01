@@ -280,7 +280,7 @@ class UpdateReadmeDirective(Directive):
         return context
     
     def __str__(self) -> str:
-        return f'UPDATE_README CONTENT_STRING="{self.content}"'
+        return f'UPDATE_README CONTENT="{self.content}"'
 
 
 # Type alias for any directive

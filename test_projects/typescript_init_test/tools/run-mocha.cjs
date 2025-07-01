@@ -28,7 +28,6 @@ if (!mochaBin) {
 const defaultFlags = [
   '--reporter', 'spec',          // Use spec reporter for detailed output
   '--no-colors',                 // Disable colors for cleaner agent parsing
-  '--bail',                      // Stop on first failure for faster feedback
   '--full-trace',                // Show full stack traces
   '--recursive'                  // Search subdirectories
 ];

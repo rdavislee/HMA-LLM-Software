@@ -80,7 +80,7 @@ Manager agents use a specialized language for coordination and delegation:
 - `DELEGATE file/folder "path" PROMPT="task description"` - Assign work to child agents
 - `WAIT` - Pause execution until children complete
 - `FINISH PROMPT="completion message"` - Mark task completion
-- `UPDATE_README CONTENT_STRING="content"` - Maintain agent documentation
+- `UPDATE_README CONTENT="content"` - Maintain agent documentation
 - `RUN "command"` - Execute terminal commands (limited scope)
 
 **Concurrency Control**:

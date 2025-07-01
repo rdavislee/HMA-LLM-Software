@@ -189,6 +189,29 @@ class ChangeDirective(Directive):
 
 
 @dataclass
+class ReplaceDirective(Directive):
+    """Represents a REPLACE directive."""
+    from_string: str
+    to_string: str
+    
+    def execute(self, context: dict) -> dict:
+        """Execute replace directive by adding string replacement action to context."""
+        if 'replaces' not in context:
+            context['replaces'] = []
+        
+        context['replaces'].append({
+            'from_string': self.from_string,
+            'to_string': self.to_string,
+            'status': 'pending'
+        })
+        
+        return context
+    
+    def __str__(self) -> str:
+        return f'REPLACE FROM="{self.from_string}" TO="{self.to_string}"'
+
+
+@dataclass
 class SpawnDirective(Directive):
     """Represents a SPAWN directive for ephemeral agents."""
     items: List[SpawnItem]
@@ -240,7 +263,7 @@ class FinishDirective(Directive):
 
 
 # Type alias for all directive types
-DirectiveType = Union[ReadDirective, RunDirective, ChangeDirective, SpawnDirective, WaitDirective, FinishDirective]
+DirectiveType = Union[ReadDirective, RunDirective, ChangeDirective, ReplaceDirective, SpawnDirective, WaitDirective, FinishDirective]
 
 
 @dataclass

@@ -235,8 +235,9 @@ def execute_directive(directive_text: str, agent=None) -> None:
     interpreter.execute(directive)
 
     if agent is not None:
-        # Check agent prompt queue and if not empty, call api_call
+        # Always unstall the agent so it can process future prompts
+        agent.stall = False
+        
+        # If there are queued prompts, schedule api_call to process them
         if hasattr(agent, 'prompt_queue') and hasattr(agent, 'api_call') and agent.prompt_queue:
-            asyncio.create_task(agent.api_call())
-        else:
-            agent.stall = False 
+            asyncio.create_task(agent.api_call()) 

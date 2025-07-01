@@ -26,7 +26,8 @@ node tools/compile-typescript.js
 # 2. Then run the tests  
 node tools/run-mocha.js
 
-# 3. If tests fail, investigate with scratch pad debugging and repeat steps 1-2
+# 3a. If ALL tests pass - FINISH immediately with summary
+# 3b. If tests fail - investigate with targeted debugging, then repeat steps 1-2
 ```
 
 ### **Troubleshooting Test Issues:**

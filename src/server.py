@@ -685,7 +685,7 @@ class HMAServer:
                     
             elif line.startswith('UPDATE_README'):
                 # Extract content
-                content_start = line.find('CONTENT_STRING="') + len('CONTENT_STRING="')
+                content_start = line.find('CONTENT="') + len('CONTENT="')
                 content_end = line.rfind('"')
                 if content_start < content_end:
                     content = line[content_start:content_end]

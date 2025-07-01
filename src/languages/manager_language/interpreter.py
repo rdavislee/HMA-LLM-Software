@@ -507,12 +507,10 @@ def execute_directive(directive_text: str, agent=None) -> None:
 
         # Make sure the agent is unstalled so that the queued prompt is processed
         if agent is not None:
-            # Only unstall if there are no active children (same logic as below)
-            should_unstall = not getattr(agent, 'active_children', {})
-            if should_unstall:
-                agent.stall = False
+            # Always unstall the agent so it can process future prompts
+            agent.stall = False
 
-            if (not agent.stall) and getattr(agent, 'prompt_queue', []):
+            if getattr(agent, 'prompt_queue', []):
                 if hasattr(agent, 'api_call'):
                     try:
                         asyncio.create_task(agent.api_call())
@@ -524,9 +522,9 @@ def execute_directive(directive_text: str, agent=None) -> None:
     interpreter.execute(directive)
 
     if agent is not None:
-
-        # Always re-call api_call if prompt_queue is not empty (like coder interpreter)
+        # Always unstall the agent so it can process future prompts
+        agent.stall = False
+        
+        # If there are queued prompts, schedule api_call to process them
         if hasattr(agent, 'prompt_queue') and hasattr(agent, 'api_call') and agent.prompt_queue:
             asyncio.create_task(agent.api_call())
-        else:
-            agent.stall = False

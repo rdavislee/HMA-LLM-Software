@@ -283,6 +283,8 @@ def debug_helper():
                 response = await self.llm_client.generate_response(formatted_prompt)
 
             # Save context
+            action = response.split()[0] if response.strip() else "NO_ACTION"
+            print(f"[{self.parent_path}_tester] Prompt: {current_prompt} | Output: {response}")
             self.context.append(ContextEntry(prompt=current_prompt, response=response))
             
             # Clear prompt queue

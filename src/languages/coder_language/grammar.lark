@@ -5,7 +5,7 @@
 COMMENT: /\/\/.*/
 
 // Directives
-directive: read | run | change | spawn | wait | finish
+directive: read | run | change | replace | spawn | wait | finish
 
 // Read directive - read any file in the codebase
 read: "READ" filename
@@ -15,6 +15,9 @@ run: "RUN" command
 
 // Change directive - replace entire file contents
 change: "CHANGE" "CONTENT" "=" content_string
+
+// Replace directive - replace a string in the file with another string
+replace: "REPLACE" "FROM" "=" from_string "TO" "=" to_string
 
 // Spawn directive - spawn ephemeral agents
 spawn: "SPAWN" spawn_item ("," spawn_item)*
@@ -41,9 +44,13 @@ prompt_field: "PROMPT" "=" string
 // Content string - uses regular quoted strings
 content_string: string
 
+// From and to strings for replace directive
+from_string: string
+to_string: string
+
 // Regular string literals (for filenames, commands, prompts, content)
 string: STRING
-STRING: /"(\\.|[^\\"])*"/
+STRING: /"([^"\\]|\\.)*"/
 
 // Ephemeral type tokens
 TESTER: "tester"
