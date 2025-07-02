@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Header from '../components/Header';
 import ChatPanel from '../components/chat/ChatPanel';
-import CodePanel from '../components/editor/CodePanel';
+import MonacoEditor from '../components/editor/MonacoEditor';
 import FileTree from '../components/filetree/FileStructure';
-import Terminal from '../components/editor/Terminal';
-import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import GitPanel from '../components/git/GitPanel';
+import InteractiveTerminal from '../components/editor/Terminal';
+import { PanelLeftClose, PanelLeftOpen, Folder, GitBranch } from 'lucide-react';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import websocketService, { CodeStream, FileTreeUpdate, ProjectStatus } from './services/websocket';
 
@@ -37,13 +38,15 @@ interface FileNode {
 
 function App() {
   const [isChatCollapsed, setIsChatCollapsed] = useState(false);
-  const [isFileTreeCollapsed, setIsFileTreeCollapsed] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [activeSidebarTab, setActiveSidebarTab] = useState<'files' | 'git'>('files');
   const [currentFile, setCurrentFile] = useState<{ name: string; content: string; language: string } | null>(null);
   const [clearCodeEditor, setClearCodeEditor] = useState<(() => void) | null>(null);
   const [importedFiles, setImportedFiles] = useState<ImportedFile[]>([]);
   const [projectFiles, setProjectFiles] = useState<FileNode[]>([]);
   const [streamingContent, setStreamingContent] = useState<Map<string, string>>(new Map());
   const [projectStatus, setProjectStatus] = useState<ProjectStatus | null>(null);
+  const [gitStatus, setGitStatus] = useState<{ branch: string; isDirty: boolean } | null>(null);
   const [settings, setSettings] = useState<Settings>(() => {
     // Load settings from localStorage
     const saved = localStorage.getItem('hive-settings');
@@ -68,6 +71,9 @@ function App() {
 
   // Set up WebSocket event listeners for real-time updates
   useEffect(() => {
+    // Initialize WebSocket connection
+    websocketService.connect('ws://localhost:8080');
+    
     // Handle code streaming
     websocketService.on('code_stream', (stream: CodeStream) => {
       console.log('Code stream received:', stream);
@@ -131,11 +137,23 @@ function App() {
       }
     });
 
+    // Handle git status updates
+    websocketService.on('git_status', (data) => {
+      if (data.status) {
+        setGitStatus({
+          branch: data.status.current_branch,
+          isDirty: data.status.is_dirty
+        });
+      }
+    });
+
     // Cleanup
     return () => {
       websocketService.off('code_stream');
       websocketService.off('file_tree_update');
       websocketService.off('project_status');
+      websocketService.off('git_status');
+      websocketService.disconnect();
     };
   }, [currentFile, streamingContent]);
 
@@ -338,6 +356,27 @@ function App() {
     setProjectStatus(null);
   };
 
+  const handleClearProject = () => {
+    console.log('Clearing current project...');
+    
+    // Clear the code editor if the function is available
+    if (clearCodeEditor) {
+      clearCodeEditor();
+    }
+    
+    // Clear all project state
+    setProjectFiles([]);
+    setImportedFiles([]);
+    setStreamingContent(new Map());
+    setCurrentFile(null);
+    setProjectStatus(null);
+    
+    // Notify backend to clear project
+    websocketService.clearProject();
+    
+    console.log('Project cleared successfully');
+  };
+
   const handleSaveFile = () => {
     console.log('Saving file...');
     // Here you would typically save the current file
@@ -349,7 +388,16 @@ function App() {
   };
 
   const handleToggleSidebar = () => {
-    setIsFileTreeCollapsed(!isFileTreeCollapsed);
+    setIsSidebarCollapsed(!isSidebarCollapsed);
+  };
+
+  const handleToggleGitPanel = () => {
+    // If sidebar is collapsed, expand it first
+    if (isSidebarCollapsed) {
+      setIsSidebarCollapsed(false);
+    }
+    // Switch to Git tab
+    setActiveSidebarTab('git');
   };
 
   const handleOpenSettings = () => {
@@ -368,6 +416,7 @@ function App() {
     onSaveFile: handleSaveFile,
     onToggleTerminal: handleToggleTerminal,
     onToggleSidebar: handleToggleSidebar,
+    onToggleGitPanel: handleToggleGitPanel,
     onOpenSettings: handleOpenSettings,
     onCommandPalette: handleCommandPalette
   });
@@ -424,6 +473,8 @@ function App() {
         onImportClick={handleImportClick}
         onSettingsChange={handleSettingsChange}
         onProjectImport={handleProjectImport}
+        onClearProject={handleClearProject}
+        hasProjectFiles={projectFiles.length > 0 || importedFiles.length > 0}
       />
 
       {/* Main Content */}
@@ -449,46 +500,85 @@ function App() {
 
         {/* Right Panel - Code/Preview and File Tree */}
         <div className="flex-1 flex overflow-hidden">
-          {/* File Tree */}
+          {/* Sidebar with Tabs */}
           <div className={`transition-all duration-300 ${
-            isFileTreeCollapsed ? 'w-0' : 'w-64'
-          } min-w-0`}>
-            {!isFileTreeCollapsed && (
-              <FileTree 
-                onFileSelect={(filePath, content) => {
-                  console.log('App: File selected:', filePath);
-                  console.log('App: File content length:', content?.length || 0);
-                  
-                  if (content !== undefined) {
-                    const fileName = filePath.split('/').pop() || 'Unknown';
-                    const language = getLanguageFromExtension(filePath);
-                    
-                    setCurrentFile({
-                      name: filePath,
-                      content: content,
-                      language: language
-                    });
-                    
-                    // Notify backend of file selection
-                    websocketService.selectFile(filePath);
-                    
-                    console.log('App: Set current file:', fileName, 'Language:', language);
-                  } else {
-                    console.warn('App: No content provided for file:', filePath);
-                  }
-                }}
-                importedFiles={importedFiles}
-                projectFiles={projectFiles}
-              />
+            isSidebarCollapsed ? 'w-0' : 'w-80'
+          } min-w-0 flex flex-col`}>
+            {!isSidebarCollapsed && (
+              <>
+                {/* Sidebar Tabs */}
+                <div className="flex border-b border-yellow-400/20 bg-gray-900">
+                  <button
+                    onClick={() => setActiveSidebarTab('files')}
+                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors ${
+                      activeSidebarTab === 'files'
+                        ? 'text-yellow-400 border-b-2 border-yellow-400 bg-yellow-400/5'
+                        : 'text-gray-400 hover:text-yellow-400 hover:bg-yellow-400/5'
+                    }`}
+                  >
+                    <Folder className="w-4 h-4" />
+                    Files
+                  </button>
+                  <button
+                    onClick={() => setActiveSidebarTab('git')}
+                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors ${
+                      activeSidebarTab === 'git'
+                        ? 'text-yellow-400 border-b-2 border-yellow-400 bg-yellow-400/5'
+                        : 'text-gray-400 hover:text-yellow-400 hover:bg-yellow-400/5'
+                    }`}
+                  >
+                    <GitBranch className="w-4 h-4" />
+                    Git
+                  </button>
+                </div>
+
+                {/* Tab Content */}
+                <div className="flex-1 overflow-hidden">
+                  {activeSidebarTab === 'files' && (
+                    <FileTree 
+                      onFileSelect={(filePath, content) => {
+                        console.log('App: File selected:', filePath);
+                        console.log('App: File content length:', content?.length || 0);
+                        
+                        if (content !== undefined) {
+                          const fileName = filePath.split('/').pop() || 'Unknown';
+                          const language = getLanguageFromExtension(filePath);
+                          
+                          setCurrentFile({
+                            name: filePath,
+                            content: content,
+                            language: language
+                          });
+                          
+                          // Notify backend of file selection
+                          websocketService.selectFile(filePath);
+                          
+                          console.log('App: Set current file:', fileName, 'Language:', language);
+                        } else {
+                          console.warn('App: No content provided for file:', filePath);
+                        }
+                      }}
+                      importedFiles={importedFiles}
+                      projectFiles={projectFiles}
+                    />
+                  )}
+
+                  {activeSidebarTab === 'git' && (
+                    <GitPanel 
+                      isOpen={true}
+                    />
+                  )}
+                </div>
+              </>
             )}
           </div>
 
-          {/* File Tree Toggle */}
+          {/* Sidebar Toggle */}
           <button
-            onClick={() => setIsFileTreeCollapsed(!isFileTreeCollapsed)}
+            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
             className="w-6 bg-gray-800 hover:bg-gray-700 border-r border-yellow-400/20 flex items-center justify-center transition-colors group"
           >
-            {isFileTreeCollapsed ? (
+            {isSidebarCollapsed ? (
               <PanelLeftOpen className="w-4 h-4 text-yellow-400 group-hover:text-yellow-300" />
             ) : (
               <PanelLeftClose className="w-4 h-4 text-yellow-400 group-hover:text-yellow-300" />
@@ -498,25 +588,23 @@ function App() {
           {/* Code/Preview Panel */}
           <div className="flex-1 flex flex-col overflow-hidden">
             <div className="flex-1 overflow-hidden">
-              <CodePanel 
+              <MonacoEditor 
                 onClearCode={(clearFn) => setClearCodeEditor(() => clearFn)} 
                 settings={settings}
                 importedContent={currentFile?.content}
                 currentFileName={currentFile?.name}
+                projectId={projectStatus?.projectId || 'default'}
               />
             </div>
             
             {/* Terminal */}
             <div className="flex-shrink-0">
-              <Terminal 
+              <InteractiveTerminal 
                 onFileTreeUpdate={() => {
                   // This would trigger a file tree refresh
                   console.log('File tree update triggered');
                 }}
-                onCodeEditorUpdate={(content) => {
-                  // This would update the code editor content
-                  console.log('Code editor update triggered');
-                }}
+                projectId={projectStatus?.projectId || 'default'}
               />
             </div>
           </div>
@@ -527,6 +615,13 @@ function App() {
       <div className="h-6 bg-gray-900 border-t border-yellow-400/20 flex items-center justify-between px-4 text-xs">
         <div className="flex items-center gap-4">
           <span className="text-yellow-400">● {projectStatus?.status || 'Ready'}</span>
+          {gitStatus && (
+            <span className="text-gray-400 flex items-center gap-1">
+              <GitBranch className="w-3 h-3" />
+              {gitStatus.branch}
+              {gitStatus.isDirty && <span className="text-yellow-400">*</span>}
+            </span>
+          )}
           <span className="text-gray-400">Lines: {statusData.lines}</span>
           <span className="text-gray-400">Characters: {statusData.characters.toLocaleString()}</span>
         </div>

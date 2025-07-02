@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { X, Sun, Moon, Monitor, RotateCcw, Keyboard, Zap, Palette } from 'lucide-react';
 import Slider from './Slider';
 
@@ -56,6 +56,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     { key: 'Ctrl+Shift+P', description: 'Command palette' },
     { key: 'Ctrl+`', description: 'Toggle terminal' },
     { key: 'Ctrl+B', description: 'Toggle sidebar' },
+    { key: 'Ctrl+Shift+G', description: 'Open Git panel' },
     { key: 'F1', description: 'Open settings' }
   ];
 

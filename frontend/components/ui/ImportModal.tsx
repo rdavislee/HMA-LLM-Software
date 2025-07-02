@@ -29,15 +29,21 @@ const ImportModal: React.FC<ImportModalProps> = ({
   // Ref for folder input to set webkitdirectory attribute
   const folderInputRef = useRef<HTMLInputElement>(null);
   
-  // Set webkitdirectory attribute directly on mount
+  // Set webkitdirectory attribute directly on mount and when mode changes
   useEffect(() => {
-    if (folderInputRef.current) {
-      // Set the attribute directly on the DOM element
-      folderInputRef.current.setAttribute('webkitdirectory', '');
-      folderInputRef.current.setAttribute('directory', '');
-      folderInputRef.current.setAttribute('mozdirectory', ''); // For Firefox compatibility
+    if (folderInputRef.current && importMode === 'folder') {
+      // Set the attribute directly on the DOM element for folder selection
+      folderInputRef.current.webkitdirectory = true;
+      folderInputRef.current.setAttribute('webkitdirectory', 'true');
+      // Remove the directory attribute as it's not standard
+      folderInputRef.current.removeAttribute('directory');
+      folderInputRef.current.removeAttribute('mozdirectory');
+    } else if (folderInputRef.current && importMode === 'files') {
+      // Reset for file mode
+      folderInputRef.current.webkitdirectory = false;
+      folderInputRef.current.removeAttribute('webkitdirectory');
     }
-  }, []);
+  }, [importMode]);
 
   const validateFile = (file: File): boolean => {
     const validExtensions = [
@@ -141,14 +147,16 @@ const ImportModal: React.FC<ImportModalProps> = ({
 
   // Check browser support for folder selection
   const checkFolderSupport = useCallback(() => {
+    if (importMode !== 'folder') return true;
+    
     const input = document.createElement('input');
     input.type = 'file';
     
     // Check if webkitdirectory is supported
-    const isSupported = 'webkitdirectory' in input || 'directory' in input || 'mozdirectory' in input;
+    const isSupported = 'webkitdirectory' in input;
     
-    if (!isSupported && importMode === 'folder') {
-      setError('Your browser does not support folder selection. Please use Chrome, Edge, or another Chromium-based browser.');
+    if (!isSupported) {
+      setError('Your browser does not support folder selection. Please use Chrome, Edge, Safari, or another Chromium-based browser.');
       return false;
     }
     
@@ -213,6 +221,24 @@ const ImportModal: React.FC<ImportModalProps> = ({
     setImportedFiles([]);
     setError(null);
   };
+
+  const handleBrowseClick = useCallback((e: React.MouseEvent) => {
+    if (importMode === 'folder') {
+      e.preventDefault();
+      
+      if (!checkFolderSupport()) {
+        return;
+      }
+      
+      // Ensure the input has the correct attributes before clicking
+      if (folderInputRef.current) {
+        folderInputRef.current.webkitdirectory = true;
+        folderInputRef.current.setAttribute('webkitdirectory', 'true');
+        folderInputRef.current.click();
+      }
+    }
+    // For files mode, the default label behavior will work
+  }, [importMode, checkFolderSupport]);
 
   if (!isOpen) return null;
 
@@ -304,8 +330,6 @@ const ImportModal: React.FC<ImportModalProps> = ({
             {/* Folder Input */}
             <input
               type="file"
-              webkitdirectory={true}
-              directory={true}
               multiple
               onChange={handleFolderInput}
               className="hidden"
@@ -316,11 +340,7 @@ const ImportModal: React.FC<ImportModalProps> = ({
             <label
               htmlFor={importMode === 'files' ? 'file-input' : 'folder-input'}
               className="inline-flex items-center gap-2 px-4 py-2 bg-yellow-400 hover:bg-yellow-300 text-black rounded-lg transition-colors cursor-pointer font-medium"
-              onClick={(e) => {
-                if (importMode === 'folder' && !checkFolderSupport()) {
-                  e.preventDefault();
-                }
-              }}
+              onClick={handleBrowseClick}
             >
               {importMode === 'files' ? (
                 <>

@@ -52,7 +52,13 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onNewChat, settings }) => {
   // Initialize WebSocket connection
   useEffect(() => {
     // Connect to WebSocket server
-    websocketService.connect();
+    try {
+      websocketService.connect();
+    } catch (error) {
+      console.error('WebSocket initialization failed:', error);
+      setError('Failed to initialize WebSocket connection');
+      setConnectionStatus('disconnected');
+    }
 
     // Set up event listeners
     websocketService.on('connected', () => {
@@ -65,6 +71,21 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onNewChat, settings }) => {
       setConnectionStatus('disconnected');
       setError('Disconnected from server');
     });
+
+    // Update connection status when connecting
+    let statusInterval: NodeJS.Timeout;
+    
+    const updateConnectionStatus = () => {
+      const status = websocketService.getConnectionStatus();
+      setConnectionStatus(status);
+      // Stop polling once connected or disconnected
+      if (status !== 'connecting') {
+        clearInterval(statusInterval);
+      }
+    };
+    
+    // Check status periodically while connecting (less aggressive polling)
+    statusInterval = setInterval(updateConnectionStatus, 500);
 
     websocketService.on('message', (wsMessage: WSChatMessage) => {
       const message: Message = {
@@ -91,8 +112,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onNewChat, settings }) => {
         return newMap;
       });
 
-      // Add agent status messages to chat
-      if (update.status === 'active' && update.task) {
+      // Add agent status messages to chat (only for root/main agents to reduce noise)
+      if (update.status === 'active' && update.task && (update.agentId === 'root' || !update.parentId)) {
         const statusMessage: Message = {
           id: `agent-status-${Date.now()}`,
           type: 'system',
@@ -110,10 +131,17 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onNewChat, settings }) => {
     });
 
     // Check initial connection status
-    setConnectionStatus(websocketService.getConnectionStatus());
+    const initialStatus = websocketService.getConnectionStatus();
+    setConnectionStatus(initialStatus);
+    
+    // Start polling if we're in connecting state
+    if (initialStatus === 'connecting') {
+      updateConnectionStatus();
+    }
 
     // Cleanup
     return () => {
+      clearInterval(statusInterval);
       websocketService.off('connected');
       websocketService.off('disconnected');
       websocketService.off('message');
@@ -157,7 +185,13 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onNewChat, settings }) => {
       setError(null);
 
       // Send message through WebSocket
-      websocketService.sendPrompt(inputValue);
+      try {
+        websocketService.sendPrompt(inputValue);
+              } catch (error) {
+          console.error('Failed to send message:', error);
+          setError('Failed to send message');
+          setIsLoading(false);
+        }
     }
   };
 
@@ -180,16 +214,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onNewChat, settings }) => {
     // Call the parent callback to clear the code editor
     onNewChat?.();
     
-    // Add the initial AI greeting message after a delay
-    setTimeout(() => {
-      const initialMessage: Message = {
-        id: Date.now().toString(),
-        type: 'assistant',
-        content: 'Hello! I\'m here to help you build amazing applications. What would you like to create today?',
-        timestamp: new Date()
-      };
-      setMessages([initialMessage]);
-    }, 300);
+    // Send new chat request to server to get welcome message
+    websocketService.newChat();
     
     console.log('Starting new chat...');
   };

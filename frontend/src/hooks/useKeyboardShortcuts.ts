@@ -5,6 +5,7 @@ interface KeyboardShortcutsProps {
   onSaveFile?: () => void;
   onToggleTerminal?: () => void;
   onToggleSidebar?: () => void;
+  onToggleGitPanel?: () => void;
   onOpenSettings?: () => void;
   onCommandPalette?: () => void;
 }
@@ -14,6 +15,7 @@ export const useKeyboardShortcuts = ({
   onSaveFile,
   onToggleTerminal,
   onToggleSidebar,
+  onToggleGitPanel,
   onOpenSettings,
   onCommandPalette
 }: KeyboardShortcutsProps) => {
@@ -56,6 +58,12 @@ export const useKeyboardShortcuts = ({
         onToggleSidebar?.();
       }
 
+      // Ctrl+G - Toggle git panel
+      if (event.ctrlKey && event.shiftKey && event.key === 'G') {
+        event.preventDefault();
+        onToggleGitPanel?.();
+      }
+
       // F1 - Open settings
       if (event.key === 'F1') {
         event.preventDefault();
@@ -68,5 +76,5 @@ export const useKeyboardShortcuts = ({
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [onNewChat, onSaveFile, onToggleTerminal, onToggleSidebar, onOpenSettings, onCommandPalette]);
+  }, [onNewChat, onSaveFile, onToggleTerminal, onToggleSidebar, onToggleGitPanel, onOpenSettings, onCommandPalette]);
 }; 

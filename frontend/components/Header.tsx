@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Settings, User, Upload, Hexagon } from 'lucide-react';
+import { Settings, User, Upload, Hexagon, Trash2 } from 'lucide-react';
 import SettingsModal from './ui/SettingsModal';
 import ImportModal from './ui/ImportModal';
 
@@ -28,6 +28,8 @@ interface HeaderProps {
   onImportClick?: () => void;
   onSettingsChange?: (settings: Settings) => void;
   onProjectImport?: (files: ImportedFile[]) => void;
+  onClearProject?: () => void;
+  hasProjectFiles?: boolean;
 }
 
 const Header: React.FC<HeaderProps> = ({
@@ -35,10 +37,13 @@ const Header: React.FC<HeaderProps> = ({
   onProfileClick,
   onImportClick,
   onSettingsChange,
-  onProjectImport
+  onProjectImport,
+  onClearProject,
+  hasProjectFiles = false
 }) => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [settings, setSettings] = useState<Settings>(() => {
     // Load settings from localStorage
     const saved = localStorage.getItem('hive-settings');
@@ -82,6 +87,17 @@ const Header: React.FC<HeaderProps> = ({
     onProjectImport?.(files);
   };
 
+  const handleClearProject = () => {
+    if (showClearConfirm) {
+      onClearProject?.();
+      setShowClearConfirm(false);
+    } else {
+      setShowClearConfirm(true);
+      // Auto-hide confirmation after 3 seconds
+      setTimeout(() => setShowClearConfirm(false), 3000);
+    }
+  };
+
   return (
     <>
       <div className="h-14 bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 border-b border-yellow-400/20 flex items-center px-6">
@@ -107,6 +123,24 @@ const Header: React.FC<HeaderProps> = ({
             <Upload className="w-4 h-4" />
             <span className="hidden sm:inline">Import</span>
           </button>
+
+          {/* Clear Project Button - only show when there are project files */}
+          {hasProjectFiles && (
+            <button
+              onClick={handleClearProject}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors font-medium text-sm ${
+                showClearConfirm
+                  ? 'bg-red-500 hover:bg-red-600 text-white'
+                  : 'bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white'
+              }`}
+              title={showClearConfirm ? 'Click again to confirm' : 'Clear current project'}
+            >
+              <Trash2 className="w-4 h-4" />
+              <span className="hidden sm:inline">
+                {showClearConfirm ? 'Confirm Clear' : 'Clear'}
+              </span>
+            </button>
+          )}
 
           <button
             onClick={handleSettingsClick}
