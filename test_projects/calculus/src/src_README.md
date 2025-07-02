@@ -11,11 +11,11 @@ parser.interface.ts - [COMPLETE] Defines the interface for the Parser.
 parser.ts - [COMPLETE] Implements the Parser for mathematical expressions.
 src_README.md - [COMPLETE] This file, documenting the src directory.
 utils.interface.ts - [COMPLETE] Defines interfaces for utility functions.
-utils.ts - [COMPLETE] Implements various utility functions, including corrected exponential (e^u and a^x) integration.
+utils.ts - [IMPLEMENTED] U-substitution integral functionality logic completed. Compilation is blocked by persistent TS2349 errors, likely a TypeScript configuration or tooling problem outside this file.
 
 Subdirectories
 
 None
 
 Status
-All core source files are implemented and fully tested. The calculus module's AST nodes, parser, evaluator, differentiator, simplifier, and integrator functionalities are fully functional. The exponential integration feature in utils.ts is verified to be correct. The test case in test/utils.test.ts related to this feature is reporting a false negative and needs correction by the test directory manager.
+Core source files are implemented. Currently blocked by persistent TS2349 errors in utils.ts, preventing further progress on U-substitution integration. Requires resolution of type recognition for imported functions.

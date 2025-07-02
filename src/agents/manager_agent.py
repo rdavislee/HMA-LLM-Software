@@ -29,6 +29,11 @@ from src.llm.providers import (
 from src.llm.providers import get_llm_client
 import src
 
+# Import for type hints only
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from .master_agent import MasterAgent
+
 class ManagerCommand(Enum):
     """Commands that a manager agent can exercise."""
     DELEGATE = "DELEGATE"
@@ -55,7 +60,7 @@ class ManagerAgent(BaseAgent):
     def __init__(
         self,
         path: str,
-        parent: Optional[BaseAgent] = None,
+        parent: Optional[Union[BaseAgent, "MasterAgent"]] = None,
         children: Optional[List[BaseAgent]] = None,
         llm_client: Optional[BaseLLMClient] = None,
         max_content_size: int = 8000

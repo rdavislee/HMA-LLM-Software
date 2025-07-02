@@ -150,6 +150,16 @@ class TesterLanguageInterpreter:
             if hasattr(self.agent, 'cleanup_scratch_pad'):
                 self.agent.cleanup_scratch_pad()
             
+            # Disable the watchdog before finishing
+            if hasattr(self.agent, '_watchdog_task') and self.agent._watchdog_task is not None:
+                try:
+                    if not self.agent._watchdog_task.done():
+                        self.agent._watchdog_task.cancel()
+                except Exception:
+                    pass
+                self.agent._watchdog_task = None
+                self.agent._watchdog_started = False
+            
             # Ephemeral agents report their results back to the parent using proper orchestrator functions
             parent = getattr(self.agent, 'parent', None)
             if parent is not None:

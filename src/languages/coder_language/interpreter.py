@@ -10,7 +10,7 @@ import time
 import uuid
 from typing import Dict, Any, Optional
 from pathlib import Path
-from .ast import DirectiveType, ReadDirective, RunDirective, ChangeDirective, ReplaceDirective, SpawnDirective, WaitDirective, FinishDirective
+from .ast import DirectiveType, ReadDirective, RunDirective, ChangeDirective, ReplaceDirective, InsertDirective, SpawnDirective, WaitDirective, FinishDirective
 import src
 from src.config import ALLOWED_COMMANDS
 from .parser import parse_directive
@@ -63,6 +63,8 @@ class CoderLanguageInterpreter:
                 self._execute_change(directive)
             elif isinstance(directive, ReplaceDirective):
                 self._execute_replace(directive)
+            elif isinstance(directive, InsertDirective):
+                self._execute_insert(directive)
             elif isinstance(directive, SpawnDirective):
                 self._execute_spawn(directive)
             elif isinstance(directive, WaitDirective):
@@ -182,6 +184,40 @@ class CoderLanguageInterpreter:
                 prompt = "REPLACE failed: This agent has no assigned file."
         except Exception as e:
             self._queue_self_prompt(f"REPLACE failed: Could not replace in {self.own_file}: {str(e)}")
+            return
+        self._queue_self_prompt(prompt)
+
+    def _execute_insert(self, directive: InsertDirective) -> None:
+        """Execute an INSERT directive."""
+        prompt = None
+        try:
+            if self.own_file is not None:
+                file_path = self.base_path / self.own_file
+                
+                # Check if file exists, create if it doesn't
+                if not file_path.exists():
+                    file_path.parent.mkdir(parents=True, exist_ok=True)
+                    current_content = ""
+                else:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        current_content = f.read()
+                
+                # Check if the from_string exists in the file
+                if directive.from_string not in current_content:
+                    prompt = f"INSERT failed: String '{directive.from_string}' not found in {self.own_file}"
+                else:
+                    # Perform string insertion - insert to_string at the end of from_string
+                    new_content = current_content.replace(directive.from_string, directive.from_string + directive.to_string)
+                    
+                    # Write back to file
+                    with open(file_path, 'w', encoding='utf-8') as f:
+                        f.write(new_content)
+                    
+                    prompt = f"INSERT succeeded: Inserted '{directive.to_string}' after '{directive.from_string}' in {self.own_file}"
+            else:
+                prompt = "INSERT failed: This agent has no assigned file."
+        except Exception as e:
+            self._queue_self_prompt(f"INSERT failed: Could not insert in {self.own_file}: {str(e)}")
             return
         self._queue_self_prompt(prompt)
 

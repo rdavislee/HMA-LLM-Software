@@ -186,13 +186,21 @@ class ManagerLanguageInterpreter:
                     task=task,
                     result=directive.prompt.value
                 )
-                from src.orchestrator.manager_prompter import manager_prompter
-                asyncio.create_task(manager_prompter(parent, directive.prompt.value, result_message))
+                
+                # Check if parent is a MasterAgent and use appropriate prompter
+                from src.agents.master_agent import MasterAgent
+                if isinstance(parent, MasterAgent):
+                    from src.orchestrator.master_prompter import master_prompter
+                    asyncio.create_task(master_prompter(parent, directive.prompt.value, result_message))
+                else:
+                    from src.orchestrator.manager_prompter import manager_prompter
+                    asyncio.create_task(manager_prompter(parent, directive.prompt.value, result_message))
             else:
-                # Root agent – bubble the result back by attaching it to the agent so callers can access it
-                setattr(self.agent, "final_result", directive.prompt.value)
+                # Manager agents should always have a parent (either another manager or a master)
+                # If no parent exists, this indicates a configuration error
+                self._queue_self_prompt("FINISH failed: Manager agent has no parent - this should not happen")
         except Exception as e:
-            # Queue the error instead of calling manager_prompter directly so that
+            # Queue the error instead of calling prompter directly so that
             # exactly one follow-up turn is scheduled by execute_directive().
             self._queue_self_prompt(f"Failed to finish: {str(e)}")
     

@@ -155,13 +155,14 @@ def debug_helper():
             except Exception as e:
                 print(f"[TesterAgent] Failed to cleanup scratch pad: {e}")
 
-    def _truncate_change_command(self, prompt: str) -> str:
+    def _truncate_command(self, prompt: str) -> str:
         """
-        Truncate CHANGE commands in context to prevent context window bloat.
-        Only keeps first 100 characters of CHANGE commands since the actual content 
-        is stored in memory files.
+        Truncate CHANGE and REPLACE commands in context to prevent context window bloat.
+        Only keeps first 100 characters of these commands since the actual content 
+        is stored in memory files or can be determined from the command success messages.
         """
-        if prompt.strip().startswith('CHANGE'):
+        stripped = prompt.strip()
+        if stripped.startswith('CHANGE') or stripped.startswith('REPLACE'):
             if len(prompt) > 100:
                 return prompt[:100] + "..."
         return prompt
@@ -296,7 +297,7 @@ def debug_helper():
             # Save context (truncate CHANGE commands to prevent context bloat)
             action = response.split()[0] if response.strip() else "NO_ACTION"
             print(f"[{self.parent_path}_tester] Prompt: {current_prompt} | Output: {response}")
-            truncated_prompt = self._truncate_change_command(current_prompt)
+            truncated_prompt = self._truncate_command(current_prompt)
             self.context.append(ContextEntry(prompt=truncated_prompt, response=response))
             
             # Clear prompt queue

@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ExponentialNode = exports.ConstantNode = exports.FunctionCallNode = exports.UnaryOperationNode = exports.BinaryOperationNode = exports.VariableNode = exports.NumberNode = void 0;
+exports.exponential = exports.constant = exports.func = exports.unaryOp = exports.op = exports.variable = exports.num = exports.ExponentialNode = exports.ConstantNode = exports.FunctionCallNode = exports.UnaryOperationNode = exports.BinaryOperationNode = exports.VariableNode = exports.NumberNode = void 0;
 /**
  * Represents a numeric literal in the expression.
  */
@@ -365,3 +365,38 @@ class ExponentialNode {
     }
 }
 exports.ExponentialNode = ExponentialNode;
+/**
+ * Factory function for NumberNode.
+ */
+const num = (value) => new NumberNode(value);
+exports.num = num;
+/**
+ * Factory function for VariableNode.
+ */
+const variable = (name) => new VariableNode(name);
+exports.variable = variable;
+/**
+ * Factory function for BinaryOperationNode.
+ */
+const op = (operator, left, right) => new BinaryOperationNode(operator, left, right);
+exports.op = op;
+/**
+ * Factory function for UnaryOperationNode.
+ */
+const unaryOp = (operator, operand) => new UnaryOperationNode(operator, operand);
+exports.unaryOp = unaryOp;
+/**
+ * Factory function for FunctionCallNode.
+ */
+const func = (name, args) => new FunctionCallNode(name, args);
+exports.func = func;
+/**
+ * Factory function for ConstantNode.
+ */
+const constant = (name) => new ConstantNode(name);
+exports.constant = constant;
+/**
+ * Factory function for ExponentialNode.
+ */
+const exponential = (exponent) => new ExponentialNode(exponent);
+exports.exponential = exponential;

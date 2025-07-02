@@ -415,3 +415,38 @@ export class ExponentialNode implements IExponentialNode {
         return new BinaryOperationNode('multiply', this, dExponent);
     }
 }
+
+/**
+ * Factory function for NumberNode.
+ */
+export const num = (value: number): NumberNode => new NumberNode(value);
+
+/**
+ * Factory function for VariableNode.
+ */
+export const variable = (name: string): VariableNode => new VariableNode(name);
+
+/**
+ * Factory function for BinaryOperationNode.
+ */
+export const op = (operator: BinaryOperatorType, left: ExpressionNode, right: ExpressionNode): BinaryOperationNode => new BinaryOperationNode(operator, left, right);
+
+/**
+ * Factory function for UnaryOperationNode.
+ */
+export const unaryOp = (operator: UnaryOperatorType, operand: ExpressionNode): UnaryOperationNode => new UnaryOperationNode(operator, operand);
+
+/**
+ * Factory function for FunctionCallNode.
+ */
+export const func = (name: FunctionNameType, args: ExpressionNode[]): FunctionCallNode => new FunctionCallNode(name, args);
+
+/**
+ * Factory function for ConstantNode.
+ */
+export const constant = (name: ConstantType): ConstantNode => new ConstantNode(name);
+
+/**
+ * Factory function for ExponentialNode.
+ */
+export const exponential = (exponent: ExpressionNode): ExponentialNode => new ExponentialNode(exponent);

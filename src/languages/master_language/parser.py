@@ -1,18 +1,19 @@
 """
-Coder Language Parser using Lark.
-Parses coder agent directives and converts them to AST objects.
+Master Language Parser using Lark.
+Parses master agent directives and converts them to AST objects.
+Based on the manager language but simplified for top-level coordination.
 """
 
 import os
 from typing import List, Union
 from lark import Lark, Transformer, v_args
 from .ast import (
-    Directive, ReadDirective, RunDirective, ChangeDirective, ReplaceDirective, InsertDirective, SpawnDirective, WaitDirective, FinishDirective,
-    Target, PromptField, EphemeralType, SpawnItem, DirectiveType
+    Directive, DelegateDirective, SpawnDirective, FinishDirective, ReadDirective, WaitDirective, RunDirective, UpdateDocumentationDirective,
+    SpawnItem, Target, EphemeralType, PromptField, DirectiveType
 )
 
 
-class CoderLanguageTransformer(Transformer):
+class MasterLanguageTransformer(Transformer):
     """
     Lark transformer that converts parse trees to AST objects.
     """
@@ -23,29 +24,9 @@ class CoderLanguageTransformer(Transformer):
         return directive
     
     @v_args(inline=True)
-    def read(self, filename):
-        """Transform read directive."""
-        return ReadDirective(filename=filename)
-    
-    @v_args(inline=True)
-    def run(self, command):
-        """Transform run directive."""
-        return RunDirective(command=command)
-    
-    @v_args(inline=True)
-    def change(self, content):
-        """Transform change directive."""
-        return ChangeDirective(content=content)
-    
-    @v_args(inline=True)
-    def replace(self, from_string, to_string):
-        """Transform replace directive."""
-        return ReplaceDirective(from_string=from_string, to_string=to_string)
-    
-    @v_args(inline=True)
-    def insert(self, from_string, to_string):
-        """Transform insert directive."""
-        return InsertDirective(from_string=from_string, to_string=to_string)
+    def delegate(self, prompt_field):
+        """Transform delegate directive (simplified - no target needed)."""
+        return DelegateDirective(prompt=prompt_field)
     
     @v_args(inline=True)
     def spawn(self, first_item, *other_items):
@@ -59,14 +40,44 @@ class CoderLanguageTransformer(Transformer):
         return SpawnItem(ephemeral_type=ephemeral_type, prompt=prompt_field)
     
     @v_args(inline=True)
+    def finish(self, prompt_field):
+        """Transform finish directive."""
+        return FinishDirective(prompt=prompt_field)
+    
+    @v_args(inline=True)
+    def read(self, *targets):
+        """Transform read directive."""
+        return ReadDirective(targets=list(targets))
+    
+    @v_args(inline=True)
     def wait(self):
         """Transform wait directive."""
         return WaitDirective()
     
     @v_args(inline=True)
-    def finish(self, prompt_field):
-        """Transform finish directive."""
-        return FinishDirective(prompt=prompt_field)
+    def target(self, target):
+        """Transform target."""
+        return target
+    
+    @v_args(inline=True)
+    def file(self, filename):
+        """Transform file target."""
+        return Target(name=filename, is_folder=False)
+    
+    @v_args(inline=True)
+    def folder(self, filename):
+        """Transform folder target."""
+        return Target(name=filename, is_folder=True)
+    
+    @v_args(inline=True)
+    def ephemeral_type(self, type_name):
+        """Transform ephemeral type."""
+        return EphemeralType(type_name=type_name)
+    
+    @v_args(inline=True)
+    def TESTER(self, token):
+        """Transform TESTER token."""
+        return "tester"
     
     @v_args(inline=True)
     def filename(self, value):
@@ -84,31 +95,6 @@ class CoderLanguageTransformer(Transformer):
         return PromptField(value=string)
     
     @v_args(inline=True)
-    def content_string(self, string):
-        """Transform content string."""
-        return string
-    
-    @v_args(inline=True)
-    def from_string(self, string):
-        """Transform from string."""
-        return string
-    
-    @v_args(inline=True)
-    def to_string(self, string):
-        """Transform to string."""
-        return string
-    
-    @v_args(inline=True)
-    def ephemeral_type(self, type_name):
-        """Transform ephemeral type."""
-        return EphemeralType(type_name=type_name)
-    
-    @v_args(inline=True)
-    def TESTER(self, token):
-        """Transform TESTER token."""
-        return "tester"
-    
-    @v_args(inline=True)
     def string(self, token):
         """Transform string literal from STRING terminal."""
         raw_string = str(token)
@@ -117,11 +103,10 @@ class CoderLanguageTransformer(Transformer):
         return self._unescape_string(raw_string)
     
     def _unescape_string(self, s: str) -> str:
-        """Unescape string literals, handling double-backslash correctly."""
+        """Unescape string literals, handling double-backslash correctly (matches coder parser)."""
         # First, replace double-backslash with a placeholder
         placeholder = "\0BACKSLASH\0"
         s = s.replace('\\\\', placeholder)
-        
         escape_map = {
             '\\': '\\',
             '"': '"',
@@ -150,32 +135,20 @@ class CoderLanguageTransformer(Transformer):
         # Restore double-backslash
         return ''.join(result).replace(placeholder, '\\')
     
-    def escape_string(self, s: str) -> str:
-        """Escape string literals for use in directives."""
-        escape_map = {
-            '\\': '\\\\',
-            '"': '\\"',
-            '\n': '\\n',
-            '\r': '\\r',
-            '\t': '\\t',
-            '\b': '\\b',
-            '\f': '\\f',
-            '\v': '\\v'
-        }
-        
-        result = []
-        for char in s:
-            if char in escape_map:
-                result.append(escape_map[char])
-            else:
-                result.append(char)
-        
-        return ''.join(result)
+    @v_args(inline=True)
+    def run(self, run_token, command):
+        """Transform run directive."""
+        return RunDirective(command=command)
+    
+    @v_args(inline=True)
+    def update_documentation(self, content):
+        """Transform update_documentation directive."""
+        return UpdateDocumentationDirective(content=content)
 
 
-class CoderLanguageParser:
+class MasterLanguageParser:
     """
-    Main parser class for the Coder Language.
+    Main parser class for the Master Language.
     Uses Lark to parse directives and convert them to AST objects.
     """
     
@@ -192,13 +165,13 @@ class CoderLanguageParser:
         self.parser = Lark(
             grammar,
             parser='lalr',
-            transformer=CoderLanguageTransformer(),
+            transformer=MasterLanguageTransformer(),
             start='directive'
         )
     
     def parse(self, text: str) -> DirectiveType:
         """
-        Parse a coder language directive string.
+        Parse a master language directive string.
         
         Args:
             text: The directive string to parse
@@ -213,7 +186,7 @@ class CoderLanguageParser:
             result = self.parser.parse(text.strip())
             return result
         except Exception as e:
-            raise Exception(f"Failed to parse coder directive: {text}\nError: {str(e)}")
+            raise Exception(f"Failed to parse master directive: {text}\nError: {str(e)}")
     
     def parse_multiple(self, text: str) -> List[DirectiveType]:
         """
@@ -225,28 +198,23 @@ class CoderLanguageParser:
             
         Returns:
             List of AST objects representing the parsed directives
-            
-        Raises:
-            Exception: If parsing fails
         """
-        try:
-            lines = [line.strip() for line in text.strip().split('\n') if line.strip()]
-            directives = []
-            
-            for line in lines:
-                if line and not line.startswith('//'):  # Skip empty lines and comments
-                    directive = self.parse(line)
-                    directives.append(directive)
-            
-            return directives
-        except Exception as e:
-            raise Exception(f"Failed to parse coder directives: {text}\nError: {str(e)}")
+        directives = []
+        lines = text.strip().split('\n')
+        
+        for line in lines:
+            line = line.strip()
+            if line and not line.startswith('//'):  # Skip empty lines and comments
+                directive = self.parse(line)
+                directives.append(directive)
+        
+        return directives
 
 
-# Convenience functions for easy parsing
+# Convenience function for quick parsing
 def parse_directive(text: str) -> DirectiveType:
     """
-    Parse a single coder directive.
+    Convenience function to parse a single directive.
     
     Args:
         text: The directive string to parse
@@ -254,13 +222,13 @@ def parse_directive(text: str) -> DirectiveType:
     Returns:
         An AST object representing the parsed directive
     """
-    parser = CoderLanguageParser()
+    parser = MasterLanguageParser()
     return parser.parse(text)
 
 
 def parse_directives(text: str) -> List[DirectiveType]:
     """
-    Parse multiple coder directives.
+    Convenience function to parse multiple directives.
     
     Args:
         text: The text containing multiple directives
@@ -268,19 +236,5 @@ def parse_directives(text: str) -> List[DirectiveType]:
     Returns:
         List of AST objects representing the parsed directives
     """
-    parser = CoderLanguageParser()
-    return parser.parse_multiple(text)
-
-
-def escape_content(content: str) -> str:
-    """
-    Escape content for use in CHANGE directives.
-    
-    Args:
-        content: The content to escape
-        
-    Returns:
-        Escaped content string
-    """
-    transformer = CoderLanguageTransformer()
-    return transformer.escape_string(content) 
+    parser = MasterLanguageParser()
+    return parser.parse_multiple(text) 

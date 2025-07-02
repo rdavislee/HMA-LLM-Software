@@ -1,6 +1,7 @@
 """
-Abstract Syntax Tree classes for the Coder Language.
-These classes represent the parsed structure of coder agent directives.
+Abstract Syntax Tree classes for the Master Language.
+These classes represent the parsed structure of master agent directives.
+Based on the manager language but simplified for top-level coordination.
 """
 
 from abc import ABC, abstractmethod
@@ -11,13 +12,14 @@ from enum import Enum
 
 class TokenType(Enum):
     READ = "READ"
-    RUN = "RUN"
-    CHANGE = "CHANGE"
-    INSERT = "INSERT"
+    DELEGATE = "DELEGATE"
     SPAWN = "SPAWN"
-    WAIT = "WAIT"
     FINISH = "FINISH"
+    WAIT = "WAIT"
+    UPDATE_DOCUMENTATION = "UPDATE_DOCUMENTATION"
+    RUN = "RUN"
     FILE = "FILE"
+    FOLDER = "FOLDER"
     IDENTIFIER = "IDENTIFIER"
     TESTER = "TESTER"
 
@@ -29,6 +31,7 @@ class NodeType(Enum):
     TARGET = "TARGET"
     PROMPT_FIELD = "PROMPT_FIELD"
     PARAM_SET = "PARAM_SET"
+    WAIT_DIRECTIVE = "WAIT_DIRECTIVE"
 
 
 class ASTNode(ABC):
@@ -56,6 +59,10 @@ class ASTVisitor(ABC):
         pass
     
     @abstractmethod
+    def visit_wait_directive(self, node: 'WaitDirectiveNode') -> Any:
+        pass
+    
+    @abstractmethod
     def visit_action(self, node: 'ActionNode') -> Any:
         pass
     
@@ -74,20 +81,12 @@ class ASTVisitor(ABC):
 
 @dataclass
 class Target:
-    """Represents a file target."""
+    """Represents a file or folder target."""
     name: str
+    is_folder: bool = False
     
     def __str__(self) -> str:
-        return f"file:{self.name}"
-
-
-@dataclass
-class PromptField:
-    """Represents a prompt field with a string value."""
-    value: str
-    
-    def __str__(self) -> str:
-        return f'PROMPT="{self.value}"'
+        return f"{'folder' if self.is_folder else 'file'}:{self.name}"
 
 
 @dataclass
@@ -97,6 +96,15 @@ class EphemeralType:
     
     def __str__(self) -> str:
         return f"ephemeral_type:{self.type_name}"
+
+
+@dataclass
+class PromptField:
+    """Represents a prompt field with a string value."""
+    value: str
+    
+    def __str__(self) -> str:
+        return f'PROMPT="{self.value}"'
 
 
 @dataclass
@@ -110,7 +118,7 @@ class SpawnItem:
 
 
 class Directive(ABC):
-    """Base class for all coder language directives."""
+    """Base class for all master language directives."""
     
     @abstractmethod
     def execute(self, context: dict) -> dict:
@@ -124,115 +132,24 @@ class Directive(ABC):
 
 
 @dataclass
-class ReadDirective(Directive):
-    """Represents a READ directive."""
-    filename: str
+class DelegateDirective(Directive):
+    """Represents a DELEGATE directive (no target needed - always delegates to root agent)."""
+    prompt: PromptField
     
     def execute(self, context: dict) -> dict:
-        """Execute read directive by adding file read action to context."""
-        if 'reads' not in context:
-            context['reads'] = []
+        """Execute delegate directive by adding delegation task to context."""
+        if 'delegations' not in context:
+            context['delegations'] = []
         
-        context['reads'].append({
-            'filename': self.filename,
-            'status': 'pending'
+        context['delegations'].append({
+            'target': 'root',  # Always delegates to root agent
+            'prompt': self.prompt.value
         })
         
         return context
     
     def __str__(self) -> str:
-        return f'READ "{self.filename}"'
-
-
-@dataclass
-class RunDirective(Directive):
-    """Represents a RUN directive."""
-    command: str
-    
-    def execute(self, context: dict) -> dict:
-        """Execute run directive by adding command execution to context."""
-        if 'commands' not in context:
-            context['commands'] = []
-        
-        context['commands'].append({
-            'command': self.command,
-            'status': 'pending'
-        })
-        
-        return context
-    
-    def __str__(self) -> str:
-        return f'RUN "{self.command}"'
-
-
-@dataclass
-class ChangeDirective(Directive):
-    """Represents a CHANGE directive."""
-    content: str
-    
-    def execute(self, context: dict) -> dict:
-        """Execute change directive by adding file change action to context."""
-        if 'changes' not in context:
-            context['changes'] = []
-        
-        context['changes'].append({
-            'content': self.content,
-            'status': 'pending'
-        })
-        
-        return context
-    
-    def __str__(self) -> str:
-        if len(self.content) <= 50:
-            return f'CHANGE CONTENT="{self.content}"'
-        else:
-            return f'CHANGE CONTENT="{self.content[:50]}..."'
-
-
-@dataclass
-class ReplaceDirective(Directive):
-    """Represents a REPLACE directive."""
-    from_string: str
-    to_string: str
-    
-    def execute(self, context: dict) -> dict:
-        """Execute replace directive by adding string replacement action to context."""
-        if 'replaces' not in context:
-            context['replaces'] = []
-        
-        context['replaces'].append({
-            'from_string': self.from_string,
-            'to_string': self.to_string,
-            'status': 'pending'
-        })
-        
-        return context
-    
-    def __str__(self) -> str:
-        return f'REPLACE FROM="{self.from_string}" TO="{self.to_string}"'
-
-
-@dataclass
-class InsertDirective(Directive):
-    """Represents an INSERT directive."""
-    from_string: str
-    to_string: str
-    
-    def execute(self, context: dict) -> dict:
-        """Execute insert directive by adding string insertion action to context."""
-        if 'inserts' not in context:
-            context['inserts'] = []
-        
-        context['inserts'].append({
-            'from_string': self.from_string,
-            'to_string': self.to_string,
-            'status': 'pending'
-        })
-        
-        return context
-    
-    def __str__(self) -> str:
-        return f'INSERT FROM="{self.from_string}" TO="{self.to_string}"'
+        return f"DELEGATE {self.prompt}"
 
 
 @dataclass
@@ -259,19 +176,6 @@ class SpawnDirective(Directive):
 
 
 @dataclass
-class WaitDirective(Directive):
-    """Represents a WAIT directive."""
-    
-    def execute(self, context: dict) -> dict:
-        """Execute wait directive by setting wait status."""
-        context['waiting'] = True
-        return context
-    
-    def __str__(self) -> str:
-        return "WAIT"
-
-
-@dataclass
 class FinishDirective(Directive):
     """Represents a FINISH directive."""
     prompt: PromptField
@@ -286,13 +190,91 @@ class FinishDirective(Directive):
         return f"FINISH {self.prompt}"
 
 
-# Type alias for all directive types
-DirectiveType = Union[ReadDirective, RunDirective, ChangeDirective, ReplaceDirective, InsertDirective, SpawnDirective, WaitDirective, FinishDirective]
+@dataclass
+class ReadDirective(Directive):
+    """Represents a READ directive (only action directive available for master)."""
+    targets: List[Target]
+    
+    def execute(self, context: dict) -> dict:
+        """Execute read directive by adding read actions to context."""
+        if 'reads' not in context:
+            context['reads'] = []
+        
+        for target in self.targets:
+            context['reads'].append({
+                'target': target.name,
+                'is_folder': target.is_folder
+            })
+        
+        return context
+    
+    def __str__(self) -> str:
+        targets_str = ", ".join(str(target) for target in self.targets)
+        return f"READ {targets_str}"
+
+
+@dataclass
+class WaitDirective(Directive):
+    """Represents a WAIT directive."""
+    
+    def execute(self, context: dict) -> dict:
+        """Execute wait directive by setting wait status."""
+        context['waiting'] = True
+        return context
+    
+    def __str__(self) -> str:
+        return "WAIT"
+
+
+@dataclass
+class RunDirective(Directive):
+    """Represents a RUN directive for executing command prompt commands."""
+    command: str
+    
+    def execute(self, context: dict) -> dict:
+        """Execute run directive by adding command execution to context."""
+        if 'commands' not in context:
+            context['commands'] = []
+        
+        context['commands'].append({
+            'command': self.command,
+            'status': 'pending'
+        })
+        
+        return context
+    
+    def __str__(self) -> str:
+        return f'RUN "{self.command}"'
+
+
+@dataclass
+class UpdateDocumentationDirective(Directive):
+    """Represents an UPDATE_DOCUMENTATION directive for updating master's documentation."""
+    content: str
+    
+    def execute(self, context: dict) -> dict:
+        """Execute update documentation directive by adding documentation update to context."""
+        if 'documentation_updates' not in context:
+            context['documentation_updates'] = []
+        
+        context['documentation_updates'].append({
+            'content': self.content,
+            'status': 'pending'
+        })
+        
+        return context
+    
+    def __str__(self) -> str:
+        return f'UPDATE_DOCUMENTATION CONTENT="{self.content}"'
+
+
+# Type alias for any directive
+DirectiveType = Union[DelegateDirective, SpawnDirective, FinishDirective, ReadDirective, WaitDirective, RunDirective, UpdateDocumentationDirective]
 
 
 @dataclass
 class ActionNode(ASTNode):
-    """Represents an action in a directive (READ, RUN, CHANGE, FINISH)."""
+    """Represents an action in a directive (READ, DELEGATE, FINISH)."""
     
     action_type: TokenType
     value: str
@@ -313,10 +295,10 @@ class ActionNode(ASTNode):
 
 @dataclass
 class TargetNode(ASTNode):
-    """Represents a target in a directive (filename)."""
+    """Represents a target in a directive (FILE, FOLDER, or child agent name)."""
     
-    target_type: TokenType  # FILE or IDENTIFIER
-    name: str  # The filename
+    target_type: TokenType  # FILE, FOLDER, or IDENTIFIER
+    name: str  # The name/identifier of the target
     
     def __init__(self, target_type: TokenType, name: str, line: int = 0, column: int = 0):
         super().__init__(NodeType.TARGET)
@@ -353,17 +335,15 @@ class PromptFieldNode(ASTNode):
 
 @dataclass
 class ParamSetNode(ASTNode):
-    """Represents a parameter set for directives."""
+    """Represents a parameter set: TARGET [PROMPT_FIELD] (agent selection is implicit)."""
     
-    target: Optional[TargetNode] = None
+    target: Optional[TargetNode] = None  # None for FINISH action
     prompt_field: Optional[PromptFieldNode] = None
-    content: Optional[str] = None
     
-    def __init__(self, target: Optional[TargetNode] = None, prompt_field: Optional[PromptFieldNode] = None, content: Optional[str] = None, line: int = 0, column: int = 0):
+    def __init__(self, target: Optional[TargetNode] = None, prompt_field: Optional[PromptFieldNode] = None, line: int = 0, column: int = 0):
         super().__init__(NodeType.PARAM_SET)
         self.target = target
         self.prompt_field = prompt_field
-        self.content = content
         self.line = line
         self.column = column
     
@@ -373,24 +353,30 @@ class ParamSetNode(ASTNode):
             return self.prompt_field.prompt
         return None
     
-    def get_filename(self) -> Optional[str]:
-        """Get the filename if present."""
-        if self.target:
-            return self.target.name
-        return None
+    def get_next_agent(self, action_type: TokenType) -> str:
+        """Get the next agent based on implicit agent selection rules."""
+        if action_type == TokenType.FINISH:
+            return "PARENT"
+        elif action_type == TokenType.DELEGATE and self.target:
+            return self.target.name  # Child agent name
+        else:
+            return "SELF"  # READ
     
-    def get_content(self) -> Optional[str]:
-        """Get the content if present."""
-        return self.content
+    def is_child_agent_selection(self, action_type: TokenType) -> bool:
+        """Check if the agent selection is a child agent."""
+        return action_type == TokenType.DELEGATE
+    
+    def is_parent_selection(self, action_type: TokenType) -> bool:
+        """Check if the agent selection is PARENT."""
+        return action_type == TokenType.FINISH
     
     def accept(self, visitor: ASTVisitor) -> Any:
         return visitor.visit_param_set(self)
     
     def __repr__(self):
         target_str = f"{self.target}, " if self.target else ""
-        prompt_str = f"{self.prompt_field}, " if self.prompt_field else ""
-        content_str = f"content='{self.content[:20]}...', " if self.content else ""
-        return f"ParamSetNode({target_str}{prompt_str}{content_str})"
+        prompt_str = f"{self.prompt_field}" if self.prompt_field else ""
+        return f"ParamSetNode({target_str}{prompt_str})"
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert the parameter set to a dictionary representation."""
@@ -407,15 +393,38 @@ class ParamSetNode(ASTNode):
                 'prompt': self.prompt_field.prompt
             }
         
-        if self.content:
-            result['content'] = self.content
-        
         return result
 
 
 @dataclass
+class WaitDirectiveNode(ASTNode):
+    """Represents a WAIT directive that waits for child agents to complete."""
+    
+    def __init__(self, line: int = 0, column: int = 0):
+        super().__init__(NodeType.WAIT_DIRECTIVE)
+        self.line = line
+        self.column = column
+    
+    def accept(self, visitor: ASTVisitor) -> Any:
+        return visitor.visit_wait_directive(self)
+    
+    def __repr__(self):
+        return "WaitDirectiveNode()"
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert the wait directive to a dictionary representation."""
+        return {
+            'type': 'WAIT'
+        }
+    
+    def to_string(self) -> str:
+        """Convert the wait directive back to a string representation."""
+        return "WAIT"
+
+
+@dataclass
 class DirectiveNode(ASTNode):
-    """Represents a complete coder directive."""
+    """Represents a complete master directive with parameter sets."""
     
     action: ActionNode
     param_sets: List[ParamSetNode]
@@ -433,29 +442,27 @@ class DirectiveNode(ASTNode):
             return self.param_sets[0].get_prompt()
         return None
     
-    def get_first_filename(self) -> Optional[str]:
-        """Get the filename from the first parameter set if present."""
+    def get_first_next_agent(self) -> str:
+        """Get the next agent from the first parameter set based on implicit rules."""
         if self.param_sets and self.param_sets[0]:
-            return self.param_sets[0].get_filename()
-        return None
+            return self.param_sets[0].get_next_agent(self.action.action_type)
+        return "SELF"  # Default fallback
     
-    def get_first_content(self) -> Optional[str]:
-        """Get the content from the first parameter set if present."""
+    def is_child_agent_selection(self) -> bool:
+        """Check if the first parameter set has a child agent selection."""
         if self.param_sets and self.param_sets[0]:
-            return self.param_sets[0].get_content()
-        return None
+            return self.param_sets[0].is_child_agent_selection(self.action.action_type)
+        return False
     
-    def is_read_action(self) -> bool:
-        """Check if this is a READ action."""
-        return self.action.action_type == TokenType.READ
+    def is_parent_selection(self) -> bool:
+        """Check if the first parameter set has a PARENT selection."""
+        if self.param_sets and self.param_sets[0]:
+            return self.param_sets[0].is_parent_selection(self.action.action_type)
+        return False
     
-    def is_run_action(self) -> bool:
-        """Check if this is a RUN action."""
-        return self.action.action_type == TokenType.RUN
-    
-    def is_change_action(self) -> bool:
-        """Check if this is a CHANGE action."""
-        return self.action.action_type == TokenType.CHANGE
+    def is_delegate_action(self) -> bool:
+        """Check if this is a DELEGATE action."""
+        return self.action.action_type == TokenType.DELEGATE
     
     def is_finish_action(self) -> bool:
         """Check if this is a FINISH action."""
@@ -485,10 +492,7 @@ class DirectiveNode(ASTNode):
         
         for param_set in self.param_sets:
             if param_set.target:
-                directive_str += f' "{param_set.target.name}"'
-            
-            if param_set.content:
-                directive_str += f' CONTENT="{param_set.content}"'
+                directive_str += f" {param_set.target.target_type.value} \"{param_set.target.name}\""
             
             if param_set.prompt_field:
                 directive_str += f' PROMPT="{param_set.prompt_field.prompt}"'
