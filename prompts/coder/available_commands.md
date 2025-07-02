@@ -33,14 +33,9 @@
 - `flake8 filename` - Python linting (specific file)
 - `mypy filename` - Python type checking (specific file)
 
-## File Operations
-- `cat filename` - Display file contents (Linux/Mac) 
-- `type filename` - Display file contents (Windows)
-- `head -n 20 filename` - Show first 20 lines of file
-- `tail -n 20 filename` - Show last 20 lines of file
-- `grep -n "pattern" filename` - Search for pattern with line numbers
-- `rg "pattern" path/` - Recursively search for pattern in files using ripgrep (rg)
-- `wc -l filename` - Count lines in file
+## File Operations (WINDOWS)
+- `type filename` - Display file contents
+- `find "pattern" filename` - Search for pattern in a file
 
 ## Other TypeScript Tools
 - `node tools/run-typescript.js src/myfile.ts` - Run individual TypeScript files with ts-node

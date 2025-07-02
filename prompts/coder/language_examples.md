@@ -37,37 +37,37 @@ CHANGE CONTENT = "// Complete rewrite from class-based to functional approach\ni
 ## REPLACE Examples (Targeted Fixes When Code Exists - Use These Most Often)
 
 ### Version Updates (Existing Configuration)
-REPLACE FROM="API_VERSION = '1.0'" TO="API_VERSION = '2.0'"
+REPLACE FROM = "API_VERSION = '1.0'" TO = "API_VERSION = '2.0'"
 
 ### Function Name Changes (Existing Functions)
-REPLACE FROM="function calculateTotal" TO="function computeTotal"
+REPLACE FROM = "function calculateTotal" TO = "function computeTotal"
 
 ### Import Statement Updates (Existing Imports)
-REPLACE FROM="import { oldFunction } from './utils'" TO="import { newFunction } from './utils'"
+REPLACE FROM = "import { oldFunction } from './utils'" TO = "import { newFunction } from './utils'"
 
 ### Variable Renaming (Existing Variables)
-REPLACE FROM="let userName" TO="let username"
+REPLACE FROM = "let userName" TO = "let username"
 
 ### String Literal Updates (Existing Strings)
-REPLACE FROM="error: 'Invalid input'" TO="error: 'Input validation failed'"
+REPLACE FROM = "error: 'Invalid input'" TO = "error: 'Input validation failed'"
 
 ### Type Changes (Existing Type Definitions)
-REPLACE FROM="userId: number" TO="userId: string"
+REPLACE FROM = "userId: number" TO = "userId: string"
 
 ### Method Signature Updates (Existing Methods)
-REPLACE FROM="authenticate(email: string)" TO="authenticate(email: string, password: string)"
+REPLACE FROM = "authenticate(email: string)" TO = "authenticate(email: string, password: string)"
 
 ### Configuration Changes (Existing Config)
-REPLACE FROM="timeout: 5000" TO="timeout: 10000"
+REPLACE FROM = "timeout: 5000" TO = "timeout: 10000"
 
 ### Multiline Function Replacement (Existing Function Body)
-REPLACE FROM="function validateUser(user) {\nreturn user.email && user.password;\n}" TO="function validateUser(user) {\nif (!user) return false;\nreturn user.email && user.email.includes('@') && user.password && user.password.length >= 8;\n}"
+REPLACE FROM = "function validateUser(user) {\nreturn user.email && user.password;\n}" TO = "function validateUser(user) {\nif (!user) return false;\nreturn user.email && user.email.includes('@') && user.password && user.password.length >= 8;\n}"
 
 ### Complex Expression Updates (Existing Code Block)
-REPLACE FROM="const result = data.map(item => {\nreturn item.value * 2;\n});" TO="const result = data.map(item => {\nif (!item || typeof item.value !== 'number') return 0;\nreturn item.value * 2;\n});"
+REPLACE FROM = "const result = data.map(item => {\nreturn item.value * 2;\n});" TO = "const result = data.map(item => {\nif (!item || typeof item.value !== 'number') return 0;\nreturn item.value * 2;\n});"
 
 ### Interface Definition Updates (Existing Interface)
-REPLACE FROM="interface User {\nid: string;\nname: string;\n}" TO="interface User {\nid: string;\nname: string;\nemail: string;\ncreatedAt: Date;\n}"
+REPLACE FROM = "interface User {\nid: string;\nname: string;\n}" TO = "interface User {\nid: string;\nname: string;\nemail: string;\ncreatedAt: Date;\n}"
 
 ### Error Handling Addition (Existing Try-Catch)
 REPLACE FROM="try {\nconst response = await api.call();\nreturn response.data;\n} catch (error) {\nthrow error;\n}" TO="try {\nconst response = await api.call();\nif (!response || !response.data) {\nthrow new Error('Invalid API response');\n}\nreturn response.data;\n} catch (error) {\nconsole.error('API call failed:', error.message);\nthrow new Error(`API Error: ${error.message}`);\n}"
@@ -86,20 +86,37 @@ REPLACE FROM="const message = `Hello ${name}, welcome!`;" TO="const message = `H
 
 ### Template String with Literal Newline Characters (Existing Template)
 // Note: \\n creates actual newline character in string output  
-REPLACE FROM="const message = `Welcome ${name}`;" TO="const message = `Welcome ${name}\\nPlease check your email.`;"
+REPLACE FROM = "const message = `Welcome ${name}`;" TO = "const message = `Welcome ${name}\\nPlease check your email.`;"
 
 ### Escaping Clarification Examples
 // \n = line break in code (structural)
-REPLACE FROM="if (user) {\nreturn user.name;\n}" TO="if (user && user.active) {\nreturn user.name;\n}"
+REPLACE FROM = "if (user) {\nreturn user.name;\n}" TO = "if (user && user.active) {\nreturn user.name;\n}"
 
 // \\n = literal newline character in string (rare)
-REPLACE FROM="console.log('Hello');" TO="console.log('Hello\\nWorld');"
+REPLACE FROM = "console.log('Hello');" TO = "console.log('Hello\\nWorld');"
 
 ### Code Deletion Examples (Replace with Empty String - Existing Code)
 REPLACE FROM="console.log('Debug: user data', userData);\n" TO=""
 REPLACE FROM="import { unusedFunction } from './helpers';\n" TO=""
 REPLACE FROM="function deprecatedHelper(input: string): string {\nreturn input.toUpperCase();\n}\n\n" TO=""
 REPLACE FROM="// TODO: Remove this old implementation\n// function oldCalculate(a, b) {\n//   return a + b;\n// }\n" TO=""
+
+## Multiple Replace Operations (Batch Updates)
+
+### Multiple Related Variables
+REPLACE FROM="let userName" TO="let username", FROM="let userEmail" TO="let email", FROM="let userAge" TO="let age"
+
+### Multiple Configuration Values
+REPLACE FROM="timeout: 5000" TO="timeout: 10000", FROM="retries: 3" TO="retries: 5", FROM="debug: false" TO="debug: true"
+
+### Multiple Import Updates
+REPLACE FROM="import { oldFunction }" TO="import { newFunction }", FROM="'./old-path'" TO="'./new-path'"
+
+### Multiple API Endpoints
+REPLACE FROM="'/api/v1/users'" TO="'/api/v2/users'", FROM="'/api/v1/posts'" TO="'/api/v2/posts'"
+
+### Multiple Error Messages
+REPLACE FROM="'Invalid input'" TO="'Input validation failed'", FROM="'User not found'" TO="'User does not exist'"
 
 ## Running Commands
 

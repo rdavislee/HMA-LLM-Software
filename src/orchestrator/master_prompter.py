@@ -127,6 +127,13 @@ async def master_finisher(
         # 2. Wait for and return the human response
         human_response = await human_interface_fn(completion_message)
         
+        # Check if this is a phase approval response from initializer
+        # If so, don't send back to master as the phase is complete
+        if human_response.strip().lower() == "approved":
+            # Phase approved - no need to prompt master again
+            print(f"[master_finisher] Phase approved, not reprompting master")
+            return
+        
         # Send human response back to master agent (no message parameter since it's a response to finish)
         await master_prompter(agent, human_response, message=None)
         

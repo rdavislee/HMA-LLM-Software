@@ -195,26 +195,34 @@ class MasterLanguageInterpreter:
         """Execute a RUN directive (no file operation restrictions for master)."""
         command = directive.command
         
-        # Master agent can run file creation/deletion commands without restrictions
-        # Check if it's a file operation command that should be allowed
-        file_ops = ['mkdir', 'rmdir', 'rm ', 'touch ', 'echo ', 'cp ', 'mv ']
-        is_file_op = any(command.strip().startswith(op) for op in file_ops)
-        
-        # Allow file operations or check against normal allowed commands
-        if is_file_op or any(command.startswith(allowed) for allowed in ALLOWED_COMMANDS):
+        # Check if the command is in the allowed list
+        if any(command.strip().startswith(allowed) for allowed in ALLOWED_COMMANDS):
             try:
-                result_obj = subprocess.run(
-                    command,
-                    shell=True,
-                    capture_output=True,
-                    text=True,
-                    cwd=self.root_dir,
-                    timeout=300
-                )
+                # Use PowerShell explicitly on Windows
+                if os.name == 'nt':  # Windows
+                    # Use PowerShell instead of cmd.exe
+                    full_command = ['powershell.exe', '-Command', command]
+                    result_obj = subprocess.run(
+                        full_command,
+                        capture_output=True,
+                        text=True,
+                        cwd=self.root_dir,
+                        timeout=300
+                    )
+                else:
+                    # Unix/Linux - use shell=True
+                    result_obj = subprocess.run(
+                        command,
+                        shell=True,
+                        capture_output=True,
+                        text=True,
+                        cwd=self.root_dir,
+                        timeout=300
+                    )
+                    
                 if result_obj.returncode == 0:
                     result = f"RUN succeeded: Output:\n{result_obj.stdout.strip()}" if result_obj.stdout.strip() else "RUN succeeded"
                 else:
-                    # Show both stdout and stderr
                     output = result_obj.stdout.strip() if result_obj.stdout.strip() else ""
                     error = result_obj.stderr.strip() if result_obj.stderr.strip() else ""
                     if output and error:

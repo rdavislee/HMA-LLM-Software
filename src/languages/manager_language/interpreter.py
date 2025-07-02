@@ -251,14 +251,28 @@ class ManagerLanguageInterpreter:
             result = "Invalid command"
         else:
             try:
-                result_obj = subprocess.run(
-                    command,
-                    shell=True,
-                    capture_output=True,
-                    text=True,
-                    cwd=self.root_dir,
-                    timeout=300
-                )
+                # Use PowerShell explicitly on Windows
+                if os.name == 'nt':  # Windows
+                    # Use PowerShell instead of cmd.exe
+                    full_command = ['powershell.exe', '-Command', command]
+                    result_obj = subprocess.run(
+                        full_command,
+                        capture_output=True,
+                        text=True,
+                        cwd=self.root_dir,
+                        timeout=300
+                    )
+                else:
+                    # Unix/Linux - use shell=True
+                    result_obj = subprocess.run(
+                        command,
+                        shell=True,
+                        capture_output=True,
+                        text=True,
+                        cwd=self.root_dir,
+                        timeout=300
+                    )
+                    
                 if result_obj.returncode == 0:
                     result = result_obj.stdout
                 else:

@@ -15,23 +15,17 @@
 3. Use their findings to guide delegation to child agents
 
 ## Compilation and Diagnostics
-- `node tools/check-typescript.js` - Check TypeScript errors without compiling (diagnostics only) 
+- `node tools/check-typescript.js` - Check TypeScript errors without compiling (diagnostics only)
 - `node tools/compile-typescript.js` - Compile TypeScript to JavaScript (compilation only, no testing)
 
 ## Code Analysis
 - `flake8 path/` - Python linting for directory
 - `mypy path/` - Python type checking for directory
 
-## File Operations
-- `cat filename` - Display file contents (Linux/Mac) 
-- `type filename` - Display file contents (Windows)
-- `head -n 20 filename` - Show first 20 lines of file
-- `tail -n 20 filename` - Show last 20 lines of file
-- `grep -n "pattern" filename` - Search for pattern with line numbers
-- `rg "pattern" path/` - Recursively search for pattern in files using ripgrep
-- `wc -l filename` - Count lines in file
-- `ls path/` - List directory contents (Linux/Mac)
-- `dir path/` - List directory contents (Windows)
+## File Operations (WINDOWS)
+- `type filename` - Display file contents
+- `find "pattern" filename` - Search for pattern with line numbers
+- `dir path` - List directory contents
 
 ## Other TypeScript Tools
 - `node tools/run-typescript.js src/myfile.ts` - Run individual TypeScript files with ts-node

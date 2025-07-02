@@ -3,9 +3,9 @@
 ## Core Master Language Directives
 
 ### DELEGATE (Single Root Agent)
-DELEGATE PROMPT="Phase 1: Implement core data models and interfaces with comprehensive tests"
-DELEGATE PROMPT="Build authentication system with login, registration, and session management"
-DELEGATE PROMPT="Create REST API endpoints for user management using established interfaces"
+DELEGATE PROMPT="Phase 1: Implement core data models and interfaces with comprehensive tests using object-oriented design principles"
+DELEGATE PROMPT="Build authentication system with login, registration, and session management using proper class hierarchies and encapsulation"
+DELEGATE PROMPT="Create REST API endpoints for user management using established interfaces with clean abstraction layers"
 
 ### UPDATE_DOCUMENTATION  
 UPDATE_DOCUMENTATION CONTENT="# E-commerce Platform\n\n## Product Vision\nA modern e-commerce platform with user authentication, product catalog, shopping cart, and payment processing.\n\n## Core Features\n- User registration and login\n- Product browsing and search\n- Shopping cart management\n- Secure payment processing\n- Order tracking\n\n## Technology Stack\n- Frontend: React with TypeScript\n- Backend: Node.js with Express\n- Database: PostgreSQL\n- Testing: Jest and Mocha"
@@ -15,11 +15,14 @@ READ file "big_picture.md"
 READ folder "src"
 READ file "requirements.txt", file "package.json"
 
-### RUN Commands (System-Level)
-RUN "mkdir -p src/components src/services src/types"
-RUN "touch src/types/user.interface.ts"
+### RUN Commands (System-Level - WINDOWS)
+RUN "mkdir src/components"
+RUN "mkdir src/services"
+RUN "mkdir src/types"
+RUN "New-Item -ItemType File -Path src/types/user.interface.ts"
+RUN "ni src/services/auth.service.ts -ItemType File"
 RUN "npm init -y"
-RUN "echo 'node_modules/' > .gitignore"
+RUN "echo node_modules/ > .gitignore"
 
 ### SPAWN Tester Agents
 SPAWN tester PROMPT="Verify entire project structure and dependencies"
@@ -54,23 +57,35 @@ UPDATE_DOCUMENTATION CONTENT="# Professional Networking Platform - Final Require
 ### Phase 2: Structure Stage Examples
 
 #### Initial Project Structure Creation
-RUN "mkdir -p src/components src/services src/types src/utils src/hooks"
-RUN "mkdir -p src/pages src/layouts src/contexts"
-RUN "mkdir -p test/components test/services test/integration test/e2e"
-RUN "mkdir -p public/assets public/images"
-RUN "mkdir -p config docs scripts"
+RUN "mkdir src/components"
+RUN "mkdir src/services"
+RUN "mkdir src/types"
+RUN "mkdir src/utils"
+RUN "mkdir src/hooks"
+RUN "mkdir src/pages"
+RUN "mkdir src/layouts"
+RUN "mkdir src/contexts"
+RUN "mkdir test/components"
+RUN "mkdir test/services"
+RUN "mkdir test/integration"
+RUN "mkdir test/e2e"
+RUN "mkdir public/assets"
+RUN "mkdir public/images"
+RUN "mkdir config"
+RUN "mkdir docs"
+RUN "mkdir scripts"
 
 #### File Scaffolding
-RUN "touch src/types/user.interface.ts"
-RUN "touch src/types/post.interface.ts"
-RUN "touch src/types/connection.interface.ts"
-RUN "touch src/services/auth.service.ts"
-RUN "touch src/services/user.service.ts"
-RUN "touch src/services/post.service.ts"
-RUN "touch src/components/UserProfile.tsx"
-RUN "touch src/components/PostFeed.tsx"
-RUN "touch src/pages/Login.tsx"
-RUN "touch src/pages/Dashboard.tsx"
+RUN "New-Item -ItemType File -Path src/types/user.interface.ts"
+RUN "New-Item -ItemType File -Path src/types/post.interface.ts"
+RUN "New-Item -ItemType File -Path src/types/connection.interface.ts"
+RUN "ni src/services/auth.service.ts -ItemType File"
+RUN "ni src/services/user.service.ts -ItemType File"
+RUN "ni src/services/post.service.ts -ItemType File"
+RUN "ni src/components/UserProfile.tsx -ItemType File"
+RUN "ni src/components/PostFeed.tsx -ItemType File"
+RUN "ni src/pages/Login.tsx -ItemType File"
+RUN "ni src/pages/Dashboard.tsx -ItemType File"
 
 #### Development Environment Setup
 RUN "npm init -y"
@@ -78,54 +93,34 @@ RUN "npm install react react-dom typescript @types/react @types/react-dom"
 RUN "npm install express jsonwebtoken bcryptjs cors helmet"
 RUN "npm install --save-dev jest @types/jest mocha chai supertest"
 
-RUN "echo '{
-  \"compilerOptions\": {
-    \"target\": \"ES2020\",
-    \"module\": \"commonjs\",
-    \"lib\": [\"ES2020\", \"DOM\"],
-    \"jsx\": \"react-jsx\",
-    \"strict\": true,
-    \"esModuleInterop\": true,
-    \"skipLibCheck\": true
-  },
-  \"include\": [\"src/**/*\"],
-  \"exclude\": [\"node_modules\", \"dist\"]
-}' > tsconfig.json"
+RUN "echo { \"compilerOptions\": { \"target\": \"ES2020\", \"module\": \"commonjs\", \"lib\": [\"ES2020\", \"DOM\"], \"jsx\": \"react-jsx\", \"strict\": true, \"esModuleInterop\": true, \"skipLibCheck\": true }, \"include\": [\"src/***\"], \"exclude\": [\"node_modules\", \"dist\"] } > tsconfig.json"
 
 #### Configuration Files
-RUN "echo 'node_modules/
-dist/
-.env
-*.log
-.DS_Store' > .gitignore"
+RUN "echo node_modules/ > .gitignore"
+RUN "echo dist/ >> .gitignore"
+RUN "echo .env >> .gitignore"
+RUN "echo *.log >> .gitignore"
 
-RUN "echo '# Professional Networking Platform
-
-## Setup
-1. npm install
-2. Copy .env.example to .env
-3. npm run dev
-
-## Scripts
-- npm run dev - Start development server
-- npm run build - Build for production  
-- npm test - Run test suite
-- npm run lint - Run linting
-
-## Architecture
-- Frontend: React with TypeScript
-- Backend: Node.js with Express
-- Database: PostgreSQL
-- Authentication: JWT + OAuth
-' > README.md"
+RUN "echo # Professional Networking Platform > README.md"
+RUN "echo. >> README.md"
+RUN "echo ## Setup >> README.md"
+RUN "echo 1. npm install >> README.md"
+RUN "echo 2. Copy .env.example to .env >> README.md"
+RUN "echo 3. npm run dev >> README.md"
+RUN "echo. >> README.md"
+RUN "echo ## Scripts >> README.md"
+RUN "echo - npm run dev - Start development server >> README.md"
+RUN "echo - npm run build - Build for production >> README.md"
+RUN "echo - npm test - Run test suite >> README.md"
+RUN "echo - npm run lint - Run linting >> README.md"
 
 #### Final Structure Verification
 UPDATE_DOCUMENTATION CONTENT="# Project Structure Created\n\n## Directory Architecture\n```\nsrc/\n  ├── components/     # Reusable UI components\n  ├── pages/          # Main application pages\n  ├── services/       # API and business logic\n  ├── types/          # TypeScript interfaces\n  ├── utils/          # Helper functions\n  ├── hooks/          # Custom React hooks\n  ├── contexts/       # React context providers\n  └── layouts/        # Page layout components\n\ntest/\n  ├── components/     # Component tests\n  ├── services/       # Service tests\n  ├── integration/    # Integration tests\n  └── e2e/           # End-to-end tests\n\nconfig/             # Configuration files\ndocs/               # Documentation\npublic/             # Static assets\n```\n\n## Development Environment\n- Package.json configured with React, TypeScript, Express\n- TypeScript configuration for strict type checking\n- Test framework setup with Jest and Mocha\n- Git repository initialized with appropriate .gitignore\n- README with setup instructions\n\n## Ready for Development Phases\nProject structure supports scalable development with clear separation of concerns."
 
 ### Phase 3: Project Phases Examples
 
-#### Phase 1: Foundation Development
-DELEGATE PROMPT="Phase 1: Core Foundation - Implement all TypeScript interfaces and data models. Create user.interface.ts with User, Profile, and Authentication types. Create post.interface.ts with Post, Comment, and Engagement types. Create connection.interface.ts with Connection and Relationship types. Each interface needs comprehensive JSDoc with preconditions, postconditions, and validation rules. All interfaces must be fully specced before any implementation begins."
+#### Phase 1: Foundation Development  
+DELEGATE PROMPT="Phase 1: Core Foundation - Implement all TypeScript interfaces and data models using object-oriented design principles. Create user.interface.ts with User, Profile, and Authentication types following proper encapsulation. Create post.interface.ts with Post, Comment, and Engagement types using inheritance where appropriate. Create connection.interface.ts with Connection and Relationship types with clear abstractions. Each interface needs comprehensive JSDoc with preconditions, postconditions, and validation rules. Design modular, cohesive classes. All interfaces must be fully specced before any implementation begins."
 
 WAIT
 
@@ -173,9 +168,14 @@ UPDATE_DOCUMENTATION CONTENT="E-commerce platform requirements gathering..."
 FINISH PROMPT="Need clarification on payment providers and shipping integration..."
 
 # Phase 2: Structure Creation  
-RUN "mkdir -p src/components/cart src/components/product src/components/checkout"
-RUN "mkdir -p src/services/payment src/services/inventory src/services/shipping"
-RUN "touch src/types/product.interface.ts src/types/order.interface.ts"
+RUN "mkdir src/components/cart"
+RUN "mkdir src/components/product"
+RUN "mkdir src/components/checkout"
+RUN "mkdir src/services/payment"
+RUN "mkdir src/services/inventory"
+RUN "mkdir src/services/shipping"
+RUN "echo. > src/types/product.interface.ts"
+RUN "echo. > src/types/order.interface.ts"
 
 # Phase 3: Development Phases
 DELEGATE PROMPT="Phase 1: Product catalog with search and filtering"
@@ -215,7 +215,7 @@ FINISH PROMPT="Social media platform is complete! 🚀 Users can create profiles
 ### Delegation Issues
 READ folder "src"
 # If structure is inadequate:
-RUN "mkdir -p src/additional/directories" 
+RUN "mkdir src/additional/directories" 
 UPDATE_DOCUMENTATION CONTENT="Updated project structure to support new requirements..."
 DELEGATE PROMPT="Updated task with new architecture..."
 

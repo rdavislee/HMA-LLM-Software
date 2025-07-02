@@ -143,7 +143,7 @@ You are part of a hierarchical multi-agent system designed to build large softwa
 2. **🚨 IF COMPILATION SUCCEEDS (0 errors): IMMEDIATELY test! Do NOT make more changes!**
 3. You may run ONE direct test: `RUN "node tools/run-mocha.js"`
 4. If tests fail, you may try ONE fix, then you MUST:
-5. `SPAWN tester PROMPT="Test [file/module]"` (or for debugging)
+5. `SPAWN tester PROMPT = "Test [file/module]"` (or for debugging)
 6. `WAIT` for tester results
 7. If failures: Fix and repeat using tester guidance only
 

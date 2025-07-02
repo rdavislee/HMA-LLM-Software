@@ -105,14 +105,28 @@ class CoderLanguageInterpreter:
         prompt = None
         try:
             if any(command.startswith(allowed) for allowed in ALLOWED_COMMANDS):
-                result = subprocess.run(
-                    command,
-                    shell=True,
-                    capture_output=True,
-                    text=True,
-                    cwd=self.project_root,
-                    timeout=300
-                )
+                # Use PowerShell explicitly on Windows
+                if os.name == 'nt':  # Windows
+                    # Use PowerShell instead of cmd.exe
+                    full_command = ['powershell.exe', '-Command', command]
+                    result = subprocess.run(
+                        full_command,
+                        capture_output=True,
+                        text=True,
+                        cwd=self.project_root,
+                        timeout=300
+                    )
+                else:
+                    # Unix/Linux - use shell=True
+                    result = subprocess.run(
+                        command,
+                        shell=True,
+                        capture_output=True,
+                        text=True,
+                        cwd=self.project_root,
+                        timeout=300
+                    )
+                    
                 if result.returncode == 0:
                     prompt = f"RUN succeeded: Output:\n{result.stdout.strip()}"
                 else:
@@ -154,32 +168,49 @@ class CoderLanguageInterpreter:
         self._queue_self_prompt(prompt)
 
     def _execute_replace(self, directive: ReplaceDirective) -> None:
-        """Execute a REPLACE directive."""
+        """Execute a REPLACE directive with multiple items and ambiguity detection."""
         prompt = None
         try:
             if self.own_file is not None:
                 file_path = self.base_path / self.own_file
-                
-                # Check if file exists, create if it doesn't
+                # If file does not exist, throw error and do not create it
                 if not file_path.exists():
-                    file_path.parent.mkdir(parents=True, exist_ok=True)
-                    current_content = ""
+                    prompt = f"REPLACE failed: File not found: {self.own_file}"
+                    self._queue_self_prompt(prompt)
+                    return
                 else:
                     with open(file_path, 'r', encoding='utf-8') as f:
                         current_content = f.read()
-                
-                # Check if the from_string exists in the file
-                if directive.from_string not in current_content:
-                    prompt = f"REPLACE failed: String '{directive.from_string}' not found in {self.own_file}"
+                # Check for ambiguous from_strings (multiple occurrences)
+                ambiguous_items = []
+                missing_items = []
+                for item in directive.items:
+                    count = current_content.count(item.from_string)
+                    if count == 0:
+                        missing_items.append(item.from_string)
+                    elif count > 1:
+                        ambiguous_items.append((item.from_string, count))
+                # Report missing strings
+                if missing_items:
+                    missing_str = "', '".join(missing_items)
+                    prompt = f"REPLACE failed: String(s) '{missing_str}' not found in {self.own_file}"
+                # Report ambiguous strings
+                elif ambiguous_items:
+                    ambiguous_str = ", ".join([f"'{s}' ({c} occurrences)" for s, c in ambiguous_items])
+                    prompt = f"REPLACE failed: Ambiguous from strings in {self.own_file}: {ambiguous_str}. Please be more specific to target unique strings."
                 else:
-                    # Perform string replacement
-                    new_content = current_content.replace(directive.from_string, directive.to_string)
-                    
-                    # Write back to file
+                    # All strings are present and unique, proceed with replacements
+                    new_content = current_content
+                    replaced_items = []
+                    for item in directive.items:
+                        new_content = new_content.replace(item.from_string, item.to_string)
+                        replaced_items.append(f"'{item.from_string}' → '{item.to_string}'")
+                    # Write back to file (robust like CHANGE)
                     with open(file_path, 'w', encoding='utf-8') as f:
                         f.write(new_content)
-                    
-                    prompt = f"REPLACE succeeded: Replaced '{directive.from_string}' with '{directive.to_string}' in {self.own_file}"
+                        f.flush()
+                    replaced_str = ", ".join(replaced_items)
+                    prompt = f"REPLACE succeeded: Replaced {len(directive.items)} item(s) in {self.own_file}: {replaced_str}"
             else:
                 prompt = "REPLACE failed: This agent has no assigned file."
         except Exception as e:
@@ -193,26 +224,26 @@ class CoderLanguageInterpreter:
         try:
             if self.own_file is not None:
                 file_path = self.base_path / self.own_file
-                
-                # Check if file exists, create if it doesn't
+                # If file does not exist, throw error and do not create it
                 if not file_path.exists():
-                    file_path.parent.mkdir(parents=True, exist_ok=True)
-                    current_content = ""
+                    prompt = f"INSERT failed: File not found: {self.own_file}"
+                    self._queue_self_prompt(prompt)
+                    return
                 else:
                     with open(file_path, 'r', encoding='utf-8') as f:
                         current_content = f.read()
-                
-                # Check if the from_string exists in the file
-                if directive.from_string not in current_content:
+                # Check for from_string existence and ambiguity
+                count = current_content.count(directive.from_string)
+                if count == 0:
                     prompt = f"INSERT failed: String '{directive.from_string}' not found in {self.own_file}"
+                elif count > 1:
+                    prompt = f"INSERT failed: Ambiguous from string '{directive.from_string}' in {self.own_file}: {count} occurrences. Please be more specific to target a unique string."
                 else:
                     # Perform string insertion - insert to_string at the end of from_string
                     new_content = current_content.replace(directive.from_string, directive.from_string + directive.to_string)
-                    
-                    # Write back to file
                     with open(file_path, 'w', encoding='utf-8') as f:
                         f.write(new_content)
-                    
+                        f.flush()
                     prompt = f"INSERT succeeded: Inserted '{directive.to_string}' after '{directive.from_string}' in {self.own_file}"
             else:
                 prompt = "INSERT failed: This agent has no assigned file."
@@ -346,7 +377,7 @@ def execute_directive(directive_text: str, base_path: str = ".", agent=None, own
         directive = parse_directive(directive_text)
     except Exception as e:
         # Surface parsing errors back to the agent instead of crashing the pipeline.
-        error_msg = f"PARSING FAILED: {str(e)}"
+        error_msg = f"PARSING FAILED: {str(e)}\n\nDirective was: {directive_text}\n\nCommon issues:\n- Missing quotes around string values\n- Unescaped quotes in strings (use \\\" for quotes inside strings)\n- Incomplete FROM/TO pairs in REPLACE directives\n- Multiple directives on same line (use separate lines)"
         # If we have an agent attached make sure to enqueue the error so the next
         # LLM turn can react accordingly. This avoids silent failures where the
         # stack-trace only ends up in the console.

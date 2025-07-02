@@ -190,26 +190,37 @@ class ChangeDirective(Directive):
 
 
 @dataclass
-class ReplaceDirective(Directive):
-    """Represents a REPLACE directive."""
+class ReplaceItem:
+    """Represents a single replace operation."""
     from_string: str
     to_string: str
     
+    def __str__(self) -> str:
+        return f'FROM="{self.from_string}" TO="{self.to_string}"'
+
+
+@dataclass
+class ReplaceDirective(Directive):
+    """Represents a REPLACE directive with multiple replace items."""
+    items: List['ReplaceItem']
+    
     def execute(self, context: dict) -> dict:
-        """Execute replace directive by adding string replacement action to context."""
+        """Execute replace directive by adding string replacement actions to context."""
         if 'replaces' not in context:
             context['replaces'] = []
         
-        context['replaces'].append({
-            'from_string': self.from_string,
-            'to_string': self.to_string,
-            'status': 'pending'
-        })
+        for item in self.items:
+            context['replaces'].append({
+                'from_string': item.from_string,
+                'to_string': item.to_string,
+                'status': 'pending'
+            })
         
         return context
     
     def __str__(self) -> str:
-        return f'REPLACE FROM="{self.from_string}" TO="{self.to_string}"'
+        items_str = ", ".join(str(item) for item in self.items)
+        return f'REPLACE {items_str}'
 
 
 @dataclass

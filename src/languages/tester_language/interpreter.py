@@ -95,14 +95,28 @@ class TesterLanguageInterpreter:
         prompt = None
         try:
             if any(command.startswith(allowed) for allowed in ALLOWED_COMMANDS):
-                result = subprocess.run(
-                    command,
-                    shell=True,
-                    capture_output=True,
-                    text=True,
-                    cwd=self.project_root,
-                    timeout=300
-                )
+                # Use PowerShell explicitly on Windows
+                if os.name == 'nt':  # Windows
+                    # Use PowerShell instead of cmd.exe
+                    full_command = ['powershell.exe', '-Command', command]
+                    result = subprocess.run(
+                        full_command,
+                        capture_output=True,
+                        text=True,
+                        cwd=self.project_root,
+                        timeout=300
+                    )
+                else:
+                    # Unix/Linux - use shell=True
+                    result = subprocess.run(
+                        command,
+                        shell=True,
+                        capture_output=True,
+                        text=True,
+                        cwd=self.project_root,
+                        timeout=300
+                    )
+                    
                 if result.returncode == 0:
                     prompt = f"RUN succeeded: Output:\n{result.stdout.strip()}"
                 else:

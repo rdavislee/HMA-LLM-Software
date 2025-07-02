@@ -342,26 +342,26 @@ async def initialize_new_project(
     human_interface_fn: Callable[[str], Awaitable[str]],
     *,
     language: Language = Language.TYPESCRIPT,
-    llm_client: Optional[BaseLLMClient] = None,
-    max_context_size: int = 8000,
-    phase1_iterations: int = 2
+    master_llm_client: Optional[BaseLLMClient] = None,
+    base_llm_client: Optional[BaseLLMClient] = None,
+    max_context_size: int = 8000
 ) -> Tuple["MasterAgent", ManagerAgent, Dict[Path, "BaseAgent"]]:
     """
     Initialize a completely new project from an empty directory.
     
-    Three-phase process:
-    1. Product Understanding: Master agent asks clarifying questions
-    2. Structure Stage: Master creates directory/file structure  
-    3. Agent Creation & Implementation: Create agents and implement project
+    Three-phase process with human approval gates:
+    1. Product Understanding: Master agent asks clarifying questions until human approves
+    2. Structure Stage: Master creates directory/file structure until human approves  
+    3. Agent Creation & Implementation: Create agents and implement project until human approves
     
     Args:
         root_directory: Empty root directory for the project
         initial_prompt: User's initial project request
         human_interface_fn: Async function to query human for responses
         language: Programming language for the project
-        llm_client: LLM client for agents
+        master_llm_client: LLM client for master agent
+        base_llm_client: LLM client for other agents
         max_context_size: Max context size for agents
-        phase1_iterations: Number of clarification rounds in phase 1
         
     Returns:
         (master_agent, root_manager, agent_lookup): The master agent, root manager, and all agents
@@ -387,20 +387,34 @@ async def initialize_new_project(
     scratch_pads_dir = root_path / "scratch_pads"
     scratch_pads_dir.mkdir(exist_ok=True)
     
-    # PHASE 1: Product Understanding
-    print(f"[Phase 1] Starting product understanding phase...")
+    # Create master agent
+    master_agent = MasterAgent(llm_client=master_llm_client, max_context_size=max_context_size)
     
-    # Create master agent with no children initially
-    master_agent = MasterAgent(llm_client=llm_client, max_context_size=max_context_size)
+    # Communication coordination between master_finisher and initializer
+    completion_event = asyncio.Event()
+    completion_data = {"message": None}
     
-    # Set human interface function
-    master_agent.set_human_interface_fn(human_interface_fn)
+    async def phase_communication_fn(completion_message: str) -> str:
+        """Receive completion from master and notify initializer."""
+        completion_data["message"] = completion_message
+        completion_event.set()
+        # Wait for initializer to process and provide response
+        response_event = asyncio.Event()
+        response_data = {"response": None}
+        completion_data["response_event"] = response_event
+        completion_data["response_data"] = response_data
+        await response_event.wait()
+        return response_data["response"]
+    
+    master_agent.set_human_interface_fn(phase_communication_fn)
     
     # Create and initialize documentation.md
     doc_path = root_path / "documentation.md"
     doc_path.write_text(f"# Project Documentation\n\nInitial Request: {initial_prompt}\n\n")
     
-    # Phase 1: First call with task setup
+    # PHASE 1: Product Understanding - Continue until human approves
+    print(f"[Phase 1] Starting product understanding phase...")
+    
     phase1_task = Task(
         task_id=f"phase1_{int(time.time())}",
         task_string=f"Phase 1: Product Understanding - Learn as much as possible about the human's requirements. Initial idea: {initial_prompt}"
@@ -415,33 +429,43 @@ async def initialize_new_project(
     )
     
     # First call with task and initial prompt
-    print(f"[Phase 1] Initial clarification round")
+    print(f"[Phase 1] Initial understanding session")
     await master_prompter(master_agent, initial_prompt, phase1_task_message)
     
-    # Wait for master to finish (indicating it used FINISH to ask questions)
-    while master_agent.stall or master_agent.prompt_queue:
-        await asyncio.sleep(0.1)
-    
-    # Subsequent iterations without new tasks (task is saved)
-    for i in range(1, phase1_iterations):
-        print(f"[Phase 1] Clarification round {i+1}/{phase1_iterations}")
-        continuation_prompt = "Continue product understanding. Ask any remaining clarifying questions about requirements, scope, technology preferences, or user needs. Use FINISH to engage the human, or if you have sufficient understanding, move to documenting your understanding."
+    # Phase 1 approval loop - wait for master to finish and handle approval
+    phase1_approved = False
+    while not phase1_approved:
+        # Wait for master to finish (FINISH directive calls phase_communication_fn)
+        await completion_event.wait()
+        completion_event.clear()
         
-        await master_prompter(master_agent, continuation_prompt, message=None)
+        # Get the completion message from master
+        completion_message = completion_data["message"]
+        print(f"[Phase 1] Master completed with: {completion_message}")
         
-        # Wait for master to finish
-        while master_agent.stall or master_agent.prompt_queue:
-            await asyncio.sleep(0.1)
+        # Check if human approves moving to phase 2
+        approval_response = await human_interface_fn("Type 'Approved' to move to Phase 2 (Structure Stage), or provide additional requirements/feedback:")
+        
+        if approval_response.strip().lower() == "approved":
+            phase1_approved = True
+            print(f"[Phase 1] Human approved - moving to Phase 2")
+            # Send approval response back to master
+            completion_data["response_data"]["response"] = "approved"
+            completion_data["response_event"].set()
+        else:
+            # Send human feedback back to master and continue phase
+            response_message = f"Additional feedback from human: {approval_response}. Continue product understanding and use FINISH when ready for approval."
+            completion_data["response_data"]["response"] = response_message
+            completion_data["response_event"].set()
     
-    print(f"[Phase 1] Product understanding phase complete.")
+    print(f"[Phase 1] Product understanding phase complete and approved.")
     
-    # PHASE 2: Structure Stage  
+    # PHASE 2: Structure Stage - Continue until human approves
     print(f"[Phase 2] Starting structure stage...")
     
-    # Phase 2: Task setup
     phase2_task = Task(
         task_id=f"phase2_{int(time.time())}",
-        task_string="Phase 2: Structure Stage - Create optimal project structure using mkdir and touch commands for this specific project"
+        task_string="Phase 2: Structure Stage - Create optimal project structure using RUN commands for this specific project"
     )
     
     phase2_task_message = TaskMessage(
@@ -452,7 +476,7 @@ async def initialize_new_project(
         task=phase2_task
     )
     
-    structure_prompt = """Proceed to structure stage. Use RUN commands with mkdir and touch to create an appropriate codebase structure for this project. 
+    structure_prompt = """Proceed to structure stage. Use RUN commands to create an appropriate codebase structure for this project. 
 
 CONSTRAINTS:
 - No folder should have more than 8 items (files + subdirectories)
@@ -470,23 +494,45 @@ When done, use FINISH to confirm structure creation is complete."""
     
     await master_prompter(master_agent, structure_prompt, phase2_task_message)
     
-    # Wait for master to finish structure creation
-    while master_agent.stall or master_agent.prompt_queue:
-        await asyncio.sleep(0.1)
+    # Phase 2 approval loop - wait for master to finish and handle approval
+    phase2_approved = False
+    while not phase2_approved:
+        # Wait for master to finish (FINISH directive calls phase_communication_fn)
+        await completion_event.wait()
+        completion_event.clear()
         
-    print(f"[Phase 2] Structure stage complete.")
+        # Get the completion message from master
+        completion_message = completion_data["message"]
+        print(f"[Phase 2] Master completed with: {completion_message}")
+        
+        # Check if human approves the structure
+        approval_response = await human_interface_fn("Type 'Approved' to approve the project structure and move to Phase 3 (Implementation), or provide feedback for structure changes:")
+        
+        if approval_response.strip().lower() == "approved":
+            phase2_approved = True
+            print(f"[Phase 2] Human approved - moving to Phase 3")
+            # Send approval response back to master
+            completion_data["response_data"]["response"] = "approved"
+            completion_data["response_event"].set()
+        else:
+            # Send human feedback back to master for structure refinement
+            response_message = f"Human feedback on structure: {approval_response}. Please refine the project structure accordingly using RUN commands and use FINISH when ready for approval."
+            completion_data["response_data"]["response"] = response_message
+            completion_data["response_event"].set()
+        
+    print(f"[Phase 2] Structure stage complete and approved.")
     
-    # PHASE 3: Agent Creation & Implementation
+    # PHASE 3: Agent Creation & Implementation - Continue until human approves
     print(f"[Phase 3] Creating agent hierarchy...")
     
-    # Create all agents by walking the created structure
+    # NOW create all agents by walking the created structure
     agent_lookup: Dict[Path, "BaseAgent"] = {}
     
     # Create root manager first
     root_manager = _build_manager(
         root_path,
         parent=None,  # Will be set to master later
-        llm_client=llm_client,
+        llm_client=base_llm_client,
         max_context_size=max_context_size,
         agent_lookup=agent_lookup,
     )
@@ -511,7 +557,6 @@ When done, use FINISH to confirm structure creation is complete."""
     # Now instruct master to implement the project
     print(f"[Phase 3] Starting project implementation...")
     
-    # Phase 3: Task setup
     phase3_task = Task(
         task_id=f"phase3_{int(time.time())}",
         task_string="Phase 3: Project Implementation - Orchestrate development through logical phases using delegation to root manager"
@@ -534,19 +579,37 @@ Break the work into logical phases:
 4. Integration and testing
 5. Final verification
 
-Use DELEGATE commands to assign work phases. Use WAIT between phases as needed. When the entire project is implemented and working, use FINISH to confirm completion."""
+Use DELEGATE commands to assign work phases. Use WAIT between phases as needed. When each phase is complete, use FINISH to report progress to the human."""
     
     await master_prompter(master_agent, implementation_prompt, phase3_task_message)
     
-    # Wait for master to complete implementation
-    print(f"[Phase 3] Waiting for implementation to complete...")
-    while (master_agent.stall or 
-           master_agent.prompt_queue or 
-           master_agent.child_active_boolean or 
-           master_agent.active_ephemeral_agents):
-        await asyncio.sleep(0.5)
+    # Phase 3 approval loop - wait for master to finish and handle approval
+    phase3_approved = False
+    while not phase3_approved:
+        # Wait for master to finish (FINISH directive calls phase_communication_fn)
+        await completion_event.wait()
+        completion_event.clear()
         
-    print(f"[Phase 3] Project implementation complete.")
+        # Get the completion message from master
+        completion_message = completion_data["message"]
+        print(f"[Phase 3] Master completed with: {completion_message}")
+        
+        # Check if human approves the current state or wants more work
+        approval_response = await human_interface_fn("Type 'Approved' to complete the project, or provide additional implementation requests:")
+        
+        if approval_response.strip().lower() == "approved":
+            phase3_approved = True
+            print(f"[Phase 3] Human approved - project complete")
+            # Send approval response back to master
+            completion_data["response_data"]["response"] = "approved"
+            completion_data["response_event"].set()
+        else:
+            # Send additional work request to master
+            response_message = f"Additional implementation request from human: {approval_response}. Please delegate this work to your root manager agent and use FINISH when ready for approval."
+            completion_data["response_data"]["response"] = response_message
+            completion_data["response_event"].set()
+        
+    print(f"[Phase 3] Project implementation complete and approved.")
     
     # Clean up READMEs as requested
     print(f"[Cleanup] Removing README files...")
