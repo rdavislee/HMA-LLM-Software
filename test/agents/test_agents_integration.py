@@ -9,10 +9,10 @@ import inspect
 from src import set_root_dir
 from src.agents.coder_agent import CoderAgent
 from src.agents.manager_agent import ManagerAgent
-from src.coder_language.parser import parse_directive as parse_coder
-from src.coder_language.interpreter import CoderLanguageInterpreter
-from src.manager_language.parser import parse_directive as parse_manager
-from src.manager_language.interpreter import ManagerLanguageInterpreter
+from src.languages.coder_language.parser import parse_directive as parse_coder
+from src.languages.coder_language.interpreter import CoderLanguageInterpreter
+from src.languages.manager_language.parser import parse_directive as parse_manager
+from src.languages.manager_language.interpreter import ManagerLanguageInterpreter
 
 
 class DummyLLM:
@@ -186,7 +186,7 @@ def test_manager_delete_missing_fails(coder_agent, workspace):
 def test_manager_deactivate_with_children_error(coder_agent):
     from src.messages.protocol import Task, TaskMessage, MessageType
     task = Task(task_id='t', task_string='do')
-    tm = TaskMessage(message_type=MessageType.DELEGATION, sender_id='p', recipient_id='m', message_id='mid', task=task)
+    tm = TaskMessage(message_type=MessageType.DELEGATION, sender='p', recipient=coder_agent, message_id='mid', task=task)
     coder_agent.activate(tm)
     # Inject fake parent with children attribute
     class DummyParent:
@@ -212,7 +212,7 @@ def test_base_agent_activation_deactivation(coder_agent):
     """activate + deactivate workflow without children."""
     from src.messages.protocol import Task, TaskMessage, MessageType
     task = Task(task_id="1", task_string="demo")
-    msg = TaskMessage(message_type=MessageType.DELEGATION, sender_id="p", recipient_id="c", message_id="m", task=task)
+    msg = TaskMessage(message_type=MessageType.DELEGATION, sender="p", recipient=coder_agent, message_id="m", task=task)
 
     coder_agent.activate(msg)
     assert coder_agent.is_active

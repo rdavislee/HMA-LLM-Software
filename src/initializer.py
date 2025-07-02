@@ -29,25 +29,20 @@ The function performs the following tasks:
 from pathlib import Path
 from typing import Dict, Tuple, Optional, List
 import subprocess  # NEW: for bootstrapping TypeScript deps
-from enum import Enum
+import shutil  # NEW: for cleaning up directories
 
 from src import set_root_dir, ROOT_DIR
 from src.agents.base_agent import BaseAgent
 from src.agents.manager_agent import ManagerAgent
 from src.agents.coder_agent import CoderAgent
 from src.llm.base import BaseLLMClient
+from src.config import Language, set_global_language
 
-__all__ = ["initialize_agents"]
+__all__ = ["initialize_agents", "cleanup_project"]
 
 
 IGNORED_DIR_NAMES = {".git", "__pycache__", ".mypy_cache", ".pytest_cache"}
 IGNORED_FILE_NAMES = {"__init__.py"}  # can be extended
-
-
-class Language(Enum):
-    """Programming language environments supported by the workspace initializer."""
-    TYPESCRIPT = "typescript"
-    # Future: PYTHON = "python"
 
 
 def _ensure_readme(dir_path: Path) -> Path:
@@ -179,10 +174,18 @@ def initialize_agents(
 
     # Set global ROOT_DIR so that all future agents refer to correct path.
     set_root_dir(str(root_path))
+    
+    # Set global language so that all agents use the correct language settings
+    set_global_language(language)
 
     # Bootstrap language-specific tooling *before* walking the tree so that child
     # agents know binaries exist.
     _bootstrap_language_environment(language)
+
+    # Create scratch_pads directory for tester agents
+    scratch_pads_dir = root_path / "scratch_pads"
+    scratch_pads_dir.mkdir(exist_ok=True)
+    print(f"[Initializer] Created scratch_pads directory: {scratch_pads_dir}")
 
     # Maintain lookup so that callers can easily retrieve a particular agent if necessary.
     agent_lookup: Dict[Path, "BaseAgent"] = {}
@@ -196,6 +199,25 @@ def initialize_agents(
     )
 
     return root_manager, agent_lookup
+
+
+def cleanup_project(root_directory: str | Path) -> None:
+    """Clean up project resources including the scratch_pads directory.
+    
+    Parameters
+    ----------
+    root_directory:
+        Path to the project root that contains the scratch_pads directory.
+    """
+    root_path = Path(root_directory).resolve()
+    scratch_pads_dir = root_path / "scratch_pads"
+    
+    if scratch_pads_dir.exists():
+        try:
+            shutil.rmtree(scratch_pads_dir)
+            print(f"[Initializer] Cleaned up scratch_pads directory: {scratch_pads_dir}")
+        except Exception as e:
+            print(f"[Initializer] Warning: Failed to cleanup scratch_pads directory: {e}")
 
 
 # ---------------------------------------------------------------------------
@@ -215,8 +237,8 @@ async def _async_execute_root_prompt(root_agent: ManagerAgent, prompt: str) -> s
     task = Task(task_id=str(uuid.uuid4()), task_string=prompt)
     task_message = TaskMessage(
         message_type=MessageType.DELEGATION,
-        sender_id="USER",
-        recipient_id=str(root_agent.path),
+        sender="USER",  # String for user, not agent object
+        recipient=root_agent,
         message_id=str(uuid.uuid4()),
         task=task,
     )
@@ -261,11 +283,15 @@ def initialize_and_run(
 
     Returns the root agent's textual response.
     """
-    root_agent, _ = initialize_agents(
-        root_directory,
-        language=language,
-        llm_client=llm_client,
-        max_context_size=max_context_size,
-    )
+    try:
+        root_agent, _ = initialize_agents(
+            root_directory,
+            language=language,
+            llm_client=llm_client,
+            max_context_size=max_context_size,
+        )
 
-    return execute_root_prompt(root_agent, initial_prompt) 
+        return execute_root_prompt(root_agent, initial_prompt)
+    finally:
+        # Always clean up scratch_pads directory when done
+        cleanup_project(root_directory) 

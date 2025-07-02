@@ -230,8 +230,10 @@ HMA-LLM-Software/
 ├── src/                    # Backend source code
 │   ├── agents/            # Agent implementations
 │   ├── llm/              # LLM provider integrations
-│   ├── manager_language/ # Manager agent DSL
-│   ├── coder_language/   # Coder agent DSL
+│   ├── languages/        # Agent communication languages
+│   │   ├── manager_language/ # Manager agent DSL
+│   │   ├── coder_language/   # Coder agent DSL
+│   │   └── tester_language/  # Tester agent DSL
 │   └── server.py         # Socket.IO server
 ├── frontend/              # React frontend
 │   ├── src/              # Frontend source

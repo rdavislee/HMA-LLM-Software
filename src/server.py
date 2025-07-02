@@ -217,8 +217,8 @@ class HMAServer:
         
         task_message = TaskMessage(
             message_type=MessageType.DELEGATION,
-            sender_id="user",
-            recipient_id=root_agent_id,
+            sender="user",  # String for user, not agent object
+            recipient=root_agent,
             message_id=str(uuid.uuid4()),
             task=task
         )
@@ -685,7 +685,7 @@ class HMAServer:
                     
             elif line.startswith('UPDATE_README'):
                 # Extract content
-                content_start = line.find('CONTENT_STRING="') + len('CONTENT_STRING="')
+                content_start = line.find('CONTENT="') + len('CONTENT="')
                 content_end = line.rfind('"')
                 if content_start < content_end:
                     content = line[content_start:content_end]

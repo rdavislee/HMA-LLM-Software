@@ -16,8 +16,8 @@ import pytest
 sys.path.insert(0, str(_P(__file__).parent.parent.parent))
 
 from src import set_root_dir  # noqa: E402
-from src.coder_language.interpreter import CoderLanguageInterpreter, execute_directive  # noqa: E402
-from src.coder_language.ast import (  # noqa: E402
+from src.languages.coder_language.interpreter import CoderLanguageInterpreter, execute_directive  # noqa: E402
+from src.languages.coder_language.ast import (  # noqa: E402
     ReadDirective,
     RunDirective,
     ChangeDirective,
@@ -72,9 +72,36 @@ def patch_async(monkeypatch):
     monkeypatch.setattr(
         "src.orchestrator.coder_prompter.coder_prompter", _fake_prompt, raising=False
     )
-    monkeypatch.setattr(
-        "asyncio.create_task", lambda coro: asyncio.get_event_loop().run_until_complete(coro)
-    )
+    
+    def sync_create_task(coro):
+        try:
+            loop = asyncio.get_running_loop()
+            # If loop is already running, create a new thread to run the coroutine
+            import concurrent.futures
+            
+            def run_in_thread():
+                new_loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(new_loop)
+                try:
+                    return new_loop.run_until_complete(coro)
+                finally:
+                    new_loop.close()
+                    asyncio.set_event_loop(None)
+            
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(run_in_thread)
+                return future.result()
+        except RuntimeError:
+            # No event loop running, create one and run the coroutine
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                return loop.run_until_complete(coro)
+            finally:
+                loop.close()
+                asyncio.set_event_loop(None)
+    
+    monkeypatch.setattr("asyncio.create_task", sync_create_task)
 
 
 # ---------------------- READ ----------------------

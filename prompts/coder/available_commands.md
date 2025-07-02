@@ -2,57 +2,36 @@
 
 **IMPORTANT: All terminal commands are executed from the root directory of the project, regardless of which file or folder the agent is responsible for.**
 
-## TypeScript Development Workflow
+## **TESTING RESTRICTIONS**
+**⚠️ CODER AGENTS MAY RUN ONE TEST DIRECTLY PER TASK ⚠️**
 
-### **CRITICAL: TypeScript projects require a two-step testing process:**
+- **ONE direct test execution allowed per task** - You may run `node tools/run-mocha.js` or `python -m pytest` ONCE before using tester agents
+- **After your first direct test run, ALL further testing must use tester agents** - Use `SPAWN tester` for all subsequent test runs, retests, or debugging
+- **Compilation is always allowed** - You can compile code as many times as needed, but only one direct test run is permitted
 
-#### Step 1: Compile TypeScript to JavaScript
-```bash
-node tools/compile-typescript.js
-```
-**This MUST be run first!** It compiles all `.ts` files in `src/` and `test/` to JavaScript in the `dist/` directory.
+**⚠️ COMPILE-FIX/TEST-FIX LOOP PREVENTION:**
+- **After 1 failed direct test or compile attempt**: MANDATORY tester spawn for error analysis or retesting
+- **NO repeated direct test or compilation attempts** without tester guidance
+- **Example**: `SPAWN tester PROMPT="Analyze test failures in [file] - identify missing dependencies"`
 
-#### Step 2: Run Tests on Compiled JavaScript  
-```bash
-node tools/run-mocha.js
-```
-**Only run this AFTER compilation!** This runs tests on the compiled `.js` files in `dist/test/`.
+**For testing, you MUST:**
+1. You may run ONE direct test (e.g., `node tools/run-mocha.js` or `python -m pytest`) per task
+2. After that, use `SPAWN tester PROMPT="Test [specific file or broad scope]"` for all further testing
+3. `WAIT` for tester results
+4. Use their findings to guide your implementation
 
-### **Complete Testing Workflow Example:**
-```bash
-# 1. First, always compile TypeScript
-node tools/compile-typescript.js
+**For compilation or test errors, you MUST:**
+1. First attempt: Fix obvious syntax/import errors only
+2. After any failure: `SPAWN tester PROMPT="Analyze compilation or test errors in [file] - identify missing dependencies"`
+3. `WAIT` and follow tester guidance - NO GUESSING
 
-# 2. Then run the tests  
-node tools/run-mocha.js
+## Compilation and Diagnostics
+- `node tools/check-typescript.js` - Check TypeScript errors without compiling (diagnostics only)
+- `node tools/compile-typescript.js` - Compile TypeScript to JavaScript (compilation only, no testing)
 
-# 3. If tests fail, fix your TypeScript code and repeat steps 1-2
-```
-
-### **Troubleshooting Test Issues:**
-- **"Cannot find files matching pattern"** → You forgot to compile first! Run `node tools/compile-typescript.js`
-- **"Module not found"** → Check your import paths in TypeScript files
-- **"Syntax error"** → Check TypeScript compilation output for errors
-
-### **DO NOT use these unreliable approaches:**
-- ❌ `node tools/run-mocha.js test/**/*.test.ts` (TypeScript files directly)
-- ❌ `node tools/run-mocha.js --require ts-node/register test/**/*.test.ts` (Complex setup)
-- ❌ Running tests without compiling first
-
-### TypeScript Diagnostics (Debugging Errors)
-```bash
-node tools/check-typescript.js
-```
-**Use this when you see compilation errors!** This shows detailed TypeScript diagnostics (equivalent to IDE "red squiggles") without compiling. It helps identify:
-- Type errors and mismatches
-- Missing imports or exports
-- Syntax errors
-- Interface violations
-- Any other TypeScript issues
-
-### Other TypeScript Tools
-- `node tools/run-typescript.js src/myfile.ts`     # Run individual TypeScript files with ts-node
-- `node tools/run-tsx.js src/myfile.ts`           # Run individual TypeScript files with tsx (faster)
+## Code Analysis
+- `flake8 filename` - Python linting (specific file)
+- `mypy filename` - Python type checking (specific file)
 
 ## File Operations
 - `cat filename` - Display file contents (Linux/Mac) 
@@ -61,4 +40,8 @@ node tools/check-typescript.js
 - `tail -n 20 filename` - Show last 20 lines of file
 - `grep -n "pattern" filename` - Search for pattern with line numbers
 - `rg "pattern" path/` - Recursively search for pattern in files using ripgrep (rg)
-- `wc -l filename` - Count lines in file 
+- `wc -l filename` - Count lines in file
+
+## Other TypeScript Tools
+- `node tools/run-typescript.js src/myfile.ts` - Run individual TypeScript files with ts-node
+- `node tools/run-tsx.js src/myfile.ts` - Run individual TypeScript files with tsx (faster) 

@@ -197,7 +197,7 @@ python -m pytest -v
 python -m pytest test_manager_interpreter.py -v
 
 # Run with coverage reporting
-python -m pytest --cov=src.manager_language --cov-report=html
+python -m pytest --cov=src.languages.manager_language --cov-report=html
 ```
 
 ## Test Maintenance

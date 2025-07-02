@@ -2,52 +2,25 @@
 
 **IMPORTANT: All terminal commands are executed from the root directory of the project, regardless of which folder the agent is responsible for.**
 
-## TypeScript Development Workflow
+## **TESTING RESTRICTIONS**
+**⚠️ MANAGER AGENTS CANNOT RUN TESTS DIRECTLY ⚠️**
 
-### **CRITICAL: TypeScript projects require a two-step testing process:**
+- **NO direct test execution** - You cannot run `node tools/run-mocha.js` or `python -m pytest`
+- **Use tester agents instead** - All testing must be done via `SPAWN tester` commands
+- **Compilation only** - You can compile code but not execute tests
 
-#### Step 1: Compile TypeScript to JavaScript
-```bash
-node tools/compile-typescript.js
-```
-**This MUST be run first!** It compiles all `.ts` files in `src/` and `test/` to JavaScript in the `dist/` directory.
+**For testing, you MUST:**
+1. `SPAWN tester PROMPT="[Broad: Test all files in folder] OR [Specific: Test calculator.ts implementation]"`
+2. `WAIT` for tester results
+3. Use their findings to guide delegation to child agents
 
-#### Step 2: Run Tests on Compiled JavaScript  
-```bash
-node tools/run-mocha.js
-```
-**Only run this AFTER compilation!** This runs tests on the compiled `.js` files in `dist/test/`.
+## Compilation and Diagnostics
+- `node tools/check-typescript.js` - Check TypeScript errors without compiling (diagnostics only) 
+- `node tools/compile-typescript.js` - Compile TypeScript to JavaScript (compilation only, no testing)
 
-### **Complete Testing Workflow Example:**
-```bash
-# 1. First, always compile TypeScript
-node tools/compile-typescript.js
-
-# 2. Then run the tests  
-node tools/run-mocha.js
-
-# 3. If tests fail, delegate fixes to child agents and repeat steps 1-2
-```
-
-### **Troubleshooting Test Issues:**
-- **"Cannot find files matching pattern"** → You forgot to compile first! Run `node tools/compile-typescript.js`
-- **"Module not found"** → Delegate to child coder agent to check import paths
-- **"Syntax error"** → Check TypeScript compilation output for errors
-
-### **DO NOT use these unreliable approaches:**
-- ❌ `node tools/run-mocha.js test/**/*.test.ts` (TypeScript files directly)
-- ❌ `node tools/run-mocha.js --require ts-node/register test/**/*.test.ts` (Complex setup)
-- ❌ Running tests without compiling first
-
-### TypeScript Diagnostics (Debugging Errors)
-```bash
-node tools/check-typescript.js
-```
-**Use this when you see compilation errors!** This shows detailed TypeScript diagnostics (equivalent to IDE "red squiggles") without compiling. Perfect for diagnosing issues before delegating fixes to child agents.
-
-### Other TypeScript Tools
-- `node tools/run-typescript.js src/myfile.ts`     # Run individual TypeScript files with ts-node
-- `node tools/run-tsx.js src/myfile.ts`           # Run individual TypeScript files with tsx (faster)
+## Code Analysis
+- `flake8 path/` - Python linting for directory
+- `mypy path/` - Python type checking for directory
 
 ## File Operations
 - `cat filename` - Display file contents (Linux/Mac) 
@@ -58,4 +31,8 @@ node tools/check-typescript.js
 - `rg "pattern" path/` - Recursively search for pattern in files using ripgrep
 - `wc -l filename` - Count lines in file
 - `ls path/` - List directory contents (Linux/Mac)
-- `dir path/` - List directory contents (Windows) 
+- `dir path/` - List directory contents (Windows)
+
+## Other TypeScript Tools
+- `node tools/run-typescript.js src/myfile.ts` - Run individual TypeScript files with ts-node
+- `node tools/run-tsx.js src/myfile.ts` - Run individual TypeScript files with tsx (faster) 

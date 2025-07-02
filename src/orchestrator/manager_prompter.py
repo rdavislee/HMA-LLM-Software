@@ -7,7 +7,7 @@ from typing import Optional, Any, Dict, List
 from src.agents.manager_agent import ManagerAgent
 from src.agents.coder_agent import CoderAgent
 from src.messages.protocol import *
-from src.manager_language.ast import (
+from src.languages.manager_language.ast import (
     DelegateDirective, FinishDirective, ActionDirective, 
     WaitDirective, RunDirective, UpdateReadmeDirective
 )
@@ -57,17 +57,46 @@ async def manager_prompter(
         # 2. CHILD RESULT HANDLING PHASE
         if message is not None and isinstance(message, ResultMessage):
             # Identify which child sent the result
-            child_sender_id = message.sender_id
-            # Find the child agent that sent this result
-            for child in list(agent.active_children.keys()):
-                if str(child.path) == child_sender_id:
-                    # Remove child from agent's active_children list
-                    agent.receive_child_result(child, message.result)
-                    # Prepend child's name to the prompt
-                    from pathlib import Path
-                    child_name = Path(child_sender_id).name
-                    prompt = f"[{child_name}] {prompt}"
-                    break
+            child_sender = message.sender
+            
+            # Check if this is an ephemeral agent or a normal child
+            from src.agents.ephemeral_agent import EphemeralAgent
+            if isinstance(child_sender, EphemeralAgent):
+                # Handle ephemeral agent result - remove from tracking
+                agent.remove_ephemeral_agent(child_sender)
+                
+                # Ephemeral agents don't appear in active_children, so handle them separately
+                from pathlib import Path
+                child_name = f"ephemeral_{Path(str(child_sender.parent_path)).name}" if hasattr(child_sender, 'parent_path') else "ephemeral"
+                
+                # Include original task information from the result message
+                original_task = ""
+                if hasattr(message, 'task') and hasattr(message.task, 'task_string'):
+                    original_task = f" (Task: {message.task.task_string})"
+                elif hasattr(message, 'task') and isinstance(message.task, str):
+                    original_task = f" (Task: {message.task})"
+                    
+                prompt = f"[{child_name}{original_task}] {prompt}"
+            else:
+                # Handle normal child agent result
+                # Find the child agent that sent this result
+                for child in list(agent.active_children.keys()):
+                    if child == child_sender:
+                        # Remove child from agent's active_children list
+                        agent.receive_child_result(child, message.result)
+                        # Prepend child's name and original task to the prompt
+                        from pathlib import Path
+                        child_name = Path(str(child_sender.path)).name if hasattr(child_sender, 'path') else str(child_sender)
+                        
+                        # Include original task information from the result message
+                        original_task = ""
+                        if hasattr(message, 'task') and hasattr(message.task, 'task_string'):
+                            original_task = f" (Task: {message.task.task_string})"
+                        elif hasattr(message, 'task') and isinstance(message.task, str):
+                            original_task = f" (Task: {message.task})"
+                            
+                        prompt = f"[{child_name}{original_task}] {prompt}"
+                        break
         
         # 3. LLM RESPONSE PHASE
         # Add prompt to agent's prompt queue using agent.process_task(prompt)

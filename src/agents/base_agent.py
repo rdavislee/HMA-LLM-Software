@@ -29,6 +29,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Set, Tuple, Union
 from dataclasses import dataclass
+import threading
 
 # Local imports
 from src.messages.protocol import (
@@ -41,6 +42,7 @@ from src.config import COLLAPSED_DIR_NAMES
 # Global constants
 MAX_CONTEXT_DEPTH = 3
 DEFAULT_MAX_CONTEXT_SIZE = 8000
+AGENT_TIMEOUT_SECONDS = 600
 
 # ContextEntry ADT for prompt-response pairs
 @dataclass
@@ -105,8 +107,15 @@ class BaseAgent(ABC):
         # Task Tracking
         self.active_task = None
 
+        # Ephemeral Agent Tracking (for all agents)
+        self.active_ephemeral_agents = []
+
         # Set personal file based on agent type
         self._set_personal_file()
+
+        self.last_activity = time.time()
+        self._watchdog_task = None
+        self._watchdog_started = False
 
     def _set_personal_file(self) -> None:
         '''
@@ -163,6 +172,7 @@ class BaseAgent(ABC):
         self._set_personal_file()
         self.is_active = True
         self.active_task = task
+        self.update_activity()
 
     def deactivate(self) -> None:
         '''
@@ -178,6 +188,16 @@ class BaseAgent(ABC):
                 f"Cannot deactivate agent with active children: {list(self.active_children.keys())}"
             )
         
+        # Cancel watchdog if running
+        if hasattr(self, '_watchdog_task') and self._watchdog_task is not None:
+            try:
+                if not self._watchdog_task.done():
+                    self._watchdog_task.cancel()
+            except Exception:
+                pass
+            self._watchdog_task = None
+            self._watchdog_started = False
+        
         self.is_active = False
         self.active_task = None
         
@@ -186,14 +206,20 @@ class BaseAgent(ABC):
         self.context.clear()
         self.prompt_queue.clear()
         self.stall = False
+        self.update_activity()
+
+    def start_watchdog(self):
+        if not self._watchdog_started:
+            try:
+                loop = asyncio.get_running_loop()
+                self._watchdog_task = loop.create_task(self._watchdog_loop())
+                self._watchdog_started = True
+            except RuntimeError:
+                # No running loop, will try again later
+                pass
 
     async def process_task(self, prompt: str) -> None:
-        '''
-        Process a task by adding prompt to queue and calling API if not stalled.
-        
-        Args:
-            prompt: The prompt to process
-        '''
+        self.start_watchdog()
         self.prompt_queue.append(prompt)
         
         if not self.stall:
@@ -212,15 +238,39 @@ class BaseAgent(ABC):
                 error_msg = f"Exception during api_call: {e}"
                 # Avoid infinite recursion: only enqueue, let caller decide when to process
                 self.prompt_queue.append(error_msg)
+        self.update_activity()
 
     @abstractmethod
     async def api_call(self) -> None:
+        self.start_watchdog()
         '''
         Make an API call with current context and memory.
         This method must be implemented by subclasses to handle
         their specific Jinja templates and response processing.
         '''
         pass
+
+    def add_ephemeral_agent(self, ephemeral_agent) -> None:
+        '''
+        Add an ephemeral agent to the tracking list.
+        
+        Args:
+            ephemeral_agent: The ephemeral agent to track
+        '''
+        if ephemeral_agent not in self.active_ephemeral_agents:
+            self.active_ephemeral_agents.append(ephemeral_agent)
+        self.update_activity()
+
+    def remove_ephemeral_agent(self, ephemeral_agent) -> None:
+        '''
+        Remove an ephemeral agent from the tracking list.
+        
+        Args:
+            ephemeral_agent: The ephemeral agent to remove
+        '''
+        if ephemeral_agent in self.active_ephemeral_agents:
+            self.active_ephemeral_agents.remove(ephemeral_agent)
+        self.update_activity()
 
     def read_file(self, file_path: str) -> None:
         '''
@@ -233,6 +283,7 @@ class BaseAgent(ABC):
         full_path = Path(file_path).resolve()
         filename = full_path.name
         self.memory[filename] = full_path
+        self.update_activity()
 
     def _get_memory_contents(self) -> Dict[str, str]:
         '''
@@ -254,6 +305,7 @@ class BaseAgent(ABC):
             except Exception as e:
                 contents[filename] = f"[Error reading file: {str(e)}]"
         
+        self.update_activity()
         return contents
 
     def _get_codebase_structure_string(self) -> str:
@@ -285,6 +337,7 @@ class BaseAgent(ABC):
             lines.extend(tree(root))
         else:
             lines.append(f"└── {root.name}")
+        self.update_activity()
         return "\n".join(lines)
 
     def get_status(self) -> Dict[str, Any]:
@@ -298,6 +351,7 @@ class BaseAgent(ABC):
                 - Memory and context usage
                 - Queue and stall state
         '''
+        self.update_activity()
         return {
             'agent_type': 'manager' if self.is_manager else 'coder',
             'path': str(self.scope_path),
@@ -309,6 +363,7 @@ class BaseAgent(ABC):
             'prompt_queue_size': len(self.prompt_queue),
             'stall': self.stall,
             'active_children': getattr(self, 'active_children', {}).__len__() if hasattr(self, 'active_children') else 0,
+            'active_ephemeral_agents': len(self.active_ephemeral_agents),
         }
     
     def __repr__(self) -> str:
@@ -320,3 +375,21 @@ class BaseAgent(ABC):
         '''
         agent_type = 'Manager' if self.is_manager else 'Coder'
         return f"{agent_type}Agent(path={self.scope_path}, active={self.is_active})"
+
+    def update_activity(self):
+        self.last_activity = time.time()
+
+    async def _watchdog_loop(self):
+        while True:
+            await asyncio.sleep(10)
+            if self.is_active and not getattr(self, 'active_children', {}) and not self.active_ephemeral_agents:
+                if time.time() - self.last_activity > AGENT_TIMEOUT_SECONDS:
+                    await self.handle_timeout()
+                    break
+
+    async def handle_timeout(self):
+        self.deactivate()
+        if self.parent:
+            await self.parent.process_task(
+                f"Agent timed out after {AGENT_TIMEOUT_SECONDS} seconds of inactivity with no active children or ephemeral agents."
+            )

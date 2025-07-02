@@ -246,14 +246,14 @@ class ManagerAgent(BaseAgent):
                 response = await self.llm_client.generate_response(formatted_prompt)
 
             # Save context (only store current prompt -> response)
-            print(f"Prompt and Response: {current_prompt} -> {response}")
+            action = response.split()[0] if response.strip() else "NO_ACTION"
+            print(f"[{self.path}] Prompt: {current_prompt} | Output: {response}")
             self.context.append(ContextEntry(prompt=current_prompt, response=response))
 
             # Clear prompt queue
             self.prompt_queue.clear()
 
-            # Process response via manager language interpreter
-            from src.manager_language.interpreter import execute_directive
-            execute_directive(response, agent=self)
-        
+                    # Process response via manager language interpreter
+        from src.languages.manager_language.interpreter import execute_directive
+        execute_directive(response, agent=self)
         

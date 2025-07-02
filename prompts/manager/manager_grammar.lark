@@ -5,21 +5,25 @@
 COMMENT: /\/\/.*/
 
 // Directives
-directive: delegate | finish | action | wait | run | update_readme
+directive: delegate | spawn | finish | action | wait | run | update_readme
 
 // Delegate directive
 delegate: "DELEGATE" delegate_item ("," delegate_item)*
 delegate_item: target prompt_field
+
+// Spawn directive
+spawn: "SPAWN" spawn_item ("," spawn_item)*
+spawn_item: ephemeral_type prompt_field
 
 // Finish directive  
 finish: "FINISH" prompt_field
 
 // Action directive
 action: action_type target ("," target)*
-action_type: READ
+action_type: CREATE | DELETE | READ
 
 // Update readme directive
-update_readme: "UPDATE_README" content_string
+update_readme: "UPDATE_README" "CONTENT" "=" string
 
 // Run directive
 run: RUN command
@@ -31,6 +35,9 @@ wait: "WAIT"
 target: "file" filename   -> file
       | "folder" filename -> folder
 
+// Ephemeral types
+ephemeral_type: TESTER
+
 // Filename is a quoted string
 filename: string
 
@@ -40,17 +47,19 @@ command: string
 // Prompt field
 prompt_field: "PROMPT" "=" string
 
-// File content field (completely replaces current file contents)
-content_string: "CONTENT_STRING" "=" string
-
 // String literals as a terminal (preserve whitespace and escapes)
 string: STRING
 STRING: /"(\\.|[^\\"])*"/
 
 // Action type tokens
+CREATE: "CREATE"
+DELETE: "DELETE"
 READ: "READ"
 UPDATE_README: "UPDATE_README"
 RUN: "RUN"
+
+// Ephemeral type tokens
+TESTER: "tester"
 
 // Ignore whitespace and comments
 %import common.WS
