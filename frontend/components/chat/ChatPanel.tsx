@@ -55,7 +55,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onNewChat, settings }) => {
     try {
       websocketService.connect();
     } catch (error) {
-      console.error('WebSocket initialization failed:', error);
       setError('Failed to initialize WebSocket connection');
       setConnectionStatus('disconnected');
     }
@@ -64,7 +63,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onNewChat, settings }) => {
     websocketService.on('connected', () => {
       setConnectionStatus('connected');
       setError(null);
-      console.log('ChatPanel: Connected to server');
     });
 
     websocketService.on('disconnected', () => {
@@ -188,7 +186,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onNewChat, settings }) => {
       try {
         websocketService.sendPrompt(inputValue);
               } catch (error) {
-          console.error('Failed to send message:', error);
           setError('Failed to send message');
           setIsLoading(false);
         }
@@ -217,11 +214,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onNewChat, settings }) => {
     // Send new chat request to server to get welcome message
     websocketService.newChat();
     
-    console.log('Starting new chat...');
-  };
-
-  const handleHistoryClick = () => {
-    console.log('Opening chat history...');
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -260,13 +252,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onNewChat, settings }) => {
             <span className={`text-xs ${getConnectionStatusColor()}`}>
               {getConnectionStatusText()}
             </span>
-            <button
-              onClick={handleHistoryClick}
-              className="p-2 rounded-lg hover:bg-yellow-400/10 transition-colors group"
-              title="Chat History"
-            >
-              <History className="w-4 h-4 text-gray-400 group-hover:text-yellow-400" />
-            </button>
             <button
               onClick={handleNewChat}
               className="flex items-center gap-2 px-3 py-1.5 bg-yellow-400 hover:bg-yellow-300 text-black rounded-lg transition-colors text-sm font-medium"

@@ -7,11 +7,10 @@ import websocketService, { TerminalSession, TerminalData } from '../../src/servi
 import '@xterm/xterm/css/xterm.css';
 
 interface TerminalProps {
-  onFileTreeUpdate?: () => void;
   projectId?: string;
 }
 
-const InteractiveTerminal: React.FC<TerminalProps> = ({ onFileTreeUpdate: _, projectId }) => {
+const InteractiveTerminal: React.FC<TerminalProps> = ({ projectId }) => {
   const [isMinimized, setIsMinimized] = useState(false);
   const [terminalSession, setTerminalSession] = useState<TerminalSession | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -89,7 +88,6 @@ const InteractiveTerminal: React.FC<TerminalProps> = ({ onFileTreeUpdate: _, pro
       try {
         fitAddon.fit();
       } catch (err) {
-        console.warn('Failed to fit terminal:', err);
       }
     }, 100);
 
@@ -120,7 +118,6 @@ const InteractiveTerminal: React.FC<TerminalProps> = ({ onFileTreeUpdate: _, pro
     } catch (err) {
       setError('Failed to create terminal session');
       setIsConnecting(false);
-      console.error('Terminal session error:', err);
     }
   }, [projectId, isConnecting]);
 
@@ -214,7 +211,6 @@ const InteractiveTerminal: React.FC<TerminalProps> = ({ onFileTreeUpdate: _, pro
           try {
             fitAddonRef.current?.fit();
           } catch (err) {
-            console.warn('Failed to fit terminal on resize:', err);
           }
         }, 100);
       }
@@ -231,7 +227,6 @@ const InteractiveTerminal: React.FC<TerminalProps> = ({ onFileTreeUpdate: _, pro
         try {
           fitAddonRef.current?.fit();
         } catch (err) {
-          console.warn('Failed to fit terminal:', err);
         }
       }, 100);
     }
@@ -302,13 +297,6 @@ const InteractiveTerminal: React.FC<TerminalProps> = ({ onFileTreeUpdate: _, pro
             title="Minimize"
           >
             <Minus className="w-3 h-3 text-gray-400" />
-          </button>
-          
-          <button 
-            className="w-6 h-6 rounded hover:bg-yellow-400/20 flex items-center justify-center transition-colors"
-            title="Maximize"
-          >
-            <Square className="w-3 h-3 text-gray-400" />
           </button>
           
           <button 

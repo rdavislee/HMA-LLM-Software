@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { ChevronRight, ChevronDown, File, Folder, FolderOpen, Code, FileText, Image, Loader2 } from 'lucide-react';
 import websocketService, { AgentUpdate } from '../../src/services/websocket';
 
@@ -24,10 +24,52 @@ interface FileTreeProps {
   projectFiles?: FileNode[];
 }
 
+const getFileIcon = (fileName: string) => {
+  const extension = fileName.split('.').pop()?.toLowerCase();
+  
+  switch (extension) {
+    case 'js':
+    case 'jsx':
+    case 'ts':
+    case 'tsx':
+      return <Code className="w-4 h-4 text-yellow-400" />;
+    case 'json':
+    case 'md':
+    case 'txt':
+      return <FileText className="w-4 h-4 text-blue-400" />;
+    case 'png':
+    case 'jpg':
+    case 'jpeg':
+    case 'gif':
+    case 'svg':
+      return <Image className="w-4 h-4 text-green-400" />;
+    case 'css':
+    case 'scss':
+    case 'sass':
+      return <FileText className="w-4 h-4 text-pink-400" />;
+    case 'html':
+      return <FileText className="w-4 h-4 text-orange-400" />;
+    default:
+      return <File className="w-4 h-4 text-gray-400" />;
+  }
+};
+
 const FileTree: React.FC<FileTreeProps> = ({ onFileSelect, importedFiles = [], projectFiles = [] }) => {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [activeAgents, setActiveAgents] = useState<Map<string, AgentUpdate>>(new Map());
+
+  const activeAgentPaths = useMemo(() => {
+    const paths = new Set<string>();
+    for (const [agentId, agent] of activeAgents) {
+      if (agent.status === 'active') {
+        // This is still a guess. A better implementation would have a defined way
+        // to get a file path from an agent update.
+        paths.add(agentId); 
+      }
+    }
+    return paths;
+  }, [activeAgents]);
 
   // Listen for agent updates
   useEffect(() => {
@@ -69,41 +111,11 @@ const FileTree: React.FC<FileTreeProps> = ({ onFileSelect, importedFiles = [], p
     }
   };
 
-  const getFileIcon = (fileName: string) => {
-    const extension = fileName.split('.').pop()?.toLowerCase();
-    
-    switch (extension) {
-      case 'js':
-      case 'jsx':
-      case 'ts':
-      case 'tsx':
-        return <Code className="w-4 h-4 text-yellow-400" />;
-      case 'json':
-      case 'md':
-      case 'txt':
-        return <FileText className="w-4 h-4 text-blue-400" />;
-      case 'png':
-      case 'jpg':
-      case 'jpeg':
-      case 'gif':
-      case 'svg':
-        return <Image className="w-4 h-4 text-green-400" />;
-      case 'css':
-      case 'scss':
-      case 'sass':
-        return <FileText className="w-4 h-4 text-pink-400" />;
-      case 'html':
-        return <FileText className="w-4 h-4 text-orange-400" />;
-      default:
-        return <File className="w-4 h-4 text-gray-400" />;
-    }
-  };
-
   const isAgentActive = (path: string): boolean => {
     // Check if any agent is working on this file or directory
-    for (const [agentId, agent] of activeAgents) {
-      if (agentId.includes(path) || path.includes(agentId)) {
-        return agent.status === 'active';
+    for (const agentPath of activeAgentPaths) {
+      if (agentPath.includes(path) || path.includes(agentPath)) {
+        return true;
       }
     }
     return false;

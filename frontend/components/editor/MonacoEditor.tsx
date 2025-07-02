@@ -22,6 +22,30 @@ interface MonacoEditorProps {
   projectId?: string;
 }
 
+const languageMap: { [key: string]: string } = {
+  'js': 'javascript',
+  'jsx': 'javascript',
+  'ts': 'typescript',
+  'tsx': 'typescript',
+  'html': 'html',
+  'css': 'css',
+  'scss': 'scss',
+  'json': 'json',
+  'md': 'markdown',
+  'py': 'python',
+  'java': 'java',
+  'cpp': 'cpp',
+  'c': 'c',
+  'h': 'cpp',
+  'php': 'php',
+  'rb': 'ruby',
+  'go': 'go',
+  'rs': 'rust',
+  'swift': 'swift',
+  'kt': 'kotlin',
+  'scala': 'scala'
+};
+
 const MonacoEditor: React.FC<MonacoEditorProps> = ({
   onClearCode,
   settings,
@@ -116,29 +140,6 @@ const MonacoEditor: React.FC<MonacoEditorProps> = ({
 
     // Determine language from file extension
     const extension = currentFileName.split('.').pop()?.toLowerCase();
-    const languageMap: { [key: string]: string } = {
-      'js': 'javascript',
-      'jsx': 'javascript',
-      'ts': 'typescript', 
-      'tsx': 'typescript',
-      'html': 'html',
-      'css': 'css',
-      'scss': 'scss',
-      'json': 'json',
-      'md': 'markdown',
-      'py': 'python',
-      'java': 'java',
-      'cpp': 'cpp',
-      'c': 'c',
-      'h': 'cpp',
-      'php': 'php',
-      'rb': 'ruby',
-      'go': 'go',
-      'rs': 'rust',
-      'swift': 'swift',
-      'kt': 'kotlin',
-      'scala': 'scala'
-    };
     const language = languageMap[extension || ''] || 'plaintext';
 
     // Create or update model
@@ -194,10 +195,6 @@ const MonacoEditor: React.FC<MonacoEditorProps> = ({
           () => null
         );
         
-        // Optionally show remote cursor
-        if (edit.cursor) {
-          // Could add decoration for remote cursor here
-        }
       } finally {
         setIsApplyingRemote(false);
       }
@@ -214,10 +211,6 @@ const MonacoEditor: React.FC<MonacoEditorProps> = ({
           model.setValue(sync.content);
         }
         
-        // Show remote cursors if any
-        if (sync.cursors) {
-          // Could add decorations for remote cursors here
-        }
       } finally {
         setIsApplyingRemote(false);
       }
@@ -255,7 +248,6 @@ const MonacoEditor: React.FC<MonacoEditorProps> = ({
       setCopySuccess(true);
       setTimeout(() => setCopySuccess(false), 2000);
     } catch (err) {
-      console.error('Failed to copy code:', err);
     }
   };
 

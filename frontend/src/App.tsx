@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Header from '../components/Header';
 import ChatPanel from '../components/chat/ChatPanel';
 import MonacoEditor from '../components/editor/MonacoEditor';
@@ -69,53 +69,111 @@ function App() {
     };
   });
 
-  // Set up WebSocket event listeners for real-time updates
+  /* ---------- File tree manipulation callbacks ---------- */
+
+  const createFile = useCallback((filePath: string, content: string) => {
+    const parts = filePath.split('/');
+    const fileName = parts.pop() || '';
+    setProjectFiles((prev: FileNode[]) => {
+      const newFiles = [...prev];
+      let current: any = { children: newFiles };
+      for (const part of parts) {
+        let found = current.children?.find((f: FileNode) => f.name === part && f.type === 'directory');
+        if (!found) {
+          found = { name: part, path: parts.slice(0, parts.indexOf(part) + 1).join('/'), type: 'directory', children: [] };
+          current.children.push(found);
+        }
+        current = found;
+      }
+      if (!current.children?.find((f: FileNode) => f.name === fileName)) {
+        current.children.push({ name: fileName, path: filePath, type: 'file', content });
+      }
+      return newFiles;
+    });
+  }, []);
+
+  const createFolder = useCallback((folderPath: string) => {
+    const parts = folderPath.split('/');
+    setProjectFiles((prev: FileNode[]) => {
+      const newFiles = [...prev];
+      let current: any = { children: newFiles };
+      for (const part of parts) {
+        let found = current.children?.find((f: FileNode) => f.name === part && f.type === 'directory');
+        if (!found) {
+          found = { name: part, path: parts.slice(0, parts.indexOf(part) + 1).join('/'), type: 'directory', children: [] };
+          current.children.push(found);
+        }
+        current = found;
+      }
+      return newFiles;
+    });
+  }, []);
+
+  const updateFileContent = useCallback((filePath: string, content: string) => {
+    setProjectFiles((prev: FileNode[]) => {
+      const mutate = (nodes: FileNode[]): FileNode[] => nodes.map(node => {
+        if (node.path === filePath && node.type === 'file') return { ...node, content };
+        if (node.children) return { ...node, children: mutate(node.children) };
+        return node;
+      });
+      return mutate(prev);
+    });
+
+    setCurrentFile(prev => (prev && prev.name === filePath ? { ...prev, content } : prev));
+  }, []);
+
+  const deleteFileOrFolder = useCallback((path: string) => {
+    setProjectFiles((prev: FileNode[]) => {
+      const filter = (nodes: FileNode[]): FileNode[] => nodes.filter(node => {
+        if (node.path === path) return false;
+        if (node.children) node.children = filter(node.children);
+        return true;
+      });
+      return filter(prev);
+    });
+    setCurrentFile(prev => (prev && prev.name === path ? null : prev));
+  }, []);
+
+  /* ---------- WebSocket setup effect ---------- */
+
   useEffect(() => {
-    // Initialize WebSocket connection
     websocketService.connect('ws://localhost:8080');
     
     // Handle code streaming
     websocketService.on('code_stream', (stream: CodeStream) => {
-      console.log('Code stream received:', stream);
-      
-      setStreamingContent(prev => {
-        const newMap = new Map(prev);
-        if (stream.isComplete) {
-          // Final content, update the file tree
-          updateFileContent(stream.filePath, stream.content);
+      if (stream.isComplete) {
+        updateFileContent(stream.filePath, stream.content);
+        setStreamingContent(prev => {
+          const newMap = new Map(prev);
           newMap.delete(stream.filePath);
-        } else {
-          // Accumulate streaming content
+          return newMap;
+        });
+      } else {
+        setStreamingContent(prev => {
+          const newMap = new Map(prev);
           const existing = newMap.get(stream.filePath) || '';
           newMap.set(stream.filePath, existing + stream.content);
-        }
-        return newMap;
-      });
+          return newMap;
+        });
+      }
 
       // If this is the currently selected file, update the editor
-      if (currentFile && stream.filePath === currentFile.name) {
-        const content = stream.isComplete 
-          ? stream.content 
-          : (streamingContent.get(stream.filePath) || '') + stream.content;
-        
-        setCurrentFile(prev => prev ? {
-          ...prev,
-          content: content
-        } : null);
-      }
+      setCurrentFile(prev => {
+        if (prev && prev.name === stream.filePath) {
+          const newContent = stream.isComplete 
+            ? stream.content 
+            : (prev.content || '') + stream.content;
+          return { ...prev, content: newContent };
+        }
+        return prev;
+      });
     });
 
     // Handle file tree updates
     websocketService.on('file_tree_update', (update: FileTreeUpdate) => {
-      console.log('File tree update:', update);
-      
       switch (update.action) {
         case 'create':
-          if (update.fileType === 'file') {
-            createFile(update.filePath, update.content || '');
-          } else {
-            createFolder(update.filePath);
-          }
+          update.fileType === 'file' ? createFile(update.filePath, update.content || '') : createFolder(update.filePath);
           break;
         case 'update':
           updateFileContent(update.filePath, update.content || '');
@@ -128,7 +186,6 @@ function App() {
 
     // Handle project status updates
     websocketService.on('project_status', (status: ProjectStatus) => {
-      console.log('Project status:', status);
       setProjectStatus(status);
       
       // Clear imported files when project becomes active (files have been processed)
@@ -155,116 +212,7 @@ function App() {
       websocketService.off('git_status');
       websocketService.disconnect();
     };
-  }, [currentFile, streamingContent]);
-
-  // File tree manipulation functions
-  const createFile = (filePath: string, content: string) => {
-    const parts = filePath.split('/');
-    const fileName = parts.pop() || '';
-    
-    setProjectFiles(prev => {
-      const newFiles = [...prev];
-      let current = { children: newFiles } as any;
-      
-      // Navigate to the parent directory
-      for (const part of parts) {
-        let found = current.children?.find((f: FileNode) => f.name === part && f.type === 'directory');
-        if (!found) {
-          // Create directory if it doesn't exist
-          found = {
-            name: part,
-            path: parts.slice(0, parts.indexOf(part) + 1).join('/'),
-            type: 'directory',
-            children: []
-          };
-          current.children.push(found);
-        }
-        current = found;
-      }
-      
-      // Add the file if it doesn't exist
-      if (!current.children?.find((f: FileNode) => f.name === fileName)) {
-        current.children.push({
-          name: fileName,
-          path: filePath,
-          type: 'file',
-          content: content
-        });
-      }
-      
-      return newFiles;
-    });
-  };
-
-  const createFolder = (folderPath: string) => {
-    const parts = folderPath.split('/');
-    
-    setProjectFiles(prev => {
-      const newFiles = [...prev];
-      let current = { children: newFiles } as any;
-      
-      for (const part of parts) {
-        let found = current.children?.find((f: FileNode) => f.name === part && f.type === 'directory');
-        if (!found) {
-          found = {
-            name: part,
-            path: parts.slice(0, parts.indexOf(part) + 1).join('/'),
-            type: 'directory',
-            children: []
-          };
-          current.children.push(found);
-        }
-        current = found;
-      }
-      
-      return newFiles;
-    });
-  };
-
-  const updateFileContent = (filePath: string, content: string) => {
-    setProjectFiles(prev => {
-      const updateNode = (nodes: FileNode[]): FileNode[] => {
-        return nodes.map(node => {
-          if (node.path === filePath && node.type === 'file') {
-            return { ...node, content };
-          } else if (node.children) {
-            return { ...node, children: updateNode(node.children) };
-          }
-          return node;
-        });
-      };
-      
-      return updateNode(prev);
-    });
-
-    // Update current file if it's the one being updated
-    if (currentFile && filePath === currentFile.name) {
-      setCurrentFile(prev => prev ? { ...prev, content } : null);
-    }
-  };
-
-  const deleteFileOrFolder = (path: string) => {
-    setProjectFiles(prev => {
-      const deleteFromNodes = (nodes: FileNode[]): FileNode[] => {
-        return nodes.filter(node => {
-          if (node.path === path) {
-            return false;
-          }
-          if (node.children) {
-            node.children = deleteFromNodes(node.children);
-          }
-          return true;
-        });
-      };
-      
-      return deleteFromNodes(prev);
-    });
-
-    // Clear current file if it was deleted
-    if (currentFile && path === currentFile.name) {
-      setCurrentFile(null);
-    }
-  };
+  }, [createFile, createFolder, updateFileContent, deleteFileOrFolder]);
 
   // Apply accent color changes
   useEffect(() => {
@@ -299,12 +247,10 @@ function App() {
   }, [settings.fontSize]);
 
   const handleImportClick = () => {
-    console.log('Importing project...');
     // Here you would typically open a file dialog or import modal
   };
 
   const handleProjectImport = (files: ImportedFile[]) => {
-    console.log('Project imported with files:', files);
     setImportedFiles(files);
     
     // Send to backend
@@ -357,7 +303,6 @@ function App() {
   };
 
   const handleClearProject = () => {
-    console.log('Clearing current project...');
     
     // Clear the code editor if the function is available
     if (clearCodeEditor) {
@@ -374,16 +319,13 @@ function App() {
     // Notify backend to clear project
     websocketService.clearProject();
     
-    console.log('Project cleared successfully');
   };
 
   const handleSaveFile = () => {
-    console.log('Saving file...');
     // Here you would typically save the current file
   };
 
   const handleToggleTerminal = () => {
-    console.log('Toggle terminal...');
     // Here you would typically toggle the terminal visibility
   };
 
@@ -401,12 +343,10 @@ function App() {
   };
 
   const handleOpenSettings = () => {
-    console.log('Opening settings...');
     // The settings modal is handled by the Header component
   };
 
   const handleCommandPalette = () => {
-    console.log('Opening command palette...');
     // Here you would typically open a command palette
   };
 
@@ -468,8 +408,8 @@ function App() {
     <div className="h-screen bg-black text-white flex flex-col overflow-hidden">
       {/* Header */}
       <Header 
-        onSettingsClick={() => console.log('Opening settings...')}
-        onProfileClick={() => console.log('Profile clicked')}
+        onSettingsClick={() => {}}
+        onProfileClick={() => {}}
         onImportClick={handleImportClick}
         onSettingsChange={handleSettingsChange}
         onProjectImport={handleProjectImport}
@@ -537,8 +477,6 @@ function App() {
                   {activeSidebarTab === 'files' && (
                     <FileTree 
                       onFileSelect={(filePath, content) => {
-                        console.log('App: File selected:', filePath);
-                        console.log('App: File content length:', content?.length || 0);
                         
                         if (content !== undefined) {
                           const fileName = filePath.split('/').pop() || 'Unknown';
@@ -553,9 +491,7 @@ function App() {
                           // Notify backend of file selection
                           websocketService.selectFile(filePath);
                           
-                          console.log('App: Set current file:', fileName, 'Language:', language);
                         } else {
-                          console.warn('App: No content provided for file:', filePath);
                         }
                       }}
                       importedFiles={importedFiles}
@@ -600,10 +536,6 @@ function App() {
             {/* Terminal */}
             <div className="flex-shrink-0">
               <InteractiveTerminal 
-                onFileTreeUpdate={() => {
-                  // This would trigger a file tree refresh
-                  console.log('File tree update triggered');
-                }}
                 projectId={projectStatus?.projectId || 'default'}
               />
             </div>
