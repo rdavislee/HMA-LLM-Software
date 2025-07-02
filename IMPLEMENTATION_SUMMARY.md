@@ -68,7 +68,7 @@ I've successfully transformed the HMA-LLM frontend into a **functional, clean, a
 
 2. **Start Frontend:**
    ```bash
-   cd new_frontend
+   cd frontend
    npm install
    npm run dev
    ```
@@ -122,7 +122,7 @@ Root Manager Agent
 - **Task Processing**: Asynchronous task execution with real-time updates
 - **Project Isolation**: Each client gets their own project directory
 
-### Frontend (`new_frontend/`):
+### Frontend (`frontend/`):
 - **React 19**: Modern React with hooks and functional components
 - **TypeScript**: Full type safety throughout the application
 - **Tailwind CSS**: Modern, responsive styling
