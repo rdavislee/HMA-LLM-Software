@@ -175,6 +175,12 @@ class BaseAgent(ABC):
             )
         # Set personal file and add to memory
         self._set_personal_file()
+        # Automatically add documentation.md from project root to memory if it exists
+        doc_path = getattr(src, 'ROOT_DIR', None)
+        if doc_path is not None:
+            doc_file = doc_path / "documentation.md"
+            if doc_file.exists():
+                self.read_file(str(doc_file))
         self.is_active = True
         self.active_task = task
         self.update_activity()

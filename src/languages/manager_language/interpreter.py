@@ -128,8 +128,6 @@ class ManagerLanguageInterpreter:
             # Track delegation in agent (call delegate_task)
             self.agent.delegate_task(child_agent, item.prompt.value)
 
-        # Queue completion message
-        self._queue_self_prompt("Delegate complete")
         return None
     
     def _execute_spawn(self, directive: SpawnDirective) -> None:
@@ -156,8 +154,6 @@ class ManagerLanguageInterpreter:
                 self._queue_self_prompt(f"SPAWN failed: Unknown ephemeral type: {ephemeral_type}")
                 return
 
-        # Queue completion message
-        self._queue_self_prompt("Spawn complete")
     
     def _execute_finish(self, directive: FinishDirective) -> None:
         """Execute a FINISH directive."""

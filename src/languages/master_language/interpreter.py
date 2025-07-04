@@ -106,8 +106,6 @@ class MasterLanguageInterpreter:
         # Update child active status
         self.agent.child_active_boolean = True
 
-        # Queue completion message
-        self._queue_self_prompt("Delegate complete")
 
     def _execute_spawn(self, directive: SpawnDirective) -> None:
         """Execute a SPAWN directive for ephemeral agents (same as manager)."""
@@ -195,50 +193,46 @@ class MasterLanguageInterpreter:
         """Execute a RUN directive (no file operation restrictions for master)."""
         command = directive.command
         
-        # Check if the command is in the allowed list
-        if any(command.strip().startswith(allowed) for allowed in ALLOWED_COMMANDS):
-            try:
-                # Use PowerShell explicitly on Windows
-                if os.name == 'nt':  # Windows
-                    # Use PowerShell instead of cmd.exe
-                    full_command = ['powershell.exe', '-Command', command]
-                    result_obj = subprocess.run(
-                        full_command,
-                        capture_output=True,
-                        text=True,
-                        cwd=self.root_dir,
-                        timeout=300
-                    )
+        try:
+            # Use PowerShell explicitly on Windows
+            if os.name == 'nt':  # Windows
+                # Use PowerShell instead of cmd.exe
+                full_command = ['powershell.exe', '-Command', command]
+                result_obj = subprocess.run(
+                    full_command,
+                    capture_output=True,
+                    text=True,
+                    cwd=self.root_dir,
+                    timeout=300
+                )
+            else:
+                # Unix/Linux - use shell=True
+                result_obj = subprocess.run(
+                    command,
+                    shell=True,
+                    capture_output=True,
+                    text=True,
+                    cwd=self.root_dir,
+                    timeout=300
+                )
+                
+            if result_obj.returncode == 0:
+                result = f"RUN succeeded: Output:\n{result_obj.stdout.strip()}" if result_obj.stdout.strip() else "RUN succeeded"
+            else:
+                output = result_obj.stdout.strip() if result_obj.stdout.strip() else ""
+                error = result_obj.stderr.strip() if result_obj.stderr.strip() else ""
+                if output and error:
+                    result = f"RUN failed: Output:\n{output}\nError:\n{error}"
+                elif output:
+                    result = f"RUN failed: Output:\n{output}"
+                elif error:
+                    result = f"RUN failed: Error:\n{error}"
                 else:
-                    # Unix/Linux - use shell=True
-                    result_obj = subprocess.run(
-                        command,
-                        shell=True,
-                        capture_output=True,
-                        text=True,
-                        cwd=self.root_dir,
-                        timeout=300
-                    )
-                    
-                if result_obj.returncode == 0:
-                    result = f"RUN succeeded: Output:\n{result_obj.stdout.strip()}" if result_obj.stdout.strip() else "RUN succeeded"
-                else:
-                    output = result_obj.stdout.strip() if result_obj.stdout.strip() else ""
-                    error = result_obj.stderr.strip() if result_obj.stderr.strip() else ""
-                    if output and error:
-                        result = f"RUN failed: Output:\n{output}\nError:\n{error}"
-                    elif output:
-                        result = f"RUN failed: Output:\n{output}"
-                    elif error:
-                        result = f"RUN failed: Error:\n{error}"
-                    else:
-                        result = f"RUN failed with return code {result_obj.returncode}"
-            except subprocess.TimeoutExpired:
-                result = f"RUN failed: Command timed out after 5 minutes: {command}"
-            except Exception as e:
-                result = f"Failed to execute command '{command}': {str(e)}"
-        else:
-            result = "Invalid command"
+                    result = f"RUN failed with return code {result_obj.returncode}"
+        except subprocess.TimeoutExpired:
+            result = f"RUN failed: Command timed out after 5 minutes: {command}"
+        except Exception as e:
+            result = f"Failed to execute command '{command}': {str(e)}"
         
         # Queue result
         if self.agent:

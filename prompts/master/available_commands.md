@@ -1,137 +1,161 @@
-# Available Commands for Master Agent
+Available Commands for Master Agent
+⚠️ ELEVATED PRIVILEGES WARNING ⚠️
+You have full system access - use responsibly. Always verify paths before destructive operations. Your setup in Phase 2 determines the success of all child agents.
+Phase-Based Command Access
 
-**IMPORTANT: Master agents have ELEVATED PERMISSIONS for system-level operations. You can create, modify, and delete files and directories throughout the project.**
+Phase 1: READ, UPDATE_DOCUMENTATION, FINISH only
+Phase 2: Full terminal access for environment setup
+Phase 3: DELEGATE becomes available for implementation
 
-## **TESTING VIA TESTER AGENTS ONLY**
-**⚠️ MASTER AGENTS CANNOT RUN TESTS DIRECTLY ⚠️**
+Language Environment Setup Examples
+TypeScript/Node.js Projects
+Initial Setup:
+powershell# Create project structure
+RUN "New-Item -ItemType Directory -Path src/components -Force"
+RUN "New-Item -ItemType Directory -Path src/services -Force"
+RUN "New-Item -ItemType Directory -Path src/types -Force"
 
-- **NO direct test execution** - You cannot run `node tools/run-mocha.js` or `python -m pytest`
-- **Use tester agents instead** - All testing must be done via `SPAWN tester` commands
-- **System-wide testing** - Spawn testers for comprehensive project verification
+# Initialize project
+RUN "npm init -y"
 
-**For testing, you MUST:**
-1. `SPAWN tester PROMPT="[System-wide: Test entire project] OR [Component: Test authentication system]"`
-2. `WAIT` for tester results
-3. Use their findings to guide delegation or structural decisions
+# Install TypeScript and build tools
+RUN "npm install --save-dev typescript @types/node ts-node tsx"
+RUN "npm install --save-dev jest @types/jest ts-jest"
+RUN "npm install --save-dev mocha chai @types/mocha @types/chai"
 
-## **FILE SYSTEM OPERATIONS (WINDOWS)**
+# Install common libraries
+RUN "npm install express @types/express"
+RUN "npm install react react-dom @types/react @types/react-dom"
 
-### Directory Operations
-- `mkdir dirname` – Create directory
-- `rmdir dirname` – Remove empty directory (fails if not empty)
+# Create TypeScript config
+RUN "Set-Content -Path tsconfig.json -Value '{\"compilerOptions\":{\"target\":\"ES2020\",\"module\":\"commonjs\",\"strict\":true,\"esModuleInterop\":true,\"skipLibCheck\":true,\"forceConsistentCasingInFileNames\":true,\"outDir\":\"./dist\",\"rootDir\":\"./src\"},\"include\":[\"src/**/*\"],\"exclude\":[\"node_modules\"]}'"
 
-### File Operations
-- `New-Item -ItemType File -Path filename` – Create empty file (PowerShell)
-- `ni filename -ItemType File` – Create empty file (PowerShell short alias)
-- `echo some text > filename` – Create file with content
-- `del filename` – Delete file
-- `copy srcFile destFile` – Copy file
-- `move srcFile destFile` – Move/rename file
+# Set up package.json scripts
+RUN "npm pkg set scripts.build=\"tsc\""
+RUN "npm pkg set scripts.test=\"jest\""
+RUN "npm pkg set scripts.dev=\"tsx watch src/index.ts\""
+Commands for Child Agents:
 
-### Package Management and Project Initialization
+Build: npm run build
+Test: npm test
+Run: node dist/index.js
 
-**NPM/Node.js:**
-- `npm init -y` - Initialize Node.js project with default settings
-- `npm install` - Install all dependencies from package.json
-- `npm install package-name` - Install and save a package
-- `npm install -D package-name` - Install as dev dependency
-- `npm run script-name` - Run npm script from package.json
-- `npm update` - Update all packages to latest versions
-- `npm ci` - Clean install from package-lock.json (faster, reproducible)
+Python Projects
+Initial Setup:
+powershell# Create project structure
+RUN "New-Item -ItemType Directory -Path src -Force"
+RUN "New-Item -ItemType Directory -Path tests -Force"
 
-## **COMPILATION AND DIAGNOSTICS**
-- `node tools/check-typescript.js` - Check TypeScript errors (diagnostics only)
-- `node tools/compile-typescript.js` - Compile TypeScript to JavaScript
+# Create virtual environment
+RUN "python -m venv venv"
+RUN ".\\venv\\Scripts\\activate"
 
-## **CODE ANALYSIS AND INSPECTION (WINDOWS)**
-- `type filename` – Display file contents
-- `dir path` – List directory contents
-- `find "pattern" filename` - Search for pattern in a file
+# Install testing and development tools
+RUN "pip install pytest pytest-cov pytest-mock"
+RUN "pip install flake8 black mypy"
+RUN "pip install setuptools wheel"
 
-## **DEVELOPMENT TOOLS**
-- `node tools/run-typescript.js src/file.ts` - Run individual TypeScript files
-- `node tools/run-tsx.js src/file.ts` - Run TypeScript files with tsx (faster)
-- `flake8 path/` - Python linting for directory
-- `mypy path/` - Python type checking for directory
+# Install common libraries
+RUN "pip install fastapi uvicorn"
+RUN "pip install requests pandas numpy"
+RUN "pip install sqlalchemy psycopg2"
 
-## **MASTER AGENT SPECIFIC COMMANDS**
+# Create requirements.txt
+RUN "pip freeze > requirements.txt"
 
-### **PHASE-BASED COMMAND RESTRICTIONS**
+# Create setup.py for package management
+RUN "Set-Content -Path setup.py -Value 'from setuptools import setup, find_packages\nsetup(name=\"project\", packages=find_packages())'"
+Commands for Child Agents:
 
-**⚠️ PHASE 1 & 2: NO DELEGATION ALLOWED ⚠️**
-- **Phase 1 (Product Understanding)**: Use `READ`, `UPDATE_DOCUMENTATION`, `FINISH` only
-- **Phase 2 (Structure Stage)**: Use file system commands (`mkdir`, `echo`) and `UPDATE_DOCUMENTATION`
-- **Phase 3 (Project Phases)**: Begin using `DELEGATE` to coordinate development
+Test: python -m pytest -v
+Lint: flake8 src/
+Type Check: mypy src/
+Run: python src/main.py
 
-**The DELEGATE command is ONLY available in Phase 3 after structure is created!**
+Java Projects
+Initial Setup:
+powershell# Create Maven project structure
+RUN "New-Item -ItemType Directory -Path src/main/java -Force"
+RUN "New-Item -ItemType Directory -Path src/test/java -Force"
+RUN "New-Item -ItemType Directory -Path src/main/resources -Force"
 
-### Project Structure Creation Examples
-```bash
-# Create a typical web application structure
-mkdir src/components
-mkdir src/services
-mkdir src/types
-mkdir src/utils
-mkdir test/components
-mkdir test/services
-mkdir test/integration
-mkdir config
-mkdir docs
-mkdir public
+# Create pom.xml for Maven
+RUN "Set-Content -Path pom.xml -Value '<?xml version=\"1.0\"?><project><modelVersion>4.0.0</modelVersion><groupId>com.example</groupId><artifactId>project</artifactId><version>1.0.0</version><properties><maven.compiler.source>11</maven.compiler.source><maven.compiler.target>11</maven.compiler.target></properties><dependencies><dependency><groupId>junit</groupId><artifactId>junit</artifactId><version>4.13.2</version><scope>test</scope></dependency></dependencies></project>'"
 
-# Create interface and implementation files
-New-Item -ItemType File -Path src/types/user.interface.ts
-New-Item -ItemType File -Path src/services/auth.ts
-New-Item -ItemType File -Path test/services/auth.test.ts
+# Or Gradle setup
+RUN "gradle init --type java-application"
 
-# Initialize development environment
-npm init -y
-echo {"compilerOptions": {"target": "ES2020"}} > tsconfig.json
-```
+# Install dependencies (Maven)
+RUN "mvn clean install"
 
-### Configuration File Creation (Windows PowerShell)
-```powershell
-# Create package.json with basic structure
-@'
-{
-  "name": "project-name",
-  "version": "1.0.0",
-  "scripts": {
-    "build": "tsc",
-    "test": "mocha"
-  }
-}
-'@  | Out-File -Encoding utf8 package.json
-```
+# Install dependencies (Gradle)
+RUN "gradle build"
+Commands for Child Agents:
 
-## **COMMAND USAGE PRINCIPLES**
+Build: mvn compile or gradle build
+Test: mvn test or gradle test
+Run: java -cp target/classes com.example.Main
 
-### Phase 1: Product Understanding
-- Use `READ` to understand existing documentation
-- Use `UPDATE_DOCUMENTATION` to maintain growing product understanding
-- Minimal file operations - focus on clarification
+Common Development Operations
+File Operations (PowerShell)
+powershell# Create files with content
+RUN "Set-Content -Path .gitignore -Value 'node_modules/\n*.log\n.env'"
+RUN "Set-Content -Path README.md -Value '# Project Name\n\n## Setup\n1. Install dependencies\n2. Run tests'"
 
-### Phase 2: Structure Stage
-- Heavy use of `mkdir` and `echo` to create project architecture
-- Create configuration files with `echo` and `>` redirection
-- Set up package management and build tools
-- Establish testing framework structure
+# Multi-line content
+RUN "@'\nline 1\nline 2\nline 3\n'@ | Set-Content -Path config.yaml"
 
-### Phase 3: Project Phases
-- Monitor with `SPAWN tester` for system verification
-- Use `READ` to verify delegation results
-- Update documentation with phase outcomes
-- Minimal direct file operations - delegate implementation work
+# Append to files
+RUN "Add-Content -Path .gitignore -Value '.vscode/'"
+Environment Configuration
+powershell# Create .env files
+RUN "Set-Content -Path .env.example -Value 'DATABASE_URL=\nAPI_KEY=\nPORT=3000'"
 
-## **SECURITY AND BEST PRACTICES**
+# Set up CI/CD configs
+RUN "New-Item -ItemType Directory -Path .github/workflows -Force"
+RUN "Set-Content -Path .github/workflows/test.yml -Value 'name: Tests\non: [push]\njobs:\n  test:\n    runs-on: ubuntu-latest'"
+Documentation Templates
+powershell# Create documentation structure
+RUN "New-Item -ItemType Directory -Path docs -Force"
+RUN "Set-Content -Path docs/API.md -Value '# API Documentation'"
+RUN "Set-Content -Path docs/ARCHITECTURE.md -Value '# Architecture Overview'"
 
-⚠️ **ELEVATED PRIVILEGES WARNING** ⚠️
-- You have full file system access - use responsibly
-- Always verify paths before using destructive commands (`del`)
-- Create project structures thoughtfully - they guide all future development
+# Update main documentation with environment details
+UPDATE_DOCUMENTATION CONTENT="## Environment Setup\n\n### Build\n`npm run build`\n\n### Test\n`npm test`\n\n### Development\n`npm run dev`"
+Phase 3 Final Verification
+At the end of Phase 3, before declaring the project complete, always verify correctness:
+TypeScript Projects
+powershell# Run full test suite
+RUN "npm run build"
+RUN "npm test"
 
-**Safe practices:**
-- Use `dir` to verify directory contents before deletion
-- Use `mkdir` to create directories.
-- Always create backup-friendly structures (avoid deeply nested single-use directories)
-- Follow established naming conventions for the technology stack 
+# Create and run a REPL verification file
+RUN "Set-Content -Path verify.ts -Value 'import { UserService } from \"./src/services/user.service\";\nimport { AuthService } from \"./src/services/auth.service\";\n\nconsole.log(\"Testing basic functionality...\");\nconst userService = new UserService();\nconst authService = new AuthService();\nconsole.log(\"Services initialized successfully!\");'"
+
+RUN "npx tsx verify.ts"
+Python Projects
+powershell# Run full test suite
+RUN "python -m pytest -v --cov=src"
+
+# Create and run a REPL verification file
+RUN "Set-Content -Path verify.py -Value 'from src.services.user_service import UserService\nfrom src.services.auth_service import AuthService\n\nprint(\"Testing basic functionality...\")\nuser_service = UserService()\nauth_service = AuthService()\nprint(\"Services initialized successfully!\")'"
+
+RUN "python verify.py"
+Java Projects
+powershell# Run full test suite
+RUN "mvn test"
+
+# Create and run verification
+RUN "Set-Content -Path Verify.java -Value 'public class Verify { public static void main(String[] args) { System.out.println(\"Testing basic functionality...\"); new UserService(); new AuthService(); System.out.println(\"Services initialized successfully!\"); } }'"
+
+RUN "javac -cp target/classes Verify.java"
+RUN "java -cp .:target/classes Verify"
+Best Practices
+
+Always document the commands that child agents will use in documentation.md
+Install all dependencies in Phase 2 - child agents cannot install packages
+Create helper scripts if commands are complex
+Test the environment before moving to Phase 3
+Use appropriate package managers for the chosen language
+Set up both testing and linting tools for code quality
+Always verify the project works at the end of Phase 3 before declaring completion

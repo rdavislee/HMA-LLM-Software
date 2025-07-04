@@ -184,6 +184,9 @@ class ManagerAgent(BaseAgent):
 
         children_display = [_rel_path(child.path) for child in self.children]
         active_children_display = [_rel_path(child.path) for child in self.active_children.keys()]
+        # --- BEGIN: Add ephemeral agents to active_children display ---
+        active_children_display += [f"ephemeral:{repr(agent)}" for agent in self.active_ephemeral_agents]
+        # --- END ---
 
         # Define available terminal commands and utilities
         try:

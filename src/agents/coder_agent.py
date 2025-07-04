@@ -38,17 +38,22 @@ class CoderAgent(BaseAgent):
             lstrip_blocks=True,
         )
 
-    def _truncate_command(self, prompt: str) -> str:
+    def _truncate_command(self, text: str, is_response: bool = False) -> str:
         """
-        Truncate CHANGE and REPLACE commands in context to prevent context window bloat.
-        Only keeps first 100 characters of these commands since the actual content 
-        is stored in memory files or can be determined from the command success messages.
+        Truncate long prompts and responses to prevent context window bloat.
+        - For prompts (is_response=False): truncate if starts with 'RUN succeeded' or 'RUN failed'.
+        - For responses (is_response=True): truncate if starts with 'CHANGE', 'REPLACE', or 'INSERT'.
+        Only keeps first 100 characters plus ellipsis if longer.
         """
-        stripped = prompt.strip()
-        if stripped.startswith('CHANGE') or stripped.startswith('REPLACE'):
-            if len(prompt) > 100:
-                return prompt[:100] + "..."
-        return prompt
+        stripped = text.strip()
+        if is_response:
+            truncate_prefixes = ['CHANGE', 'REPLACE', 'INSERT']
+        else:
+            truncate_prefixes = ['RUN succeeded', 'RUN failed']
+        if any(stripped.startswith(prefix) for prefix in truncate_prefixes):
+            if len(text) > 100:
+                return text[:100] + "..."
+        return text
 
     async def api_call(self) -> None:
         '''
@@ -122,6 +127,11 @@ class CoderAgent(BaseAgent):
                 else:
                     task_string = str(self.active_task)
 
+            # --- BEGIN: Add ephemeral agents to active_children display ---
+            # Display ephemeral agents as 'ephemeral:<repr>'
+            active_children_display = [f"ephemeral:{repr(agent)}" for agent in self.active_ephemeral_agents]
+            # --- END ---
+
             if self.llm_client.supports_system_role:
                 # Render split templates
                 system_template = self.jinja_env.get_template('system_template.j2')
@@ -144,7 +154,7 @@ class CoderAgent(BaseAgent):
                     current_prompt=current_prompt,
                     agent_path=personal_path_display,
                     children=[],
-                    active_children=[]
+                    active_children=active_children_display
                 )
 
                 messages = [
@@ -167,15 +177,16 @@ class CoderAgent(BaseAgent):
                     current_prompt=current_prompt,
                     agent_path=personal_path_display,
                     children=[],
-                    active_children=[]
+                    active_children=active_children_display
                 )
                 response = await self.llm_client.generate_response(formatted_prompt)
 
-            # Save context (truncate CHANGE commands to prevent context bloat)
+            # Save context (truncate CHANGE, REPLACE, INSERT responses and RUN succeeded/failed prompts)
             action = response.split()[0] if response.strip() else "NO_ACTION"
             print(f"[{self.path}] Prompt: {current_prompt} | Output: {response}")
-            truncated_prompt = self._truncate_command(current_prompt)
-            self.context.append(ContextEntry(prompt=truncated_prompt, response=response))
+            truncated_prompt = self._truncate_command(current_prompt, is_response=False)
+            truncated_response = self._truncate_command(response, is_response=True)
+            self.context.append(ContextEntry(prompt=truncated_prompt, response=truncated_response))
             
             # Clear prompt queue
             self.prompt_queue.clear()

@@ -277,8 +277,6 @@ class CoderLanguageInterpreter:
                 self._queue_self_prompt(f"SPAWN failed: Unknown ephemeral type: {ephemeral_type}")
                 return
 
-        # Queue completion message
-        self._queue_self_prompt("Spawn complete")
 
     def _execute_wait(self, directive: WaitDirective) -> None:
         """Execute a WAIT directive.

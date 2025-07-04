@@ -1,27 +1,29 @@
-# Module Manager
+# Calculator Project Root
 
-Directory Contents
+This is the root directory for the Calculator project, a hierarchical multi-agent system designed to build a robust calculator application.
 
-Files
+## Directory Contents
 
-calculator_README.md - [COMPLETE] This file, documenting the calculator project structure.
-interactive_calculator.ts - [IN PROGRESS] Main entry point for an interactive calculator application.
-package.json - [COMPLETE] Project dependencies and scripts.
-package-lock.json - [COMPLETE] Locked dependencies.
-tsconfig.json - [COMPLETE] TypeScript configuration.
+### Files
+
+calculator_README.md - [IN PROGRESS] Project overview and status.
 .mocharc.json - [COMPLETE] Mocha test runner configuration.
+interactive_calculator.ts - [NOT STARTED] Interactive command-line interface for the calculator.
+package-lock.json - [COMPLETE] Node.js dependency lock file.
+package.json - [COMPLETE] Node.js project metadata and dependencies.
+tsconfig.json - [COMPLETE] TypeScript compiler configuration.
 
-Subdirectories
+### Subdirectories
 
-src/ - [IN PROGRESS] Contains core source code for the calculator and related utilities.
-test/ - [IN PROGRESS] Contains unit and integration tests.
-tools/ - [COMPLETE] Utility scripts for compilation, testing, and other development tasks.
-dist/ - [IN PROGRESS] Compiled JavaScript output.
+.node_deps/ - [COMPLETE] Node.js dependency cache.
+dist/ - [NOT STARTED] Compiled JavaScript output.
 node_modules/ - [COMPLETE] Installed Node.js dependencies.
-.node_deps/ - [COMPLETE] Potentially custom Node.js dependencies or build artifacts.
-npm-packages/ - [NOT STARTED] Placeholder for future npm packages.
-scratch_pads/ - [NOT STARTED] Area for temporary code or experiments.
+npm-packages/ - [NOT STARTED] Placeholder for npm packages.
+scratch_pads/ - [NOT STARTED] Temporary development scratchpad area.
+src/ - [IN PROGRESS] Source code for the calculator modules.
+test/ - [IN PROGRESS] Test files for the calculator modules.
+tools/ - [COMPLETE] Development and build tools.
 
-Status
+## Status
 
-The project is structured with core calculator logic, parsing, and expression handling in `src/`. Tests are in `test/`. Compilation and testing tools are in `tools/`. The `interactive_calculator.ts` is the main application entry point, currently being set up for development.
+Initial project structure is set up. Core modules (expression, parser, utils) are present in source and test directories, but their implementation and testing status needs to be verified. The main 'calculator' module itself is not yet fully defined or implemented. The next steps will involve compiling the existing TypeScript, testing the current modules, and then defining and implementing the core calculator functionality.
