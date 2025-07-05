@@ -79,6 +79,16 @@ export interface ExpressionIntegrator {
     integrateIndefinite(expression: ExpressionNode, variable: string): IntegrationResult;
 
     /**
+     * Computes the symbolic indefinite integral of a given expression using u-substitution.
+     * @param expression The root node of the expression AST to integrate.
+     * @param variable The name of the variable with respect to which the integration is performed.
+     * @param uSub Optional. An object containing the 'u' expression and its derivative 'du' for u-substitution.
+     * @returns An IntegrationResult object.
+     * @throws {Error} If the integration rules for a specific node type are not implemented or u-substitution fails.
+     */
+    integrateIndefiniteUsub(expression: ExpressionNode, variable: string, uSub?: { u: ExpressionNode; du: ExpressionNode; }): IntegrationResult;
+
+    /**
      * Computes the definite integral of a given expression over a specified range.
      * @precondition `expression` is a valid Expression.
      * @precondition `variable` is a string representing the variable of integration.

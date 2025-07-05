@@ -1,171 +1,124 @@
-# Tester Language Examples
-
-## Reading Files for Investigation
-READ "README.md"
-READ "src/api/userController.ts"
-READ "test/userController.test.ts"
-READ "src/utils/validation.py"
-READ "config/database.json"
-
-## Running Diagnostic Commands
-
-### TypeScript Testing (Required Sequence)
-RUN "node tools/compile-typescript.js"
-RUN "node tools/run-mocha.js"
-
-### Specific Test Investigation
-RUN "node tools/check-typescript.js"
-RUN "node tools/run-mocha.js --grep 'authentication'"
-RUN "node tools/run-tsx.js scratch_pads/debug.ts"
-
-### Python Testing and Analysis
+Tester Language Examples
+Reading Files for Investigation
+READ "src/README.md"
+READ "src/calculator.ts"
+READ "test/calculator.test.ts"
+READ "documentation.md"
+READ "src/auth/user.py"
+READ "test/test_auth.py"
+Standard Testing Workflows (90% - NO Scratch Pad)
+TypeScript - All Tests Pass
+RUN "npm run build"
+RUN "npm test"
+FINISH PROMPT="All tests passing: 24/24 tests successful. Calculator module fully functional with arithmetic operations, error handling, and precision validation."
+TypeScript - Test Failures (Direct Report)
+RUN "npm run build"
+RUN "npm test"
+READ "test/calculator.test.ts"
+READ "src/calculator.ts"
+READ "documentation.md"
+FINISH PROMPT="3 test failures: (1) divide() returns Infinity but test expects Error for division by zero - fix implementation line 45; (2) multiply() precision test expects 1e-10 tolerance but docs specify 1e-8 - fix test assertion; (3) factorial() test exists but not in requirements - remove test."
+Python - Mixed Results
 RUN "python -m pytest -v"
-RUN "python -m pytest test/test_auth.py::test_login -v"
-RUN "python -m pytest --cov=src --cov-report=term"
+READ "test/test_auth.py"
+READ "src/auth.py"
+FINISH PROMPT="5/8 tests failing: (1-3) password validation tests expect min 8 chars but implementation checks 6 - fix implementation line 23; (4) login() test expects dict but function returns tuple - fix test line 45; (5) logout() test checks Redis clearing but Redis not in requirements - remove test."
+Java - Compilation Errors
+RUN "mvn compile"
+READ "src/main/java/UserService.java"
+FINISH PROMPT="Compilation failing: 2 errors. (1) UserService.java:15 - Cannot find symbol 'UserRepository', add import; (2) UserService.java:32 - incompatible types String cannot be converted to Long, change userId type to String in method signature."
+Specific Test Investigation
+Running Targeted Tests
+RUN "npm test -- --grep 'authentication'"
+RUN "python -m pytest test/test_user.py::test_login -v"
+RUN "mvn test -Dtest=CalculatorTest#testDivision"
+Code Quality Analysis
+RUN "npx eslint src/"
 RUN "flake8 src/"
 RUN "mypy src/"
+FINISH PROMPT="Code quality issues: 12 linting errors (unused imports, line length), 5 missing type annotations in auth.py, no docstrings in 3 public methods. No impact on test failures."
+Scratch Pad Usage (10% - ONLY When Explicitly Requested)
+TypeScript Deep Debug (Parent explicitly asked)
+// Parent: "Debug why parseExpression keeps failing on nested parentheses - I've tried 3 fixes"
+RUN "npm test -- --grep 'nested parentheses'"
+READ "src/parser.ts"
+READ "test/parser.test.ts"
 
-## Scratch Pad Debugging
+CHANGE CONTENT="// Debug nested parentheses - IMPORT ONLY\nimport { parseExpression } from '../src/parser';\n\nconst testCases = ['((2+3))', '((2+3)*4)', '(((1)))'];\nfor (const expr of testCases) {\n  console.log(`\\nParsing: ${expr}`);\n  try {\n    const result = parseExpression(expr);\n    console.log('Success:', JSON.stringify(result, null, 2));\n  } catch (e) {\n    console.log('Error:', e.message);\n    console.log('Stack:', e.stack);\n  }\n}"
 
-### ⚠️ CRITICAL: IMPORT ONLY - NEVER RECREATE CODE ⚠️
+RUN "npx tsx scratch_pads/debug_script.ts"
+FINISH PROMPT="Deep analysis: parseExpression fails because parenthesis depth counter decrements before recursive call returns. Fix: Move depth-- to after recursive parseExpression call on line 67. Currently decrements at line 65 causing premature depth=0."
+Python Deep Debug (Parent explicitly asked)
+// Parent: "Debug exact encoding issue in password hash - tried decode('utf-8') and decode('ascii')"
+RUN "python -m pytest test/test_auth.py::test_password_hash -v"
+READ "src/auth.py"
 
-**CORRECT - Simple Import and Call (Python)**
-CHANGE CONTENT = "# Debug authentication issue - IMPORT ONLY\nimport sys\nsys.path.append('../src')\nfrom auth import authenticate_user\n\n# Call the function with test inputs\nresult = authenticate_user('test@example.com', 'password')\nprint(f\"Auth result: {result}\")\nprint(f\"Type: {type(result)}\")\n"
+CHANGE CONTENT="# Debug encoding - IMPORT ONLY\nimport sys\nsys.path.insert(0, '../src')\nfrom auth import hash_password\n\npassword = 'test123'\nhashed = hash_password(password)\nprint(f'Type: {type(hashed)}')\nprint(f'Value: {hashed}')\nprint(f'Repr: {repr(hashed)}')\n\n# Test different encodings\nfor encoding in ['utf-8', 'ascii', 'latin-1']:\n    try:\n        decoded = hashed.decode(encoding)\n        print(f'{encoding}: Success - {decoded[:20]}...')\n    except Exception as e:\n        print(f'{encoding}: Failed - {e}')"
 
-**CORRECT - Simple Import and Call (TypeScript)**
-CHANGE CONTENT = "// Debug TypeScript issue - IMPORT ONLY\nimport { UserController } from '../src/api/userController';\n\n// Call the function with test inputs\nconst controller = new UserController();\ntry {\n    const result = controller.validateUser('test@example.com');\n    console.log('Validation result:', result);\n} catch (error) {\n    console.error('Validation error:', error);\n}\n"
-
-**ABSOLUTELY FORBIDDEN - DO NOT DO THIS:**
-```
-❌ CHANGE CONTENT = "// WRONG - Never copy implementations\nfunction validateUser(email: string) {\n    // 50 lines of copied implementation code...\n}\n// This violates protocol and wastes tokens\n"
-```
-
-**ABSOLUTELY FORBIDDEN - DO NOT DO THIS:**
-```
-❌ CHANGE CONTENT = "# WRONG - Never recreate functions\ndef authenticate_user(email, password):\n    # 30 lines of copied implementation...\n# This is code duplication and forbidden\n"
-```
-
-### Simple Isolation Testing (CORRECT)
-CHANGE CONTENT = "# Isolate specific function - IMPORT ONLY\nimport sys\nsys.path.append('../src')\nfrom utils import hash_password\n\n# Test with different inputs\ntest_cases = ['password123', '', None]\nfor password in test_cases:\n    try:\n        result = hash_password(password)\n        print(f\"Input: {password} -> Output: {type(result)} {result}\")\n    except Exception as e:\n        print(f\"Input: {password} -> Error: {e}\")\n"
-
-## Complete Diagnostic Workflows
-
-### Efficient Testing (All Tests Pass) - STANDARD
-RUN "node tools/compile-typescript.js"
-RUN "node tools/run-mocha.js"
-FINISH PROMPT = "All tests passing: 15 tests completed successfully. Calculator module fully functional with proper arithmetic operations, edge case handling, and error validation."
-
-### TypeScript Test Failure Investigation (STANDARD - Direct Reporting)
-RUN "node tools/compile-typescript.js"
-RUN "node tools/run-mocha.js"
-// Tests fail - investigate and report directly
-READ "test/calculator.test.ts"
-READ "src/calculator.ts"
-FINISH PROMPT = "Calculator precision issue: multiply() test failing. Expected 3e100 but got 3.0000000000000002e+100. Root cause: JavaScript floating point precision error. Fix: Use Number.parseFloat() or adjust test to use closeTo() with tolerance 1e+90. Location: src/calculator.ts line 45, test/calculator.test.ts line 23."
-
-### TypeScript Deep Debugging (RARE - Only when parent explicitly requests)
-// Parent says: "Debug the specific multiply precision issue - I've tried fixing it 3 times and can't figure out the exact tolerance needed"
-RUN "node tools/compile-typescript.js"
-RUN "node tools/run-mocha.js"
-READ "test/calculator.test.ts"
-READ "src/calculator.ts"
-CHANGE CONTENT = "// Debug calculator precision - IMPORT ONLY (Parent requested deep debugging)\nimport { Calculator } from '../src/calculator';\n\n// Call existing function with test inputs\nconst calc = new Calculator();\nconst result = calc.multiply(3e100, 1);\nconsole.log('Result:', result);\nconsole.log('Expected:', 3e100);\nconsole.log('Equal?:', result === 3e100);\nconsole.log('Difference:', Math.abs(result - 3e100));\n"
-RUN "node tools/run-tsx.js scratch_pads/debug_script.ts"
-FINISH PROMPT = "Deep analysis complete: multiply() returns 3.0000000000000002e+100 instead of 3e100. Exact difference is 2e85. For test fix: use expect(result).to.be.closeTo(3e100, 1e85) rather than exact equality."
-
-### Python Testing (STANDARD - Direct Reporting)
-RUN "python -m pytest test/test_auth.py -v"
-FINISH PROMPT = "All authentication tests passing: 8 tests completed successfully. Password hashing, validation, and user creation working correctly."
-
-### Python Authentication Failure (STANDARD - Direct Reporting)
-RUN "python -m pytest test/test_auth.py -v"
-// Tests fail - investigate and report directly
-READ "src/auth/user.py"
-READ "test/test_auth.py"
-FINISH PROMPT = "Password hashing test failing: hash_password() returns bytes but test expects string. Root cause: bcrypt.hashpw() returns bytes object. Fix: add .decode('utf-8') to hash_password() return statement at line 23. Also found: no validation for None/empty passwords at lines 18-20."
-
-### Python Deep Debugging (RARE - Only when parent explicitly requests)
-// Parent says: "Debug the exact byte encoding issue - I've tried different decode methods and they're not working"
-RUN "python -m pytest test/test_auth.py -v"
-READ "src/auth/user.py"
-READ "test/test_auth.py"
-CHANGE CONTENT = "# Debug password hashing - IMPORT ONLY (Parent requested deep debugging)\nimport sys\nsys.path.append('src')\nfrom auth.user import hash_password, verify_password\n\n# Call existing functions with test inputs\npassword = \"test123\"\nhashed = hash_password(password)\nprint(f\"Password: {password}\")\nprint(f\"Hashed: {hashed}\")\nprint(f\"Hash type: {type(hashed)}\")\nprint(f\"Hash repr: {repr(hashed)}\")\n\n# Test different decode methods\ntry:\n    decoded_utf8 = hashed.decode('utf-8')\n    print(f\"UTF-8 decode: {decoded_utf8}\")\nexcept Exception as e:\n    print(f\"UTF-8 decode failed: {e}\")\n\nverified = verify_password(password, hashed)\nprint(f\"Verification: {verified}\")\n"
-RUN "python scratch_pads/debug_script_scratch_0.py"
-FINISH PROMPT = "Deep analysis: hash_password() returns b'$2b$12$...' bytes. UTF-8 decode works fine. Issue is in line 23: return bcrypt.hashpw(...) should be return bcrypt.hashpw(...).decode('utf-8'). Test expects string comparison."
-
-### Code Quality Investigation (STANDARD - Direct Reporting)
-READ "src/api/"
-RUN "flake8 src/api/"
-RUN "mypy src/api/"
-RUN "python -m pytest test/test_api.py --cov=src.api --cov-report=term"
-FINISH PROMPT = "Code quality analysis: 15 linting errors in src/api/, mostly unused imports and line length. Type checking shows 3 missing type annotations. Test coverage at 78%. Missing tests for error handling in userController.py lines 45-52"
-
-### Import Error Investigation (STANDARD - Direct Reporting)
-READ "src/main.py"
-READ "test/test_main.py"
-RUN "python -m pytest test/test_main.py -v"
-FINISH PROMPT = "Import error: Missing __init__.py in src/utils/ directory. Python treats it as namespace package, breaking relative imports. Fix: Create empty src/utils/__init__.py file. Error occurs in test_main.py line 3: from src.utils import helper."
-
-### Multiple Issues (STANDARD - Recommend Parallel Testers)
-RUN "node tools/compile-typescript.js"
-RUN "node tools/run-mocha.js"
-// Many different tests failing across multiple domains
+RUN "python scratch_pads/debug_script.py"
+FINISH PROMPT="Encoding issue resolved: hash_password returns bytes but bcrypt already returns UTF-8 encoded bytes. Issue is test comparing bytes to string. Fix: Change test line 23 from assert result == '$2b$12$...' to assert result.startswith(b'$2b$12$'). No decode needed in implementation."
+Multiple Issue Scenarios
+Recommend Parallel Testers
+RUN "npm test"
 READ "test/userSystem.test.ts"
-READ "src/user/auth.ts"
-READ "src/user/validation.ts"  
-READ "src/user/database.ts"
-FINISH PROMPT = "Multiple unrelated failure types detected: 1) Authentication token parsing fails (auth.ts lines 23-45), 2) Email validation regex broken (validation.ts line 67), 3) Database connection timeout errors (database.ts line 89). These are 3 separate problem domains. RECOMMEND: Parent should spawn separate testers for 'Debug authentication token parsing', 'Debug email validation failures', and 'Debug database connection timeouts' for parallel investigation."
+READ "src/auth/login.ts"
+READ "src/validation/email.ts"
+READ "src/database/connection.ts"
+FINISH PROMPT="Found 3 unrelated failure domains: (1) 15 auth tests failing - JWT token malformed; (2) 8 validation tests failing - regex syntax error; (3) 12 database tests failing - connection timeout. Recommend spawning: 'Debug JWT token generation', 'Debug email regex validation', 'Debug database connection timeout'."
+Common Reporting Patterns
+Implementation Wrong
+READ "test/calculator.test.ts"
+READ "src/calculator.ts"
+FINISH PROMPT="Implementation error: sqrt() throws on negative input but test expects NaN. Fix calculator.ts line 78: replace throw new Error() with return NaN."
+Test Wrong
+READ "test/user.test.ts"
+READ "src/user.ts"
+READ "documentation.md"
+FINISH PROMPT="Test error: createUser() test expects immediate return but docs specify async operation. Fix test line 34: add await and change to expect(result).resolves.toHaveProperty('id')."
+Test Shouldn't Exist
+READ "test/advanced.test.ts"
+READ "documentation.md"
+FINISH PROMPT="Invalid tests: 5 tests for 'advanced mode' features not in requirements. Tests check matrix operations, calculus functions not documented. Remove entire 'Advanced Mathematics' describe block lines 145-289."
+Quick Success Patterns
+All Pass - TypeScript
+RUN "npm run build"
+RUN "npm test"
+FINISH PROMPT="All tests passing: 45/45 tests successful. User management system fully functional with CRUD operations, authentication, and role-based access control."
+All Pass - Python
+RUN "python -m pytest -v"
+FINISH PROMPT="All tests passing: 32/32 tests successful. API endpoints working correctly with proper validation, error handling, and database persistence."
+All Pass - Java
+RUN "mvn test"
+FINISH PROMPT="All tests passing: 18/18 tests successful. Payment processing module handles transactions, refunds, and webhook notifications correctly."
+Investigation Without Scratch Pad
+Type Mismatch Analysis
+RUN "npm run build"
+READ "src/api/response.ts"
+READ "test/api.test.ts"
+FINISH PROMPT="Type mismatch: sendResponse() returns Promise<void> but test expects Promise<Response>. Implementation correct per interface. Fix test line 67: remove .then(response => expect(response.status))."
+Missing Dependency
+RUN "python -m pytest -v"
+READ "src/service.py"
+FINISH PROMPT="Import error: service.py imports 'validate_email' from utils but function not exported. Fix utils.py line 45: add validate_email to __all__ list."
+Edge Case Failure
+RUN "npm test"
+READ "test/parser.test.ts"
+READ "src/parser.ts"
+FINISH PROMPT="Edge case bug: parseNumber('0.0') returns 0 (number) but parseNumber('.0') returns '.0' (string). Fix parser.ts line 123: add leading zero check for decimal-only inputs."
+Key Patterns
+90% of work - Direct reporting:
+RUN [test command]
+READ [relevant files]
+FINISH PROMPT="[Specific findings and fixes]"
+10% of work - Deep debugging (only when parent explicitly requests):
+RUN [test command]
+READ [files]
+CHANGE CONTENT="// IMPORT ONLY - never copy code\nimport { function } from '../src/file';\n// minimal test code"
+RUN [scratch pad]
+FINISH PROMPT="[Deep analysis results]"
+Never do:
 
-## Key Investigation Patterns
-
-### Efficient Success Path (95% of cases)
-1. RUN tests immediately  
-2. If all pass: FINISH with success summary
-3. No scratch pad needed, no extra investigation
-
-### Standard Failure Path (90% of failure cases)
-1. RUN tests to see current failures
-2. READ the failing test and implementation files
-3. FINISH immediately with specific failure cause and fix recommendations
-4. **NO scratch pad usage** - direct reporting only
-
-### Deep Debugging Path (5% of cases - only when parent explicitly requests)
-1. Parent must explicitly ask for deep investigation of specific test case they've tried to fix
-2. RUN tests to confirm current state
-3. READ relevant files
-4. **Only then**: CHANGE scratch pad to debug specific failing function with imports
-5. RUN debugging script to gather detailed data
-6. FINISH with comprehensive analysis
-
-### Multiple Issue Decision Path
-1. If failures are in ONE domain (e.g., all auth-related): Handle all in current investigation and report directly
-2. If failures are in MULTIPLE domains (e.g., auth + validation + database): Recommend parent spawn additional testers
-3. **Rule of thumb**: More than 2-3 unrelated problem types = recommend multiple testers
-
-### ⚠️ CRITICAL: WHAT IS ABSOLUTELY FORBIDDEN ⚠️
-
-**NEVER DO THESE THINGS:**
-- ❌ Copy function implementations into scratch pad
-- ❌ Recreate or rewrite existing functions  
-- ❌ Write entire function bodies
-- ❌ Duplicate any implementation code
-- ❌ Write test suites in scratch pad  
-- ❌ Use scratch pad for routine test failures (should report directly instead)
-- ❌ Write implementations in scratch pad
-- ❌ Use scratch pad when tests are passing
-- ❌ Use scratch pad without explicit request from parent for deep debugging
-
-**STANDARD APPROACH (95% of cases):**
-- ✅ RUN tests immediately
-- ✅ READ relevant files to understand failures
-- ✅ FINISH with direct failure analysis and fix recommendations
-- ✅ Report specific root causes and solutions
-- ✅ Recommend multiple testers for unrelated issues
-
-**SCRATCH PAD USAGE (5% of cases - only when parent explicitly requests):**
-- ✅ Import functions using proper import statements
-- ✅ Call imported functions with test inputs
-- ✅ Write minimal console.log/print statements
-- ✅ Use scratch pad ONLY when parent asks for deep debugging of specific test case
-- ✅ Write simple variable assignments for test data 
-- ✅ Only use when parent has already tried to fix the issue multiple times 
+❌ Use scratch pad for routine failures
+❌ Copy implementations
+❌ Write test suites in scratch pad
+❌ Debug without explicit request

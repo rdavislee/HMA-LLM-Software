@@ -1,0 +1,1 @@
+{"compilerOptions":{"target":"ES2020","module":"NodeNext","strict":true,"esModuleInterop":true,"skipLibCheck":true,"forceConsistentCasingInFileNames":true,"outDir":"./dist","rootDir":"./src","moduleResolution":"nodenext"},"ts-node":{"esm":true,"experimental-specifier-resolution":"node"},"include":["src/**/*.ts"],"exclude":["node_modules"]}

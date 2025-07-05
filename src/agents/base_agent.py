@@ -39,6 +39,11 @@ from src.llm.base import BaseLLMClient
 import src
 from src.config import COLLAPSED_DIR_NAMES
 
+# Import for type hints only
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from .master_agent import MasterAgent
+
 # Global constants
 MAX_CONTEXT_DEPTH = 3
 DEFAULT_MAX_CONTEXT_SIZE = 8000
@@ -72,7 +77,7 @@ class BaseAgent(ABC):
     def __init__(
         self,
         path: str,
-        parent: Optional["BaseAgent"] = None,
+        parent: Optional[Union["BaseAgent", "MasterAgent"]] = None,
         llm_client: Optional[BaseLLMClient] = None,
         max_context_size: int = DEFAULT_MAX_CONTEXT_SIZE
     ) -> None:
@@ -85,7 +90,7 @@ class BaseAgent(ABC):
             max_context_size: Maximum size of context to maintain
         """
         self.path = Path(path).resolve()
-        self.parent = parent
+        self.parent: Optional[Union["BaseAgent", "MasterAgent"]] = parent
 
         self.llm_client = llm_client
         self.max_context_size = max_context_size
@@ -170,6 +175,12 @@ class BaseAgent(ABC):
             )
         # Set personal file and add to memory
         self._set_personal_file()
+        # Automatically add documentation.md from project root to memory if it exists
+        doc_path = getattr(src, 'ROOT_DIR', None)
+        if doc_path is not None:
+            doc_file = doc_path / "documentation.md"
+            if doc_file.exists():
+                self.read_file(str(doc_file))
         self.is_active = True
         self.active_task = task
         self.update_activity()

@@ -90,41 +90,53 @@ class TesterLanguageInterpreter:
         self._queue_self_prompt(prompt)
 
     def _execute_run(self, directive: RunDirective) -> None:
-        """Execute a RUN directive and reprompt with the result string."""
         command = directive.command
-        prompt = None
+
+        if not any(command.startswith(allowed) for allowed in ALLOWED_COMMANDS):
+            self._queue_self_prompt(f"RUN failed: Invalid command: {command}")
+            return
+
         try:
-            if any(command.startswith(allowed) for allowed in ALLOWED_COMMANDS):
-                result = subprocess.run(
-                    command,
-                    shell=True,
-                    capture_output=True,
+            if os.name == "nt":
+                full_cmd = ["powershell.exe", "-Command", command]
+                completed = subprocess.run(
+                    full_cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
                     text=True,
                     cwd=self.project_root,
-                    timeout=300
+                    check=False,
                 )
-                if result.returncode == 0:
-                    prompt = f"RUN succeeded: Output:\n{result.stdout.strip()}"
-                else:
-                    # Show both stdout and stderr so agent can see test results even when tests fail
-                    output = result.stdout.strip() if result.stdout.strip() else ""
-                    error = result.stderr.strip() if result.stderr.strip() else ""
-                    if output and error:
-                        prompt = f"RUN failed: Output:\n{output}\nError:\n{error}"
-                    elif output:
-                        prompt = f"RUN failed: Output:\n{output}"
-                    elif error:
-                        prompt = f"RUN failed: Error:\n{error}"
-                    else:
-                        prompt = f"RUN failed: Command failed with return code {result.returncode}"
             else:
-                prompt = f"RUN failed: Invalid command: {command}"
-        except subprocess.TimeoutExpired:
-            prompt = f"RUN failed: Command timed out after 5 minutes: {command}"
+                completed = subprocess.run(
+                    command,
+                    shell=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    cwd=self.project_root,
+                    check=False,
+                )
+
+            stdout_output = completed.stdout.strip()
+            stderr_output = completed.stderr.strip()
+
+            if completed.returncode == 0:
+                prompt = f"RUN succeeded: Output:\n{stdout_output}"
+            else:
+                if stdout_output and stderr_output:
+                    prompt = f"RUN failed: Output:\n{stdout_output}\nError:\n{stderr_output}"
+                elif stdout_output:
+                    prompt = f"RUN failed: Output:\n{stdout_output}"
+                elif stderr_output:
+                    prompt = f"RUN failed: Error:\n{stderr_output}"
+                else:
+                    prompt = f"RUN failed with return code {completed.returncode}"
+
+            self._queue_self_prompt(prompt)
+
         except Exception as e:
             self._queue_self_prompt(f"RUN failed: {str(e)}")
-            return
-        self._queue_self_prompt(prompt)
 
     def _execute_change(self, directive: ChangeDirective) -> None:
         """Execute a CHANGE directive for the tester's scratch pad."""
@@ -149,6 +161,16 @@ class TesterLanguageInterpreter:
             # Clean up scratch pad before finishing
             if hasattr(self.agent, 'cleanup_scratch_pad'):
                 self.agent.cleanup_scratch_pad()
+            
+            # Disable the watchdog before finishing
+            if hasattr(self.agent, '_watchdog_task') and self.agent._watchdog_task is not None:
+                try:
+                    if not self.agent._watchdog_task.done():
+                        self.agent._watchdog_task.cancel()
+                except Exception:
+                    pass
+                self.agent._watchdog_task = None
+                self.agent._watchdog_started = False
             
             # Ephemeral agents report their results back to the parent using proper orchestrator functions
             parent = getattr(self.agent, 'parent', None)
@@ -219,7 +241,7 @@ def execute_directive(directive_text: str, agent=None) -> None:
         directive = parse_directive(directive_text)
     except Exception as e:
         # Surface parsing errors back to the agent instead of crashing the pipeline.
-        error_msg = f"PARSING FAILED: {str(e)}"
+        error_msg = f"PARSING FAILED: {str(e)}\n\nMOST COMMON ISSUE: Multiple directives on same api call, use sequential API calls, aka only one line per API call"
         # If we have an agent attached make sure to enqueue the error so the next
         # LLM turn can react accordingly. This avoids silent failures where the
         # stack-trace only ends up in the console.

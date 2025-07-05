@@ -2,13 +2,6 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ExpressionUtils = void 0;
 const expression_1 = require("./expression");
-// Helper functions to create nodes using the Expression class
-const num = (value) => new expression_1.NumberNode(value);
-const variable = (name) => new expression_1.VariableNode(name);
-// FIX: Corrected the order of arguments for the 'op' helper function to match its usage and common convention
-const op = (left, operator, right) => new expression_1.BinaryOperationNode(operator, left, right);
-const func = (name, args) => new expression_1.FunctionCallNode(name, args);
-const unaryOp = (operator, operand) => new expression_1.UnaryOperationNode(operator, operand); // Added for convenience
 /**
  * ExpressionUtils provides a suite of utility functions for manipulating
  * and analyzing mathematical expressions represented as Abstract Syntax Trees (ASTs).
@@ -31,7 +24,6 @@ class ExpressionUtils {
                 return numExpr.value;
             case 'variable':
                 const varExpr = expression;
-                // FIX: Corrected template literal for error message to string concatenation
                 if (!(varExpr.name in context)) {
                     throw new Error("Undefined variable '" + varExpr.name + "' in context.");
                 }
@@ -110,11 +102,11 @@ class ExpressionUtils {
         let result;
         switch (expression.type) {
             case 'number':
-                result = num(0);
+                result = (0, expression_1.num)(0);
                 break;
             case 'variable':
                 const varExpr = expression;
-                result = varExpr.name === targetVariable ? num(1) : num(0);
+                result = varExpr.name === targetVariable ? (0, expression_1.num)(1) : (0, expression_1.num)(0);
                 break;
             case 'binaryOperation':
                 const binOpExpr = expression;
@@ -125,41 +117,36 @@ class ExpressionUtils {
                 switch (binOpExpr.operator) {
                     case 'add':
                     case 'subtract':
-                        // FIX: Corrected argument order for 'op' helper
-                        result = op(du, binOpExpr.operator, dv);
+                        result = (0, expression_1.op)(binOpExpr.operator, du, dv);
                         break;
                     case 'multiply':
-                        // FIX: Corrected argument order for 'op' helper
-                        result = op(op(du, 'multiply', v), 'add', op(u, 'multiply', dv));
+                        result = (0, expression_1.op)('add', (0, expression_1.op)('multiply', du, v), (0, expression_1.op)('multiply', u, dv));
                         break;
                     case 'divide':
-                        // FIX: Corrected argument order for 'op' helper
-                        result = op(op(du, 'multiply', v), 'subtract', op(u, 'multiply', dv));
-                        result = op(result, 'divide', op(v, 'power', num(2)));
+                        result = (0, expression_1.op)('subtract', (0, expression_1.op)('multiply', du, v), (0, expression_1.op)('multiply', u, dv));
+                        result = (0, expression_1.op)('divide', result, (0, expression_1.op)('power', v, (0, expression_1.num)(2)));
                         break;
                     case 'power':
                         if (v.type === 'number') {
                             const n = v.value;
                             if (u.type === 'number') {
-                                result = num(0);
+                                result = (0, expression_1.num)(0);
                                 break;
                             }
-                            // FIX: Corrected argument order for 'op' helper
-                            result = op(num(n), 'multiply', op(op(u, 'power', num(n - 1)), 'multiply', du));
+                            result = (0, expression_1.op)('multiply', (0, expression_1.num)(n), (0, expression_1.op)('multiply', (0, expression_1.op)('power', u, (0, expression_1.num)(n - 1)), du));
                             break;
                         }
                         else if (u.type === 'number') {
                             const c = u.value;
                             if (c === 0) {
-                                result = num(0);
+                                result = (0, expression_1.num)(0);
                                 break;
                             }
                             if (c === 1) {
-                                result = num(0);
+                                result = (0, expression_1.num)(0);
                                 break;
                             }
-                            // FIX: Corrected argument order for 'op' helper
-                            result = op(op(u, 'power', v), 'multiply', op(func('ln', [u]), 'multiply', dv));
+                            result = (0, expression_1.op)('multiply', (0, expression_1.op)('power', u, v), (0, expression_1.op)('multiply', (0, expression_1.func)('ln', [u]), dv));
                             break;
                         }
                         else {
@@ -177,23 +164,23 @@ class ExpressionUtils {
                 const arg = funcCallExpr.args[0];
                 const darg = this.differentiate(arg, targetVariable);
                 switch (funcCallExpr.name) {
-                    case 'sin': // FIX: Corrected argument order for 'op' helper
-                        result = op(func('cos', [arg]), 'multiply', darg);
+                    case 'sin':
+                        result = (0, expression_1.op)('multiply', (0, expression_1.func)('cos', [arg]), darg);
                         break;
-                    case 'cos': // FIX: Corrected argument order for 'op' helper
-                        result = op(num(-1), 'multiply', op(func('sin', [arg]), 'multiply', darg));
+                    case 'cos':
+                        result = (0, expression_1.op)('multiply', (0, expression_1.num)(-1), (0, expression_1.op)('multiply', (0, expression_1.func)('sin', [arg]), darg));
                         break;
-                    case 'tan': // FIX: Corrected argument order for 'op' helper
-                        result = op(op(num(1), 'divide', op(func('cos', [arg]), 'power', num(2))), 'multiply', darg);
+                    case 'tan':
+                        result = (0, expression_1.op)('multiply', (0, expression_1.op)('divide', (0, expression_1.num)(1), (0, expression_1.op)('power', (0, expression_1.func)('cos', [arg]), (0, expression_1.num)(2))), darg);
                         break;
-                    case 'ln': // FIX: Corrected argument order for 'op' helper
-                        result = op(op(num(1), 'divide', arg), 'multiply', darg);
+                    case 'ln':
+                        result = (0, expression_1.op)('multiply', (0, expression_1.op)('divide', (0, expression_1.num)(1), arg), darg);
                         break;
-                    case 'exp': // FIX: Corrected argument order for 'op' helper and used op helper
-                        result = op(new expression_1.ExponentialNode(arg), 'multiply', darg);
+                    case 'exp':
+                        result = (0, expression_1.op)('multiply', new expression_1.ExponentialNode(arg), darg);
                         break;
-                    case 'sqrt': // FIX: Corrected argument order for 'op' helper
-                        result = op(op(num(1), 'divide', op(num(2), 'multiply', func('sqrt', [arg]))), 'multiply', darg);
+                    case 'sqrt':
+                        result = (0, expression_1.op)('multiply', (0, expression_1.op)('divide', (0, expression_1.num)(1), (0, expression_1.op)('multiply', (0, expression_1.num)(2), (0, expression_1.func)('sqrt', [arg]))), darg);
                         break;
                     case 'abs':
                         throw new Error("Differentiation of absolute value function is not supported symbolically.");
@@ -209,16 +196,15 @@ class ExpressionUtils {
             case 'unaryOperation':
                 const unOpExpr = expression;
                 const dOperand = this.differentiate(unOpExpr.operand, targetVariable);
-                result = new expression_1.UnaryOperationNode(unOpExpr.operator, dOperand);
+                result = (0, expression_1.unaryOp)(unOpExpr.operator, dOperand);
                 break;
             case 'constant':
-                result = num(0);
+                result = (0, expression_1.num)(0);
                 break;
             case 'exponential':
                 const expExpr = expression;
                 const dExponent = this.differentiate(expExpr.exponent, targetVariable);
-                // FIX: Corrected argument order for 'op' helper
-                result = op(new expression_1.ExponentialNode(expExpr.exponent), 'multiply', dExponent);
+                result = (0, expression_1.op)('multiply', new expression_1.ExponentialNode(expExpr.exponent), dExponent);
                 break;
             default:
                 throw new Error("Unknown expression node type for differentiation: " + expression.type);
@@ -251,6 +237,417 @@ class ExpressionUtils {
                 break;
         }
     }
+    // New private helper for direct antiderivative calculation
+    _getDirectAntiderivative(expr, targetVariable) {
+        switch (expr.type) {
+            case 'number':
+                const numExpr = expr;
+                return (0, expression_1.op)('multiply', numExpr, new expression_1.VariableNode(targetVariable));
+            case 'variable':
+                const varExpr = expr;
+                if (varExpr.name === targetVariable) {
+                    return (0, expression_1.op)('divide', (0, expression_1.op)('power', new expression_1.VariableNode(targetVariable), (0, expression_1.num)(2)), (0, expression_1.num)(2));
+                }
+                else {
+                    return (0, expression_1.op)('multiply', varExpr, new expression_1.VariableNode(targetVariable));
+                }
+            case 'binaryOperation':
+                const binOpExpr = expr;
+                if (binOpExpr.operator === 'divide' && binOpExpr.left.type === 'number' && binOpExpr.left.value === 1 &&
+                    binOpExpr.right.type === 'variable' && binOpExpr.right.name === targetVariable) {
+                    return (0, expression_1.func)('ln', [new expression_1.VariableNode(targetVariable)]);
+                }
+                if (binOpExpr.operator === 'add' || binOpExpr.operator === 'subtract') {
+                    const leftAnti = this._getDirectAntiderivative(binOpExpr.left, targetVariable);
+                    const rightAnti = this._getDirectAntiderivative(binOpExpr.right, targetVariable);
+                    if (leftAnti !== "UNINTEGRATABLE_EXPRESSION" && rightAnti !== "UNINTEGRATABLE_EXPRESSION") {
+                        return (0, expression_1.op)(binOpExpr.operator, leftAnti, rightAnti);
+                    }
+                }
+                else if (binOpExpr.operator === 'power' && binOpExpr.left.type === 'variable' && binOpExpr.left.name === targetVariable && binOpExpr.right.type === 'number') {
+                    const n = binOpExpr.right.value;
+                    if (n === -1) {
+                        return (0, expression_1.func)('ln', [new expression_1.VariableNode(targetVariable)]);
+                    }
+                    else {
+                        return (0, expression_1.op)('divide', (0, expression_1.op)('power', new expression_1.VariableNode(targetVariable), (0, expression_1.num)(n + 1)), (0, expression_1.num)(n + 1));
+                    }
+                }
+                else if (binOpExpr.operator === 'power') {
+                    // Handle sec^2(x) = (cos(x))^-2
+                    if (binOpExpr.right.type === 'number' && binOpExpr.right.value === -2 &&
+                        binOpExpr.left.type === 'functionCall' && binOpExpr.left.name === 'cos' &&
+                        binOpExpr.left.args.length === 1 &&
+                        binOpExpr.left.args[0].type === 'variable' && (binOpExpr.left.args[0]).name === targetVariable) {
+                        return (0, expression_1.func)('tan', [new expression_1.VariableNode(targetVariable)]);
+                    }
+                    // Handle e^u forms (where base is 'e' constant) - some of this is duplicated with ExponentialNode, but ok
+                    if (binOpExpr.left.type === 'constant' && binOpExpr.left.name === 'e') {
+                        const u = binOpExpr.right; // The exponent
+                        if (u.type === 'variable' && u.name === targetVariable) {
+                            return expr; // Integral of e^x is e^x
+                        }
+                        return "UNINTEGRATABLE_EXPRESSION"; // Fall through to u-sub if not simple e^x
+                    }
+                    // Extend a^x rule (where base 'a' is a number or a constant like pi, but not 'e')
+                    if (binOpExpr.right.type === 'variable' && binOpExpr.right.name === targetVariable &&
+                        (binOpExpr.left.type === 'number' || (binOpExpr.left.type === 'constant' && binOpExpr.left.name !== 'e'))) {
+                        const baseNode = binOpExpr.left;
+                        if (baseNode.type === 'number') {
+                            const a = baseNode.value;
+                            if (a <= 0) {
+                                return "UNINTEGRATABLE_EXPRESSION";
+                            }
+                            else if (a === 1) {
+                                return new expression_1.VariableNode(targetVariable); // Integral of 1^x (which is 1) is x
+                            }
+                        }
+                        return (0, expression_1.op)('divide', expr, (0, expression_1.func)('ln', [baseNode]));
+                    }
+                }
+                else if (binOpExpr.operator === 'multiply') {
+                    let constantFactor = null;
+                    let functionFactor = null;
+                    const isConstantFactorForIntegration = (node) => (node.type === 'number') ||
+                        (node.type === 'constant') ||
+                        (node.type === 'variable' && node.name !== targetVariable && node.name !== 'C');
+                    if (isConstantFactorForIntegration(binOpExpr.left)) {
+                        constantFactor = binOpExpr.left;
+                        functionFactor = binOpExpr.right;
+                    }
+                    else if (isConstantFactorForIntegration(binOpExpr.right)) {
+                        constantFactor = binOpExpr.right;
+                        functionFactor = binOpExpr.left;
+                    }
+                    if (constantFactor !== null && functionFactor !== null) {
+                        const integral_f_x = this._getDirectAntiderivative(functionFactor, targetVariable);
+                        if (integral_f_x !== "UNINTEGRATABLE_EXPRESSION") {
+                            return (0, expression_1.op)('multiply', constantFactor, integral_f_x);
+                        }
+                    }
+                }
+                break;
+            case 'functionCall':
+                const funcCallExpr = expr;
+                if (funcCallExpr.args.length === 1 && funcCallExpr.args[0].type === 'variable' && funcCallExpr.args[0].name === targetVariable) {
+                    switch (funcCallExpr.name) {
+                        case 'sin': return (0, expression_1.op)('multiply', (0, expression_1.num)(-1), (0, expression_1.func)('cos', [new expression_1.VariableNode(targetVariable)]));
+                        case 'cos': return (0, expression_1.func)('sin', [new expression_1.VariableNode(targetVariable)]);
+                        case 'exp': return new expression_1.ExponentialNode(new expression_1.VariableNode(targetVariable));
+                        case 'ln': return (0, expression_1.op)('subtract', (0, expression_1.op)('multiply', new expression_1.VariableNode(targetVariable), (0, expression_1.func)('ln', [new expression_1.VariableNode(targetVariable)])), new expression_1.VariableNode(targetVariable));
+                    }
+                }
+                break;
+            case 'unaryOperation':
+                const unOpExpr = expr;
+                if (unOpExpr.operator === 'negate') {
+                    const result = this._getDirectAntiderivative(unOpExpr.operand, targetVariable);
+                    if (result !== "UNINTEGRATABLE_EXPRESSION") {
+                        return (0, expression_1.unaryOp)('negate', result);
+                    }
+                }
+                break;
+            case 'constant':
+                const constExpr = expr;
+                return (0, expression_1.op)('multiply', constExpr, new expression_1.VariableNode(targetVariable));
+            case 'exponential':
+                const expExpr = expr;
+                // Handle e^(ax)
+                if (expExpr.exponent.type === 'binaryOperation' &&
+                    expExpr.exponent.operator === 'multiply') {
+                    const product = expExpr.exponent;
+                    let aNode = null;
+                    let xNode = null;
+                    if (product.left.type === 'number' &&
+                        product.right.type === 'variable' &&
+                        product.right.name === targetVariable) {
+                        aNode = product.left;
+                        xNode = product.right;
+                    }
+                    else if (product.right.type === 'number' &&
+                        product.left.type === 'variable' &&
+                        product.left.name === targetVariable) {
+                        aNode = product.right;
+                        xNode = product.left;
+                    }
+                    if (aNode !== null && xNode !== null) {
+                        if (aNode.value === 0) {
+                            return (0, expression_1.op)('multiply', (0, expression_1.num)(1), new expression_1.VariableNode(targetVariable));
+                        }
+                        const oneOverA = (0, expression_1.op)('divide', (0, expression_1.num)(1), aNode);
+                        return (0, expression_1.op)('multiply', oneOverA, expExpr);
+                    }
+                }
+                // Handle e^x (where a is implicitly 1)
+                if (expExpr.exponent.type === 'variable' && expExpr.exponent.name === targetVariable) {
+                    return expExpr;
+                }
+                break;
+        }
+        return "UNINTEGRATABLE_EXPRESSION";
+    }
+    // New private helper for replacing sub-expressions
+    _replaceSubexpression(node, target, replacement) {
+        const nodesEqual = (n1, n2) => JSON.stringify(n1) === JSON.stringify(n2);
+        if (nodesEqual(node, target)) {
+            return replacement;
+        }
+        switch (node.type) {
+            case 'number':
+            case 'variable':
+            case 'constant':
+                return node;
+            case 'binaryOperation':
+                const binOp = node;
+                const newLeft = this._replaceSubexpression(binOp.left, target, replacement);
+                const newRight = this._replaceSubexpression(binOp.right, target, replacement);
+                if (newLeft !== binOp.left || newRight !== binOp.right) {
+                    return (0, expression_1.op)(binOp.operator, newLeft, newRight);
+                }
+                break;
+            case 'unaryOperation':
+                const unOp = node;
+                const newOperand = this._replaceSubexpression(unOp.operand, target, replacement);
+                if (newOperand !== unOp.operand) {
+                    return (0, expression_1.unaryOp)(unOp.operator, newOperand);
+                }
+                break;
+            case 'functionCall':
+                const funcCall = node;
+                const newArgs = funcCall.args.map(arg => this._replaceSubexpression(arg, target, replacement));
+                if (newArgs.some((arg, i) => arg !== funcCall.args[i])) {
+                    return (0, expression_1.func)(funcCall.name, newArgs);
+                }
+                break;
+            case 'exponential':
+                const expNode = node;
+                const newExponent = this._replaceSubexpression(expNode.exponent, target, replacement);
+                if (newExponent !== expNode.exponent) {
+                    return new expression_1.ExponentialNode(newExponent);
+                }
+                break;
+            default:
+                return node; // Should not happen if all types are handled
+        }
+        return node;
+    }
+    // New private helper for detecting linear expressions (ax+b)
+    _tryLinearU(expr, integrationVariable) {
+        // Check if expr is of form ax+b
+        if (expr.type === 'binaryOperation' && expr.operator === 'add') {
+            const addOp = expr;
+            // Case (ax+b)
+            if (addOp.left.type === 'binaryOperation' && addOp.left.operator === 'multiply' &&
+                addOp.left.left.type === 'number' &&
+                addOp.left.right.type === 'variable' &&
+                addOp.left.right.name === integrationVariable &&
+                addOp.right.type === 'number') {
+                return {
+                    u: expr,
+                    a: addOp.left.left.value,
+                    b: addOp.right.value
+                };
+            }
+            // Case (b+ax)
+            if (addOp.right.type === 'binaryOperation' && addOp.right.operator === 'multiply' &&
+                addOp.right.left.type === 'number' &&
+                addOp.right.right.type === 'variable' &&
+                addOp.right.right.name === integrationVariable &&
+                addOp.left.type === 'number') {
+                return {
+                    u: expr,
+                    a: addOp.right.left.value,
+                    b: addOp.left.value
+                };
+            }
+        }
+        // Case (ax)
+        if (expr.type === 'binaryOperation' && expr.operator === 'multiply' &&
+            expr.left.type === 'number' &&
+            expr.right.type === 'variable' &&
+            expr.right.name === integrationVariable) {
+            return {
+                u: expr,
+                a: expr.left.value,
+                b: 0
+            };
+        }
+        // Case (x/a) -> (1/a)*x
+        if (expr.type === 'binaryOperation' && expr.operator === 'divide' &&
+            expr.left.type === 'variable' &&
+            expr.left.name === integrationVariable &&
+            expr.right.type === 'number') {
+            return {
+                u: expr,
+                a: 1 / expr.right.value,
+                b: 0
+            };
+        }
+        // Case (x)
+        if (expr.type === 'variable' && expr.name === integrationVariable) {
+            return { u: expr, a: 1, b: 0 };
+        }
+        return null;
+    }
+    /**
+     * Computes the symbolic indefinite integral of a given expression.
+     * Limited to basic integration rules.
+     * @param expression The root node of the expression AST to integrate.
+     * @param targetVariable The name of the variable with respect to which the integration is performed.
+     * @returns An IntegrationResult object.
+     * @throws {Error} If the integration rules for a specific node type are not implemented.
+     */
+    // New private helper for getting antiderivative without +C
+    _getAntiderivativeCore(expression, targetVariable) {
+        // Try direct integration rules first
+        const directAntiderivative = this._getDirectAntiderivative(expression, targetVariable);
+        if (directAntiderivative !== "UNINTEGRATABLE_EXPRESSION") {
+            return directAntiderivative;
+        }
+        // If direct integration failed, try u-substitution (without adding C)
+        const uSubAntiderivative = this._integrateIndefiniteUsubInternal(expression, targetVariable); // Call internal U-sub core
+        if (uSubAntiderivative !== "UNINTEGRATABLE_EXPRESSION") {
+            return uSubAntiderivative;
+        }
+        return "UNINTEGRATABLE_EXPRESSION";
+    }
+    // Renamed and modified existing integrateIndefiniteUsub to be internal, returning ExpressionNode directly
+    _integrateIndefiniteUsubInternal(expression, integrationVariable) {
+        // This method is designed for auto-detection of u-substitution patterns
+        // and performing the integration, focusing on common forms like f(ax+b) and g'(x) * f(g(x)).
+        let uCandidate = null;
+        let duExpectedCoefficient = null; // The 'a' in du = a dx or the constant factor for g'(x)
+        let f_of_u_expr_template = null; // The expression after substituting 'u'
+        // --- Pattern 1: f(ax+b) forms ---
+        // (ax+b)^n, e^(ax+b), sin(ax+b), cos(ax+b), 1/(ax+b)
+        // Check if the expression is of the form (linear_expr)^n
+        if (expression.type === 'binaryOperation' && expression.operator === 'power') {
+            const powerOp = expression;
+            const linearU = this._tryLinearU(powerOp.left, integrationVariable);
+            if (linearU && powerOp.right.type === 'number') {
+                uCandidate = linearU.u;
+                const n = powerOp.right.value;
+                f_of_u_expr_template = (0, expression_1.op)('power', new expression_1.VariableNode('u'), (0, expression_1.num)(n));
+                duExpectedCoefficient = linearU.a;
+            }
+        }
+        // Check if the expression is of the form e^(linear_expr)
+        if (expression.type === 'exponential' && !uCandidate) { // Only if not matched by previous pattern
+            const expNode = expression;
+            const linearU = this._tryLinearU(expNode.exponent, integrationVariable);
+            if (linearU) {
+                uCandidate = linearU.u;
+                f_of_u_expr_template = new expression_1.ExponentialNode(new expression_1.VariableNode('u'));
+                duExpectedCoefficient = linearU.a;
+            }
+        }
+        // Check if the expression is of the form sin(linear_expr) or cos(linear_expr)
+        if (expression.type === 'functionCall' && expression.args.length === 1 && !uCandidate) {
+            const funcCall = expression;
+            const linearU = this._tryLinearU(funcCall.args[0], integrationVariable);
+            if (linearU && (funcCall.name === 'sin' || funcCall.name === 'cos')) {
+                uCandidate = linearU.u;
+                f_of_u_expr_template = (0, expression_1.func)(funcCall.name, [new expression_1.VariableNode('u')]);
+                duExpectedCoefficient = linearU.a;
+            }
+        }
+        // Check if the expression is of the form 1/(linear_expr)
+        if (expression.type === 'binaryOperation' && expression.operator === 'divide' &&
+            expression.left.type === 'number' &&
+            expression.left.value === 1 && !uCandidate) {
+            const linearU = this._tryLinearU(expression.right, integrationVariable);
+            if (linearU) {
+                uCandidate = linearU.u;
+                f_of_u_expr_template = (0, expression_1.op)('divide', (0, expression_1.num)(1), new expression_1.VariableNode('u'));
+                duExpectedCoefficient = linearU.a;
+            }
+        }
+        // --- Pattern 2: g'(x) * f(g(x)) or g'(x) / f(g(x)) forms ---
+        // This involves identifying a product or quotient where one factor is the derivative of a sub-expression in the other factor.
+        // Only attempt if Pattern 1 was not matched.
+        if (!uCandidate) {
+            let expressionToAnalyze = expression;
+            // If the expression is a division, convert it to a multiplication to reuse logic
+            if (expression.type === 'binaryOperation' && expression.operator === 'divide') {
+                const divOp = expression;
+                // A / B becomes A * (1/B)
+                expressionToAnalyze = (0, expression_1.op)('multiply', divOp.left, (0, expression_1.op)('power', divOp.right, (0, expression_1.num)(-1))); // Use power -1 for 1/B
+            }
+            if (expressionToAnalyze.type === 'binaryOperation' && expressionToAnalyze.operator === 'multiply') {
+                const multOp = expressionToAnalyze;
+                const factors = [multOp.left, multOp.right];
+                for (let i = 0; i < factors.length; i++) {
+                    const potentialGPrimeX_Factor = factors[i]; // This is the g'(x) part (or proportional to it)
+                    const f_of_g_x_Factor = factors[1 - i]; // This is the f(g(x)) part
+                    // Find candidates for 'u' within f_of_g_x_Factor
+                    const potentialUCandidates = [];
+                    // Common cases where g(x) is inside another function or an exponent/base
+                    if (f_of_g_x_Factor.type === 'functionCall' && f_of_g_x_Factor.args.length === 1) {
+                        potentialUCandidates.push(f_of_g_x_Factor.args[0]);
+                    }
+                    else if (f_of_g_x_Factor.type === 'exponential') {
+                        potentialUCandidates.push(f_of_g_x_Factor.exponent);
+                    }
+                    else if (f_of_g_x_Factor.type === 'binaryOperation' && f_of_g_x_Factor.operator === 'power') {
+                        potentialUCandidates.push(f_of_g_x_Factor.left);
+                    }
+                    // Specific case: u = ln(x) for integrals like int(1/x * ln(x)) dx
+                    if (f_of_g_x_Factor.type === 'functionCall' && f_of_g_x_Factor.name === 'ln' && f_of_g_x_Factor.args.length === 1) {
+                        potentialUCandidates.push(f_of_g_x_Factor); // u = ln(x) itself
+                    }
+                    // Specific case: u = g(x) for integrals like int(g'(x)/g(x)) dx, which becomes int(g'(x) * (g(x))^-1) dx
+                    // Here, f_of_g_x_Factor would be (g(x))^-1, so we want u to be g(x) (the base of the power)
+                    if (f_of_g_x_Factor.type === 'binaryOperation' && f_of_g_x_Factor.operator === 'power' &&
+                        f_of_g_x_Factor.right.type === 'number' &&
+                        f_of_g_x_Factor.right.value === -1) {
+                        potentialUCandidates.push(f_of_g_x_Factor.left); // u = the base
+                    }
+                    for (const candidateU of potentialUCandidates) {
+                        const du_dx_calculated = this.differentiate(candidateU, integrationVariable);
+                        let ratio;
+                        try {
+                            ratio = this.simplify((0, expression_1.op)('divide', potentialGPrimeX_Factor, du_dx_calculated));
+                        }
+                        catch (e) {
+                            continue; // Division by zero or other simplification errors, not a simple constant ratio
+                        }
+                        if (ratio.type === 'number') {
+                            uCandidate = candidateU;
+                            duExpectedCoefficient = ratio.value;
+                            f_of_u_expr_template = this._replaceSubexpression(f_of_g_x_Factor, uCandidate, new expression_1.VariableNode('u'));
+                            break;
+                        }
+                    }
+                    if (uCandidate)
+                        break;
+                }
+            }
+        }
+        // If a u-substitution pattern was found:
+        if (uCandidate && duExpectedCoefficient !== null && f_of_u_expr_template) {
+            // If uCandidate is just the integration variable, it's a "trivial" u-sub,
+            // which the tests expect to be unintegratable by the specific u-sub method.
+            if (uCandidate.type === 'variable' && uCandidate.name === integrationVariable) {
+                return "UNINTEGRATABLE_EXPRESSION";
+            }
+            if (duExpectedCoefficient === 0) {
+                return "UNINTEGRATABLE_EXPRESSION";
+            }
+            // Integrate f(u) with respect to 'u' using the CORE antiderivative function
+            const integral_f_u_antiderivative = this._getAntiderivativeCore(f_of_u_expr_template, 'u');
+            if (integral_f_u_antiderivative !== "UNINTEGRATABLE_EXPRESSION") {
+                // Apply the 1/C_du factor to the antiderivative
+                const tempResult = (0, expression_1.op)('multiply', (0, expression_1.op)('divide', (0, expression_1.num)(1), (0, expression_1.num)(duExpectedCoefficient)), integral_f_u_antiderivative);
+                // Substitute 'u' back into the result
+                const finalIntegratedExpr = this._replaceSubexpression(tempResult, new expression_1.VariableNode('u'), uCandidate);
+                // Simplify the final expression
+                const simplifiedFinal = this.simplify(finalIntegratedExpr);
+                return simplifiedFinal;
+            }
+        }
+        // If no u-substitution pattern was found or inner integration failed, return unintegratable
+        return "UNINTEGRATABLE_EXPRESSION";
+    }
     /**
      * Computes the symbolic indefinite integral of a given expression.
      * Limited to basic integration rules.
@@ -260,208 +657,46 @@ class ExpressionUtils {
      * @throws {Error} If the integration rules for a specific node type are not implemented.
      */
     integrateIndefinite(expression, targetVariable) {
-        let integratedExpr = null;
-        let unintegratable = true;
-        const getAntiderivative = (expr) => {
-            switch (expr.type) {
-                case 'number':
-                    const numExpr = expr;
-                    // FIX: Corrected argument order for 'op' helper
-                    return op(numExpr, 'multiply', variable(targetVariable));
-                case 'variable':
-                    const varExpr = expr;
-                    if (varExpr.name === targetVariable) {
-                        // FIX: Corrected argument order for 'op' helper
-                        return op(op(variable(targetVariable), 'power', num(2)), 'divide', num(2));
-                    }
-                    else {
-                        // FIX: Corrected argument order for 'op' helper
-                        return op(varExpr, 'multiply', variable(targetVariable));
-                    }
-                case 'binaryOperation':
-                    const binOpExpr = expr;
-                    if (binOpExpr.operator === 'divide' && binOpExpr.left.type === 'number' && binOpExpr.left.value === 1 &&
-                        binOpExpr.right.type === 'variable' && binOpExpr.right.name === targetVariable) {
-                        return func('ln', [variable(targetVariable)]);
-                    }
-                    if (binOpExpr.operator === 'add' || binOpExpr.operator === 'subtract') {
-                        const leftAnti = getAntiderivative(binOpExpr.left);
-                        const rightAnti = getAntiderivative(binOpExpr.right);
-                        if (leftAnti !== "UNINTEGRATABLE_EXPRESSION" && rightAnti !== "UNINTEGRATABLE_EXPRESSION") {
-                            // FIX: Corrected argument order for 'op' helper
-                            return op(leftAnti, binOpExpr.operator, rightAnti);
-                        }
-                    }
-                    else if (binOpExpr.operator === 'power' && binOpExpr.left.type === 'variable' && binOpExpr.left.name === targetVariable && binOpExpr.right.type === 'number') {
-                        const n = binOpExpr.right.value;
-                        if (n === -1) {
-                            return func('ln', [variable(targetVariable)]);
-                        }
-                        else {
-                            // FIX: Corrected argument order for 'op' helper
-                            return op(op(variable(targetVariable), 'power', num(n + 1)), 'divide', num(n + 1));
-                        }
-                    }
-                    else if (binOpExpr.operator === 'power') {
-                        // Handle e^u forms (where base is 'e' constant)
-                        if (binOpExpr.left.type === 'constant' && binOpExpr.left.name === 'e') {
-                            const u = binOpExpr.right; // The exponent
-                            // Case: e^x (u is the target variable)
-                            if (u.type === 'variable' && u.name === targetVariable) {
-                                return expr; // Integral of e^x is e^x
-                            }
-                            // Case: e^(ax) (u is a multiplication of a constant and the target variable)
-                            if (u.type === 'binaryOperation' && u.operator === 'multiply') {
-                                const product = u;
-                                let aNode = null;
-                                let xNode = null;
-                                // Check for a*x or x*a
-                                if (product.left.type === 'number' &&
-                                    product.right.type === 'variable' &&
-                                    product.right.name === targetVariable) {
-                                    aNode = product.left;
-                                    xNode = product.right;
-                                }
-                                else if (product.right.type === 'number' &&
-                                    product.left.type === 'variable' &&
-                                    product.left.name === targetVariable) {
-                                    aNode = product.right;
-                                    xNode = product.left;
-                                }
-                                if (aNode !== null && xNode !== null) {
-                                    if (aNode.value === 0) {
-                                        // Integral of e^0 (which is 1) is x
-                                        return op(num(1), 'multiply', variable(targetVariable));
-                                    }
-                                    // Integral of e^(ax) is (1/a)e^(ax)
-                                    const oneOverA = op(num(1), 'divide', aNode);
-                                    return op(oneOverA, 'multiply', expr); // 'expr' here is the original e^(ax) node
-                                }
-                            }
-                            // If it's e^u but u is not 'x' or 'ax', it's unintegratable by this rule
-                            return "UNINTEGRATABLE_EXPRESSION";
-                        }
-                        // Extend a^x rule (where base 'a' is a number or a constant like pi, but not 'e')
-                        if (binOpExpr.right.type === 'variable' && binOpExpr.right.name === targetVariable &&
-                            (binOpExpr.left.type === 'number' || (binOpExpr.left.type === 'constant' && binOpExpr.left.name !== 'e'))) {
-                            const baseNode = binOpExpr.left;
-                            // Special handling for numerical base values
-                            if (baseNode.type === 'number') {
-                                const a = baseNode.value;
-                                if (a <= 0) {
-                                    return "UNINTEGRATABLE_EXPRESSION";
-                                }
-                                else if (a === 1) {
-                                    return variable(targetVariable); // Integral of 1^x (which is 1) is x
-                                }
-                            }
-                            // For other valid bases (e.g., NumberNode > 0 and != 1, or ConstantNode like 'pi')
-                            return op(expr, 'divide', func('ln', [baseNode]));
-                        }
-                    }
-                    else if (binOpExpr.operator === 'multiply') {
-                        let constantFactor = null;
-                        let functionFactor = null;
-                        const isConstantFactorForIntegration = (node) => (node.type === 'number') ||
-                            (node.type === 'constant') ||
-                            (node.type === 'variable' && node.name !== targetVariable && node.name !== 'C');
-                        if (isConstantFactorForIntegration(binOpExpr.left)) {
-                            constantFactor = binOpExpr.left;
-                            functionFactor = binOpExpr.right;
-                        }
-                        else if (isConstantFactorForIntegration(binOpExpr.right)) {
-                            constantFactor = binOpExpr.right;
-                            functionFactor = binOpExpr.left;
-                        }
-                        if (constantFactor !== null && functionFactor !== null) {
-                            const integral_f_x = getAntiderivative(functionFactor);
-                            if (integral_f_x !== "UNINTEGRATABLE_EXPRESSION") {
-                                // FIX: Corrected argument order for 'op' helper
-                                return op(constantFactor, 'multiply', integral_f_x);
-                            }
-                        }
-                    }
-                    break;
-                case 'functionCall':
-                    const funcCallExpr = expr;
-                    if (funcCallExpr.args.length === 1 && funcCallExpr.args[0].type === 'variable' && funcCallExpr.args[0].name === targetVariable) {
-                        switch (funcCallExpr.name) {
-                            case 'sin': // FIX: Corrected argument order for 'op' helper
-                                return op(num(-1), 'multiply', func('cos', [variable(targetVariable)]));
-                            case 'cos': return func('sin', [variable(targetVariable)]);
-                            case 'exp': return new expression_1.ExponentialNode(variable(targetVariable));
-                            case 'ln': // FIX: Corrected argument order for 'op' helper
-                                return op(op(variable(targetVariable), 'multiply', func('ln', [variable(targetVariable)])), 'subtract', variable(targetVariable));
-                        }
-                    }
-                    break;
-                case 'unaryOperation':
-                    const unOpExpr = expr;
-                    if (unOpExpr.operator === 'negate') {
-                        const result = getAntiderivative(unOpExpr.operand);
-                        if (result !== "UNINTEGRATABLE_EXPRESSION") {
-                            return new expression_1.UnaryOperationNode('negate', result);
-                        }
-                    }
-                    break;
-                case 'constant':
-                    const constExpr = expr;
-                    // FIX: Corrected argument order for 'op' helper
-                    return op(constExpr, 'multiply', variable(targetVariable));
-                case 'exponential':
-                    const expExpr = expr;
-                    // Handle e^(ax)
-                    if (expExpr.exponent.type === 'binaryOperation' &&
-                        expExpr.exponent.operator === 'multiply') {
-                        const product = expExpr.exponent;
-                        let aNode = null;
-                        let xNode = null;
-                        // Check for a*x or x*a
-                        if (product.left.type === 'number' &&
-                            product.right.type === 'variable' &&
-                            product.right.name === targetVariable) {
-                            aNode = product.left;
-                            xNode = product.right;
-                        }
-                        else if (product.right.type === 'number' &&
-                            product.left.type === 'variable' &&
-                            product.left.name === targetVariable) {
-                            aNode = product.right;
-                            xNode = product.left;
-                        }
-                        if (aNode !== null && xNode !== null) {
-                            if (aNode.value === 0) {
-                                // Integral of e^0 (which is 1) is x
-                                return op(num(1), 'multiply', variable(targetVariable));
-                            }
-                            // Integral of e^(ax) is (1/a)e^(ax)
-                            const oneOverA = op(num(1), 'divide', aNode);
-                            return op(oneOverA, 'multiply', expExpr);
-                        }
-                    }
-                    // Handle e^x (where a is implicitly 1)
-                    if (expExpr.exponent.type === 'variable' && expExpr.exponent.name === targetVariable) {
-                        return expExpr;
-                    }
-                    break;
-            }
-            return "UNINTEGRATABLE_EXPRESSION";
-        };
-        const antiderivative = getAntiderivative(expression);
-        if (antiderivative === "UNINTEGRATABLE_EXPRESSION") {
+        const antiderivative = this._getAntiderivativeCore(expression, targetVariable);
+        if (antiderivative !== "UNINTEGRATABLE_EXPRESSION") {
+            const integratedExpr = this.simplify((0, expression_1.op)('add', antiderivative, new expression_1.VariableNode('C')));
+            return {
+                unintegratable: false,
+                integratedExpression: integratedExpr,
+                constantOfIntegration: 'C'
+            };
+        }
+        else {
             return {
                 unintegratable: true,
                 integratedExpression: "UNINTEGRATABLE_EXPRESSION",
                 constantOfIntegration: null
             };
         }
-        else {
-            // FIX: Corrected argument order for 'op' helper
-            integratedExpr = this.simplify(op(antiderivative, 'add', new expression_1.VariableNode('C')));
+    }
+    /**
+     * Computes the symbolic indefinite integral of a given expression using u-substitution.
+     * This is the public facing method, which wraps the internal core logic and adds the constant of integration.
+     * @param expression The root node of the expression AST to integrate.
+     * @param variable The name of the variable with respect to which the integration is performed.
+     * @returns An IntegrationResult object.
+     * @throws {Error} If the integration rules for a specific node type are not implemented or u-substitution fails.
+     */
+    integrateIndefiniteUsub(expression, variable) {
+        const antiderivative = this._integrateIndefiniteUsubInternal(expression, variable);
+        if (antiderivative !== "UNINTEGRATABLE_EXPRESSION") {
+            const integratedExpr = this.simplify((0, expression_1.op)('add', antiderivative, new expression_1.VariableNode('C')));
             return {
                 unintegratable: false,
                 integratedExpression: integratedExpr,
                 constantOfIntegration: 'C'
+            };
+        }
+        else {
+            return {
+                unintegratable: true,
+                integratedExpression: "UNINTEGRATABLE_EXPRESSION",
+                constantOfIntegration: null
             };
         }
     }
@@ -490,8 +725,6 @@ class ExpressionUtils {
             return sum * deltaX;
         }
         else {
-            // FIX: Add a check for singularity at 0 for 1/x before symbolic integration
-            // FIX: Corrected syntax for VariableNode cast
             if (expression.type === 'binaryOperation' && expression.operator === 'divide' &&
                 expression.right.type === 'variable' &&
                 expression.right.name === targetVariable &&
@@ -502,6 +735,7 @@ class ExpressionUtils {
             if (indefiniteResult.unintegratable) {
                 throw new Error("Expression cannot be integrated symbolically. Consider providing `numRectangles` for numerical integration.");
             }
+            // Explicitly narrow the type here
             const antiderivativeWithC = indefiniteResult.integratedExpression;
             const allVariablesInAntiderivative = new Set();
             this._collectVariables(antiderivativeWithC, allVariablesInAntiderivative);
@@ -569,20 +803,24 @@ class ExpressionUtils {
                     const leftVal = simplifiedLeft.value;
                     const rightVal = simplifiedRight.value;
                     switch (binOpExpr.operator) {
-                        case 'add': return num(leftVal + rightVal);
-                        case 'subtract': return num(leftVal - rightVal);
-                        case 'multiply': return num(leftVal * rightVal);
+                        case 'add': return (0, expression_1.num)(leftVal + rightVal);
+                        case 'subtract': return (0, expression_1.num)(leftVal - rightVal);
+                        case 'multiply': return (0, expression_1.num)(leftVal * rightVal);
                         case 'divide':
                             if (rightVal === 0)
-                                return op(simplifiedLeft, 'divide', simplifiedRight); // Keep as is if division by zero
-                            return num(leftVal / rightVal);
+                                return (0, expression_1.op)('divide', simplifiedLeft, simplifiedRight);
+                            // Preserve 1/X as a division node for consistency in u-substitution results
+                            if (leftVal === 1) {
+                                return (0, expression_1.op)('divide', simplifiedLeft, simplifiedRight);
+                            }
+                            return (0, expression_1.num)(leftVal / rightVal);
                         case 'power':
                             if (leftVal === 0 && rightVal === 0)
                                 throw new Error('0^0 is undefined.');
-                            return num(Math.pow(leftVal, rightVal));
+                            return (0, expression_1.num)(Math.pow(leftVal, rightVal));
                         default:
                             // Fallback to original if operator not handled by constant folding
-                            return op(simplifiedLeft, binOpExpr.operator, simplifiedRight);
+                            return (0, expression_1.op)(binOpExpr.operator, simplifiedLeft, simplifiedRight);
                     }
                 }
                 // --- Complex Sum/Difference Simplification ---
@@ -628,9 +866,9 @@ class ExpressionUtils {
                             collectSignedTerms(node.left, currentSign);
                             collectSignedTerms(node.right, currentSign * (node.operator === 'subtract' ? -1 : 1));
                         }
+                        // For all other complex terms (e.g., x^2, sin(x), ln(x), non-Cx products).
+                        // These are treated as unique "variable parts" with a coefficient of 1 (or -1 if negated).
                         else {
-                            // For all other complex terms (e.g., x^2, sin(x), ln(x), non-Cx products).
-                            // These are treated as unique "variable parts" with a coefficient of 1 (or -1 if negated).
                             terms.push({ coeff: currentSign, variablePart: node });
                         }
                     };
@@ -672,11 +910,11 @@ class ExpressionUtils {
                             termToAdd = termNode; // The sign will be handled by the operator
                         }
                         else {
-                            termToAdd = op(num(Math.abs(coeff)), 'multiply', termNode); // Always positive coefficient in multiplication
+                            termToAdd = (0, expression_1.op)('multiply', (0, expression_1.num)(Math.abs(coeff)), termNode);
                         }
                         if (newExpr === null) {
                             if (coeff < 0) { // If first term is negative, it's a unary negation
-                                newExpr = unaryOp('negate', termToAdd);
+                                newExpr = (0, expression_1.unaryOp)('negate', termToAdd);
                             }
                             else {
                                 newExpr = termToAdd;
@@ -684,38 +922,38 @@ class ExpressionUtils {
                         }
                         else {
                             if (coeff < 0) { // If subsequent term is negative, use add with unary negate
-                                newExpr = op(newExpr, 'add', unaryOp('negate', termToAdd));
+                                newExpr = (0, expression_1.op)('add', newExpr, (0, expression_1.unaryOp)('negate', termToAdd));
                             }
                             else { // If subsequent term is positive, use add operator
-                                newExpr = op(newExpr, 'add', termToAdd);
+                                newExpr = (0, expression_1.op)('add', newExpr, termToAdd);
                             }
                         }
                     });
                     // Add constant sum
                     if (constantSum !== 0) {
                         if (newExpr === null) {
-                            newExpr = num(constantSum);
+                            newExpr = (0, expression_1.num)(constantSum);
                         }
                         else {
                             if (constantSum < 0) {
-                                newExpr = op(newExpr, 'add', unaryOp('negate', num(Math.abs(constantSum))));
+                                newExpr = (0, expression_1.op)('add', newExpr, (0, expression_1.unaryOp)('negate', (0, expression_1.num)(Math.abs(constantSum))));
                             }
                             else {
-                                newExpr = op(newExpr, 'add', num(constantSum));
+                                newExpr = (0, expression_1.op)('add', newExpr, (0, expression_1.num)(constantSum));
                             }
                         }
                     }
                     // Finally, add 'C' if it was present
                     if (hasC) {
                         if (newExpr === null) {
-                            newExpr = variable('C');
+                            newExpr = new expression_1.VariableNode('C');
                         }
                         else {
-                            newExpr = op(newExpr, 'add', variable('C')); // C is always positive
+                            newExpr = (0, expression_1.op)('add', newExpr, new expression_1.VariableNode('C'));
                         }
                     }
                     // If all terms cancelled out, return 0
-                    return newExpr === null ? num(0) : newExpr;
+                    return newExpr === null ? (0, expression_1.num)(0) : newExpr;
                 }
                 // --- Existing Multiplication Simplification ---
                 if (binOpExpr.operator === 'multiply') {
@@ -724,57 +962,74 @@ class ExpressionUtils {
                     if (simplifiedRight.type === 'number' && simplifiedRight.value === 1)
                         return simplifiedLeft;
                     if (simplifiedLeft.type === 'number' && simplifiedLeft.value === 0)
-                        return num(0);
+                        return (0, expression_1.num)(0);
                     if (simplifiedRight.type === 'number' && simplifiedRight.value === 0)
-                        return num(0);
-                    if (simplifiedLeft.type === 'number' && simplifiedLeft.value === -1) {
-                        return unaryOp('negate', simplifiedRight);
+                        return (0, expression_1.num)(0);
+                    // Normalize negative coefficients: A * B where A or B is a negative number
+                    if (simplifiedLeft.type === 'number' && simplifiedLeft.value < 0) {
+                        return (0, expression_1.unaryOp)('negate', (0, expression_1.op)('multiply', (0, expression_1.num)(Math.abs(simplifiedLeft.value)), simplifiedRight));
                     }
-                    if (simplifiedRight.type === 'number' && simplifiedRight.value === -1) {
-                        return unaryOp('negate', simplifiedLeft);
+                    if (simplifiedRight.type === 'number' && simplifiedRight.value < 0) {
+                        return (0, expression_1.unaryOp)('negate', (0, expression_1.op)('multiply', simplifiedLeft, (0, expression_1.num)(Math.abs(simplifiedRight.value))));
+                    }
+                    // Handle A * (-B) => -(A * B) and (-A) * B => -(A * B) where A/B are non-numeric unary ops
+                    if (simplifiedRight.type === 'unaryOperation' && simplifiedRight.operator === 'negate') {
+                        return (0, expression_1.unaryOp)('negate', (0, expression_1.op)('multiply', simplifiedLeft, simplifiedRight.operand));
+                    }
+                    if (simplifiedLeft.type === 'unaryOperation' && simplifiedLeft.operator === 'negate') {
+                        return (0, expression_1.unaryOp)('negate', (0, expression_1.op)('multiply', simplifiedLeft.operand, simplifiedRight));
                     }
                     // Ensure number is on the left for constant/number multiplication
                     if (simplifiedLeft.type === 'constant' && simplifiedRight.type === 'number') {
-                        // FIX: Corrected argument order for 'op' helper
-                        return op(simplifiedRight, 'multiply', simplifiedLeft);
+                        return (0, expression_1.op)('multiply', simplifiedRight, simplifiedLeft);
                     }
                     if (simplifiedLeft.type === 'variable' && simplifiedRight.type === 'variable' && simplifiedLeft.name === simplifiedRight.name) {
-                        // FIX: Corrected argument order for 'op' helper
-                        return op(simplifiedLeft, 'power', num(2));
+                        return (0, expression_1.op)('power', simplifiedLeft, (0, expression_1.num)(2));
                     }
                     if (simplifiedLeft.type === 'variable' && simplifiedRight.type === 'binaryOperation' && simplifiedRight.operator === 'power' &&
                         simplifiedRight.left.type === 'variable' && simplifiedRight.right.type === 'number' &&
                         simplifiedLeft.name === simplifiedRight.left.name) {
-                        // FIX: Corrected argument order for 'op' helper
-                        return op(simplifiedLeft, 'power', num(simplifiedRight.right.value + 1));
+                        return (0, expression_1.op)('power', simplifiedLeft, (0, expression_1.num)(simplifiedRight.right.value + 1));
                     }
                     if (simplifiedRight.type === 'variable' && simplifiedLeft.type === 'binaryOperation' && simplifiedLeft.operator === 'power' &&
                         simplifiedLeft.left.type === 'variable' && simplifiedLeft.right.type === 'number' &&
                         simplifiedRight.name === simplifiedLeft.left.name) {
-                        // FIX: Corrected argument order for 'op' helper
-                        return op(simplifiedLeft.left, 'power', num(simplifiedLeft.right.value + 1));
+                        return (0, expression_1.op)('power', simplifiedLeft.left, (0, expression_1.num)(simplifiedLeft.right.value + 1));
                     }
+                    // Rule: (NumA / NumB) * (Expr / NumC) -> Expr / (NumB * NumC / NumA)
+                    if (simplifiedLeft.type === 'binaryOperation' && simplifiedLeft.operator === 'divide' &&
+                        simplifiedLeft.left.type === 'number' && simplifiedLeft.right.type === 'number' && // Left is a simple fraction
+                        simplifiedRight.type === 'binaryOperation' && simplifiedRight.operator === 'divide' &&
+                        simplifiedRight.right.type === 'number') { // Right is Expr / number
+                        const numA = simplifiedLeft.left.value;
+                        const numB = simplifiedLeft.right.value;
+                        const exprPart = simplifiedRight.left;
+                        const numC = simplifiedRight.right.value;
+                        if (numB !== 0 && numC !== 0 && numA !== 0) {
+                            const newDenominator = (numB * numC) / numA;
+                            if (Number.isInteger(newDenominator)) {
+                                return (0, expression_1.op)('divide', exprPart, (0, expression_1.num)(newDenominator));
+                            }
+                        }
+                    }
+                    // Existing rules for multiply...
                     if (simplifiedLeft.type === 'number' &&
                         simplifiedRight.type === 'binaryOperation' && simplifiedRight.operator === 'multiply' &&
                         simplifiedRight.left.type === 'number' && simplifiedRight.right.type === 'variable') {
-                        // FIX: Corrected argument order for 'op' helper
-                        return op(num((simplifiedLeft.value) * simplifiedRight.left.value), 'multiply', simplifiedRight.right);
+                        return (0, expression_1.op)('multiply', (0, expression_1.num)((simplifiedLeft.value) * simplifiedRight.left.value), simplifiedRight.right);
                     }
                     if (simplifiedRight.type === 'number' &&
                         simplifiedLeft.type === 'binaryOperation' && simplifiedLeft.operator === 'multiply' &&
                         simplifiedLeft.left.type === 'number' && simplifiedLeft.right.type === 'variable') {
-                        // FIX: Corrected argument order for 'op' helper
-                        return op(num(simplifiedLeft.left.value * simplifiedRight.value), 'multiply', simplifiedLeft.right);
+                        return (0, expression_1.op)('multiply', (0, expression_1.num)(simplifiedLeft.left.value * simplifiedRight.value), simplifiedLeft.right);
                     }
                     if (simplifiedLeft.type === 'binaryOperation' && simplifiedLeft.operator === 'divide' &&
                         simplifiedRight.type === 'number') {
-                        // FIX: Corrected argument order for 'op' helper
-                        return op(op(simplifiedLeft.left, 'multiply', simplifiedRight), 'divide', simplifiedLeft.right);
+                        return (0, expression_1.op)('divide', (0, expression_1.op)('multiply', simplifiedLeft.left, simplifiedRight), simplifiedLeft.right);
                     }
                     if (simplifiedLeft.type === 'number' &&
                         simplifiedRight.type === 'binaryOperation' && simplifiedRight.operator === 'divide') {
-                        // FIX: Corrected argument order for 'op' helper
-                        return op(op(simplifiedLeft, 'multiply', simplifiedRight.left), 'divide', simplifiedRight.right);
+                        return (0, expression_1.op)('divide', (0, expression_1.op)('multiply', simplifiedLeft, simplifiedRight.left), simplifiedRight.right);
                     }
                 }
                 // --- Existing Division Simplification ---
@@ -782,9 +1037,9 @@ class ExpressionUtils {
                     if (simplifiedRight.type === 'number' && simplifiedRight.value === 1)
                         return simplifiedLeft;
                     if (simplifiedLeft.type === 'number' && simplifiedLeft.value === 0)
-                        return num(0);
+                        return (0, expression_1.num)(0);
                     if (simplifiedLeft.type === 'variable' && simplifiedRight.type === 'variable' && simplifiedLeft.name === simplifiedRight.name) {
-                        return num(1);
+                        return (0, expression_1.num)(1);
                     }
                     if (simplifiedLeft.type === 'binaryOperation' && simplifiedLeft.operator === 'multiply' &&
                         simplifiedLeft.left.type === 'variable' && simplifiedRight.type === 'variable' && simplifiedLeft.left.name === simplifiedRight.name) {
@@ -796,8 +1051,7 @@ class ExpressionUtils {
                     }
                     if (simplifiedRight.type === 'binaryOperation' && simplifiedRight.operator === 'multiply' &&
                         simplifiedLeft.type === 'variable' && simplifiedRight.left.type === 'variable' && simplifiedLeft.name === simplifiedRight.left.name) {
-                        // FIX: Corrected argument order for 'op' helper
-                        return op(num(1), 'divide', simplifiedRight.right);
+                        return (0, expression_1.op)('divide', (0, expression_1.num)(1), simplifiedRight.right);
                     }
                     // Fix for 1 / (-1 * x) -> -1 / x
                     if (simplifiedLeft.type === 'number' &&
@@ -807,17 +1061,14 @@ class ExpressionUtils {
                         const factorVal = simplifiedRight.left.value;
                         const remainingRight = simplifiedRight.right;
                         if (factorVal === 0) {
-                            // FIX: Corrected argument order for 'op' helper
-                            return op(simplifiedLeft, 'divide', simplifiedRight); // Avoid division by zero in simplification
+                            return (0, expression_1.op)('divide', simplifiedLeft, simplifiedRight);
                         }
                         if (factorVal < 0) {
-                            // FIX: Corrected argument order for 'op' helper
-                            const tempNegatedNum = this._simplifyPass(unaryOp('negate', num(numVal / Math.abs(factorVal))));
-                            return op(tempNegatedNum, 'divide', remainingRight);
+                            const tempNegatedNum = this._simplifyPass((0, expression_1.unaryOp)('negate', (0, expression_1.num)(numVal / Math.abs(factorVal))));
+                            return (0, expression_1.op)('divide', tempNegatedNum, remainingRight);
                         }
                         else {
-                            // FIX: Corrected argument order for 'op' helper
-                            return op(num(numVal / factorVal), 'divide', remainingRight);
+                            return (0, expression_1.op)('divide', (0, expression_1.num)(numVal / factorVal), remainingRight);
                         }
                     }
                     if (simplifiedLeft.type === 'binaryOperation' && simplifiedLeft.operator === 'multiply' &&
@@ -827,71 +1078,63 @@ class ExpressionUtils {
                     if (simplifiedLeft.type === 'number' &&
                         simplifiedRight.type === 'binaryOperation' && simplifiedRight.operator === 'multiply' &&
                         simplifiedRight.left.type === 'number') {
-                        // FIX: Corrected argument order for 'op' helper
-                        return op(num((simplifiedLeft.value) / simplifiedRight.left.value), 'divide', simplifiedRight.right);
+                        return (0, expression_1.op)('divide', (0, expression_1.num)((simplifiedLeft.value) / simplifiedRight.left.value), simplifiedRight.right);
                     }
-                    if (simplifiedLeft.type === 'binaryOperation' && simplifiedLeft.operator === 'multiply' && simplifiedLeft.left.type === 'number' && simplifiedLeft.right.type === 'variable' &&
-                        simplifiedRight.type === 'binaryOperation' && simplifiedRight.operator === 'multiply' && simplifiedRight.left.type === 'number' && simplifiedRight.right.type === 'variable' &&
-                        simplifiedLeft.right.name === simplifiedRight.right.name) {
-                        return num(simplifiedLeft.left.value / simplifiedRight.left.value);
+                    if (simplifiedLeft.type === 'binaryOperation' && simplifiedLeft.operator === 'multiply' && (simplifiedLeft.left.type === 'number' && simplifiedLeft.right.type === 'variable' &&
+                        simplifiedRight.type === 'binaryOperation' && simplifiedRight.operator === 'multiply' && (simplifiedRight.left.type === 'number' && simplifiedRight.right.type === 'variable' &&
+                        simplifiedLeft.right.name === simplifiedRight.right.name))) {
+                        return (0, expression_1.num)((simplifiedLeft.left.value / simplifiedRight.left.value));
                     }
                     if (simplifiedRight.type === 'unaryOperation' && simplifiedRight.operator === 'negate') {
-                        // FIX: Corrected argument order for 'op' helper
-                        return op(unaryOp('negate', simplifiedLeft), 'divide', simplifiedRight.operand);
+                        return (0, expression_1.op)('divide', (0, expression_1.unaryOp)('negate', simplifiedLeft), simplifiedRight.operand);
                     }
                     if (simplifiedRight.type === 'number' && simplifiedRight.value < 0) {
-                        // FIX: Corrected argument order for 'op' helper
-                        return op(unaryOp('negate', simplifiedLeft), 'divide', num(Math.abs(simplifiedRight.value)));
+                        return (0, expression_1.op)('divide', (0, expression_1.unaryOp)('negate', simplifiedLeft), (0, expression_1.num)(Math.abs(simplifiedRight.value)));
                     }
                     if (simplifiedRight.type === 'binaryOperation' && simplifiedRight.operator === 'divide') {
                         const B = simplifiedRight.left;
                         const C = simplifiedRight.right;
-                        // FIX: Corrected argument order for 'op' helper
-                        return op(op(simplifiedLeft, 'multiply', C), 'divide', B);
+                        return (0, expression_1.op)('divide', (0, expression_1.op)('multiply', simplifiedLeft, C), B);
                     }
                     if (simplifiedLeft.type === 'binaryOperation' && simplifiedLeft.operator === 'multiply' &&
                         simplifiedLeft.left.type === 'number' && simplifiedRight.type === 'number' &&
                         simplifiedLeft.right.type !== 'number') {
-                        // FIX: Corrected argument order for 'op' helper
-                        return op(num(simplifiedLeft.left.value / simplifiedRight.value), 'multiply', simplifiedLeft.right);
+                        return (0, expression_1.op)('multiply', (0, expression_1.num)(simplifiedLeft.left.value / simplifiedRight.value), simplifiedLeft.right);
                     }
                 }
                 // --- Existing Power Simplification ---
                 if (binOpExpr.operator === 'power') {
                     if (simplifiedRight.type === 'number' && simplifiedRight.value === -1) {
-                        // FIX: Corrected argument order for 'op' helper
-                        return op(num(1), 'divide', simplifiedLeft);
+                        return (0, expression_1.op)('divide', (0, expression_1.num)(1), simplifiedLeft);
                     }
                     if (simplifiedRight.type === 'number' && simplifiedRight.value === 0)
-                        return num(1);
+                        return (0, expression_1.num)(1);
                     if (simplifiedRight.type === 'number' && simplifiedRight.value === 1)
                         return simplifiedLeft;
                     if (simplifiedLeft.type === 'number' && simplifiedLeft.value === 0) {
                         if (simplifiedRight.type === 'number' && simplifiedRight.value < 0)
-                            return op(simplifiedLeft, 'power', simplifiedRight);
-                        return num(0);
+                            return (0, expression_1.op)('power', simplifiedLeft, simplifiedRight);
+                        return (0, expression_1.num)(0);
                     }
                     if (simplifiedLeft.type === 'number' && simplifiedLeft.value === 1)
-                        return num(1);
+                        return (0, expression_1.num)(1);
                     if (simplifiedLeft.type === 'binaryOperation' && simplifiedLeft.operator === 'power' &&
                         simplifiedLeft.right.type === 'number' && simplifiedRight.type === 'number') {
-                        // FIX: Corrected argument order for 'op' helper
-                        return op(simplifiedLeft.left, 'power', num(simplifiedLeft.right.value * simplifiedRight.value));
+                        return (0, expression_1.op)('power', simplifiedLeft.left, (0, expression_1.num)(simplifiedLeft.right.value * simplifiedRight.value));
                     }
                 }
                 // If no simplification rule applied, return the expression with simplified children
                 if (simplifiedLeft !== binOpExpr.left || simplifiedRight !== binOpExpr.right) {
-                    // FIX: Corrected argument order for 'op' helper
-                    return op(simplifiedLeft, binOpExpr.operator, simplifiedRight);
+                    return (0, expression_1.op)(binOpExpr.operator, simplifiedLeft, simplifiedRight);
                 }
                 return expression;
             case 'functionCall':
                 const funcCallExpr = expression;
                 const simplifiedArgs = funcCallExpr.args.map(arg => this._simplifyPass(arg));
                 const argsChanged = funcCallExpr.args.some((arg, i) => arg !== simplifiedArgs[i]);
-                let currentFuncCall = (argsChanged) ? func(funcCallExpr.name, simplifiedArgs) : funcCallExpr;
+                let currentFuncCall = (argsChanged) ? (0, expression_1.func)(funcCallExpr.name, simplifiedArgs) : funcCallExpr;
                 if (currentFuncCall.type === 'functionCall' && currentFuncCall.name === 'ln' && currentFuncCall.args.length === 1 && currentFuncCall.args[0].type === 'constant' && currentFuncCall.args[0].name === 'e') {
-                    return num(1);
+                    return (0, expression_1.num)(1);
                 }
                 if (currentFuncCall.type === 'functionCall' && currentFuncCall.name === 'exp' && currentFuncCall.args.length === 1 && currentFuncCall.args[0].type === 'functionCall' && currentFuncCall.args[0].name === 'ln' && currentFuncCall.args[0].args.length === 1) {
                     return currentFuncCall.args[0].args[0];
@@ -899,30 +1142,30 @@ class ExpressionUtils {
                 if (currentFuncCall.type === 'functionCall' && currentFuncCall.args.length === 1 && currentFuncCall.args[0].type === 'number') {
                     const argVal = currentFuncCall.args[0].value;
                     switch (currentFuncCall.name) {
-                        case 'sin': return num(Math.sin(argVal));
-                        case 'cos': return num(Math.cos(argVal));
-                        case 'tan': return num(Math.tan(argVal));
+                        case 'sin': return (0, expression_1.num)(Math.sin(argVal));
+                        case 'cos': return (0, expression_1.num)(Math.cos(argVal));
+                        case 'tan': return (0, expression_1.num)(Math.tan(argVal));
                         case 'ln':
                             if (argVal === 1)
-                                return num(0);
+                                return (0, expression_1.num)(0);
                             if (Math.abs(argVal - Math.E) < 1e-9)
-                                return num(1); // Handle ln(e)
+                                return (0, expression_1.num)(1); // Handle ln(e)
                             if (argVal <= 0)
                                 return currentFuncCall; // Keep as is if invalid domain
                             return currentFuncCall; // Keep symbolic for other numbers like ln(2)
                         case 'exp':
                             if (argVal === 0)
-                                return num(1);
-                            return num(Math.exp(argVal));
+                                return (0, expression_1.num)(1);
+                            return (0, expression_1.num)(Math.exp(argVal));
                         case 'sqrt':
                             if (argVal === 0)
-                                return num(0);
+                                return (0, expression_1.num)(0);
                             if (argVal > 0)
-                                return num(Math.sqrt(argVal));
+                                return (0, expression_1.num)(Math.sqrt(argVal));
                             if (argVal < 0)
                                 return currentFuncCall;
                             break;
-                        case 'abs': return num(Math.abs(argVal));
+                        case 'abs': return (0, expression_1.num)(Math.abs(argVal));
                         default:
                             return currentFuncCall;
                     }
@@ -930,11 +1173,11 @@ class ExpressionUtils {
                 return currentFuncCall;
             case 'unaryOperation':
                 const unOpExpr = expression;
-                const simplifiedOperand = this._simplifyPass(unOpExpr.operand); // Corrected: Simplify operand directly
+                const simplifiedOperand = this._simplifyPass(unOpExpr.operand);
                 // Apply simplification rules based on the simplified operand
                 if (unOpExpr.operator === 'negate') {
                     if (simplifiedOperand.type === 'number') {
-                        return num(-simplifiedOperand.value);
+                        return (0, expression_1.num)(-simplifiedOperand.value);
                     }
                     // Handle -(-x) -> x
                     if (simplifiedOperand.type === 'unaryOperation' && simplifiedOperand.operator === 'negate') {
@@ -944,14 +1187,14 @@ class ExpressionUtils {
                 // If no specific simplification rule applied, and the operand itself changed during its own simplification,
                 // return a new node with the simplified operand. Otherwise, return the original expression.
                 if (simplifiedOperand !== unOpExpr.operand) {
-                    return new expression_1.UnaryOperationNode(unOpExpr.operator, simplifiedOperand);
+                    return (0, expression_1.unaryOp)(unOpExpr.operator, simplifiedOperand);
                 }
                 return expression;
             case 'exponential':
                 const expExpr = expression;
                 const simplifiedExponent = this._simplifyPass(expExpr.exponent);
                 if (simplifiedExponent.type === 'number' && simplifiedExponent.value === 0) {
-                    return num(1);
+                    return (0, expression_1.num)(1);
                 }
                 if (simplifiedExponent !== expExpr.exponent) {
                     return new expression_1.ExponentialNode(simplifiedExponent);

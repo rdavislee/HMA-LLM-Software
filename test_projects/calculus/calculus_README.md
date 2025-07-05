@@ -19,9 +19,9 @@ dist/ - [COMPLETE] Compiled JavaScript output
 node_modules/ - [COMPLETE] Project dependencies
 npm-packages/ - [NOT STARTED] Placeholder for future npm packages
 scratch_pads/ - [NOT STARTED] Personal scratchpad for agents
-src/ - [COMPLETE] Source code for calculus operations
-test/ - [COMPLETE] Test suite for the project
+src/ - [IN PROGRESS] Source code for calculus operations, U-substitution functionality added to utils.ts, but experiencing valid compilation errors related to `variable('u')` usage.
+test/ - [TESTS ONLY] Test suite for the project, U-substitution tests are in place.
 tools/ - [COMPLETE] Utility scripts and tools
 
 Status
-Core calculus functions (evaluate, derivate, integrate definite, integrate indefinite) in src/expression.ts and src/utils.ts are now complete. `src/utils.ts` fully supports indefinite integration for `e^u` (including forms like `e^x` and `e^(ax)`) and `a^x` (including numeric and constant bases like `pi^x`). All related tests in `test/utils.test.ts` are passing.
+Core calculus functions (evaluate, derivate, integrate definite, integrate indefinite) in src/expression.ts and src/utils.ts now include U-substitution. U-substitution integral tests are in test/utils.test.ts. The implementation logic is experiencing valid TS2349 compilation errors in src/utils.ts related to `variable('u')` being incorrectly used as a callable function (it's a String type). This needs to be fixed by the src agent.

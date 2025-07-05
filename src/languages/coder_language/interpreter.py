@@ -10,7 +10,7 @@ import time
 import uuid
 from typing import Dict, Any, Optional
 from pathlib import Path
-from .ast import DirectiveType, ReadDirective, RunDirective, ChangeDirective, ReplaceDirective, SpawnDirective, WaitDirective, FinishDirective
+from .ast import DirectiveType, ReadDirective, RunDirective, ChangeDirective, ReplaceDirective, InsertDirective, SpawnDirective, WaitDirective, FinishDirective
 import src
 from src.config import ALLOWED_COMMANDS
 from .parser import parse_directive
@@ -63,6 +63,8 @@ class CoderLanguageInterpreter:
                 self._execute_change(directive)
             elif isinstance(directive, ReplaceDirective):
                 self._execute_replace(directive)
+            elif isinstance(directive, InsertDirective):
+                self._execute_insert(directive)
             elif isinstance(directive, SpawnDirective):
                 self._execute_spawn(directive)
             elif isinstance(directive, WaitDirective):
@@ -98,41 +100,55 @@ class CoderLanguageInterpreter:
         self._queue_self_prompt(prompt)
 
     def _execute_run(self, directive: RunDirective) -> None:
-        """Execute a RUN directive and reprompt with the result string."""
+        """Execute a RUN directive (simplified sync call – watchdog handles hard hangs)."""
         command = directive.command
-        prompt = None
+
+        # Disallow commands outside the approved list
+        if not any(command.startswith(allowed) for allowed in ALLOWED_COMMANDS):
+            self._queue_self_prompt(f"RUN failed: Invalid command: {command}")
+            return
+
         try:
-            if any(command.startswith(allowed) for allowed in ALLOWED_COMMANDS):
-                result = subprocess.run(
-                    command,
-                    shell=True,
-                    capture_output=True,
+            if os.name == "nt":
+                full_cmd = ["powershell.exe", "-Command", command]
+                completed = subprocess.run(
+                    full_cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
                     text=True,
                     cwd=self.project_root,
-                    timeout=300
+                    check=False,
                 )
-                if result.returncode == 0:
-                    prompt = f"RUN succeeded: Output:\n{result.stdout.strip()}"
-                else:
-                    # Show both stdout and stderr so agent can see test results even when tests fail
-                    output = result.stdout.strip() if result.stdout.strip() else ""
-                    error = result.stderr.strip() if result.stderr.strip() else ""
-                    if output and error:
-                        prompt = f"RUN failed: Output:\n{output}\nError:\n{error}"
-                    elif output:
-                        prompt = f"RUN failed: Output:\n{output}"
-                    elif error:
-                        prompt = f"RUN failed: Error:\n{error}"
-                    else:
-                        prompt = f"RUN failed: Command failed with return code {result.returncode}"
             else:
-                prompt = f"RUN failed: Invalid command: {command}"
-        except subprocess.TimeoutExpired:
-            prompt = f"RUN failed: Command timed out after 5 minutes: {command}"
+                completed = subprocess.run(
+                    command,
+                    shell=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    cwd=self.project_root,
+                    check=False,
+                )
+
+            stdout_output = completed.stdout.strip()
+            stderr_output = completed.stderr.strip()
+
+            if completed.returncode == 0:
+                prompt = f"RUN succeeded: Output:\n{stdout_output}"
+            else:
+                if stdout_output and stderr_output:
+                    prompt = f"RUN failed: Output:\n{stdout_output}\nError:\n{stderr_output}"
+                elif stdout_output:
+                    prompt = f"RUN failed: Output:\n{stdout_output}"
+                elif stderr_output:
+                    prompt = f"RUN failed: Error:\n{stderr_output}"
+                else:
+                    prompt = f"RUN failed with return code {completed.returncode}"
+
+            self._queue_self_prompt(prompt)
+
         except Exception as e:
             self._queue_self_prompt(f"RUN failed: {str(e)}")
-            return
-        self._queue_self_prompt(prompt)
 
     def _execute_change(self, directive: ChangeDirective) -> None:
         """Execute a CHANGE directive."""
@@ -152,36 +168,87 @@ class CoderLanguageInterpreter:
         self._queue_self_prompt(prompt)
 
     def _execute_replace(self, directive: ReplaceDirective) -> None:
-        """Execute a REPLACE directive."""
+        """Execute a REPLACE directive with multiple items and ambiguity detection."""
         prompt = None
         try:
             if self.own_file is not None:
                 file_path = self.base_path / self.own_file
-                
-                # Check if file exists, create if it doesn't
+                # If file does not exist, throw error and do not create it
                 if not file_path.exists():
-                    file_path.parent.mkdir(parents=True, exist_ok=True)
-                    current_content = ""
+                    prompt = f"REPLACE failed: File not found: {self.own_file}"
+                    self._queue_self_prompt(prompt)
+                    return
                 else:
                     with open(file_path, 'r', encoding='utf-8') as f:
                         current_content = f.read()
-                
-                # Check if the from_string exists in the file
-                if directive.from_string not in current_content:
-                    prompt = f"REPLACE failed: String '{directive.from_string}' not found in {self.own_file}"
+                # Check for ambiguous from_strings (multiple occurrences)
+                ambiguous_items = []
+                missing_items = []
+                for item in directive.items:
+                    count = current_content.count(item.from_string)
+                    if count == 0:
+                        missing_items.append(item.from_string)
+                    elif count > 1:
+                        ambiguous_items.append((item.from_string, count))
+                # Report missing strings
+                if missing_items:
+                    missing_str = "', '".join(missing_items)
+                    prompt = f"REPLACE failed: String(s) '{missing_str}' not found in {self.own_file}"
+                # Report ambiguous strings
+                elif ambiguous_items:
+                    ambiguous_str = ", ".join([f"'{s}' ({c} occurrences)" for s, c in ambiguous_items])
+                    prompt = f"REPLACE failed: Ambiguous from strings in {self.own_file}: {ambiguous_str}. Please be more specific to target unique strings."
                 else:
-                    # Perform string replacement
-                    new_content = current_content.replace(directive.from_string, directive.to_string)
-                    
-                    # Write back to file
+                    # All strings are present and unique, proceed with replacements
+                    new_content = current_content
+                    replaced_items = []
+                    for item in directive.items:
+                        new_content = new_content.replace(item.from_string, item.to_string)
+                        replaced_items.append(f"'{item.from_string}' → '{item.to_string}'")
+                    # Write back to file (robust like CHANGE)
                     with open(file_path, 'w', encoding='utf-8') as f:
                         f.write(new_content)
-                    
-                    prompt = f"REPLACE succeeded: Replaced '{directive.from_string}' with '{directive.to_string}' in {self.own_file}"
+                        f.flush()
+                    replaced_str = ", ".join(replaced_items)
+                    prompt = f"REPLACE succeeded: Replaced {len(directive.items)} item(s) in {self.own_file}: {replaced_str}"
             else:
                 prompt = "REPLACE failed: This agent has no assigned file."
         except Exception as e:
             self._queue_self_prompt(f"REPLACE failed: Could not replace in {self.own_file}: {str(e)}")
+            return
+        self._queue_self_prompt(prompt)
+
+    def _execute_insert(self, directive: InsertDirective) -> None:
+        """Execute an INSERT directive."""
+        prompt = None
+        try:
+            if self.own_file is not None:
+                file_path = self.base_path / self.own_file
+                # If file does not exist, throw error and do not create it
+                if not file_path.exists():
+                    prompt = f"INSERT failed: File not found: {self.own_file}"
+                    self._queue_self_prompt(prompt)
+                    return
+                else:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        current_content = f.read()
+                # Check for from_string existence and ambiguity
+                count = current_content.count(directive.from_string)
+                if count == 0:
+                    prompt = f"INSERT failed: String '{directive.from_string}' not found in {self.own_file}"
+                elif count > 1:
+                    prompt = f"INSERT failed: Ambiguous from string '{directive.from_string}' in {self.own_file}: {count} occurrences. Please be more specific to target a unique string."
+                else:
+                    # Perform string insertion - insert to_string at the end of from_string
+                    new_content = current_content.replace(directive.from_string, directive.from_string + directive.to_string)
+                    with open(file_path, 'w', encoding='utf-8') as f:
+                        f.write(new_content)
+                        f.flush()
+                    prompt = f"INSERT succeeded: Inserted '{directive.to_string}' after '{directive.from_string}' in {self.own_file}"
+            else:
+                prompt = "INSERT failed: This agent has no assigned file."
+        except Exception as e:
+            self._queue_self_prompt(f"INSERT failed: Could not insert in {self.own_file}: {str(e)}")
             return
         self._queue_self_prompt(prompt)
 
@@ -210,8 +277,6 @@ class CoderLanguageInterpreter:
                 self._queue_self_prompt(f"SPAWN failed: Unknown ephemeral type: {ephemeral_type}")
                 return
 
-        # Queue completion message
-        self._queue_self_prompt("Spawn complete")
 
     def _execute_wait(self, directive: WaitDirective) -> None:
         """Execute a WAIT directive.
@@ -310,7 +375,7 @@ def execute_directive(directive_text: str, base_path: str = ".", agent=None, own
         directive = parse_directive(directive_text)
     except Exception as e:
         # Surface parsing errors back to the agent instead of crashing the pipeline.
-        error_msg = f"PARSING FAILED: {str(e)}"
+        error_msg = f"PARSING FAILED: {str(e)}\n\nMOST COMMON ISSUE: Multiple directives on same api call, use sequential API calls, aka only one line per API call"
         # If we have an agent attached make sure to enqueue the error so the next
         # LLM turn can react accordingly. This avoids silent failures where the
         # stack-trace only ends up in the console.

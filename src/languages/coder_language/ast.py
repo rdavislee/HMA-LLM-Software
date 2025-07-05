@@ -13,6 +13,7 @@ class TokenType(Enum):
     READ = "READ"
     RUN = "RUN"
     CHANGE = "CHANGE"
+    INSERT = "INSERT"
     SPAWN = "SPAWN"
     WAIT = "WAIT"
     FINISH = "FINISH"
@@ -189,17 +190,51 @@ class ChangeDirective(Directive):
 
 
 @dataclass
+class ReplaceItem:
+    """Represents a single replace operation."""
+    from_string: str
+    to_string: str
+    
+    def __str__(self) -> str:
+        return f'FROM="{self.from_string}" TO="{self.to_string}"'
+
+
+@dataclass
 class ReplaceDirective(Directive):
-    """Represents a REPLACE directive."""
+    """Represents a REPLACE directive with multiple replace items."""
+    items: List['ReplaceItem']
+    
+    def execute(self, context: dict) -> dict:
+        """Execute replace directive by adding string replacement actions to context."""
+        if 'replaces' not in context:
+            context['replaces'] = []
+        
+        for item in self.items:
+            context['replaces'].append({
+                'from_string': item.from_string,
+                'to_string': item.to_string,
+                'status': 'pending'
+            })
+        
+        return context
+    
+    def __str__(self) -> str:
+        items_str = ", ".join(str(item) for item in self.items)
+        return f'REPLACE {items_str}'
+
+
+@dataclass
+class InsertDirective(Directive):
+    """Represents an INSERT directive."""
     from_string: str
     to_string: str
     
     def execute(self, context: dict) -> dict:
-        """Execute replace directive by adding string replacement action to context."""
-        if 'replaces' not in context:
-            context['replaces'] = []
+        """Execute insert directive by adding string insertion action to context."""
+        if 'inserts' not in context:
+            context['inserts'] = []
         
-        context['replaces'].append({
+        context['inserts'].append({
             'from_string': self.from_string,
             'to_string': self.to_string,
             'status': 'pending'
@@ -208,7 +243,7 @@ class ReplaceDirective(Directive):
         return context
     
     def __str__(self) -> str:
-        return f'REPLACE FROM="{self.from_string}" TO="{self.to_string}"'
+        return f'INSERT FROM="{self.from_string}" TO="{self.to_string}"'
 
 
 @dataclass
@@ -263,7 +298,7 @@ class FinishDirective(Directive):
 
 
 # Type alias for all directive types
-DirectiveType = Union[ReadDirective, RunDirective, ChangeDirective, ReplaceDirective, SpawnDirective, WaitDirective, FinishDirective]
+DirectiveType = Union[ReadDirective, RunDirective, ChangeDirective, ReplaceDirective, InsertDirective, SpawnDirective, WaitDirective, FinishDirective]
 
 
 @dataclass

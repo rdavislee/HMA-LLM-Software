@@ -772,7 +772,8 @@ describe('ExpressionSimplifier', () => {
 
 describe('ExpressionIntegrator', () => {
     // Helper to check indefinite integration results
-    const checkIndefiniteResult = (
+    type CheckFn = (expr: ExpressionNode, variable: string, expectedIntegratedExpr: ExpressionNode | "UNINTEGRATABLE_EXPRESSION", expectedUnintegratable: boolean, expectedConstant: string | null) => void;
+    const _checkIndefiniteResult = (
         expr: ExpressionNode,
         variable: string,
         expectedIntegratedExpr: ExpressionNode | "UNINTEGRATABLE_EXPRESSION",
@@ -806,14 +807,14 @@ describe('ExpressionIntegrator', () => {
             // ∫ 5 dx = 5x + C
             const expr = num(5);
             const expected = op(op(num(5), 'multiply', variable('x')), 'add', variable('C'));
-            checkIndefiniteResult(expr, 'x', expected, false, 'C');
+            _checkIndefiniteResult(expr, 'x', expected, false, 'C');
         });
 
         it('should integrate a constant with respect to a different variable', () => {
             // ∫ 5 dy = 5y + C
             const expr = num(5);
             const expected = op(op(num(5), 'multiply', variable('y')), 'add', variable('C'));
-            checkIndefiniteResult(expr, 'y', expected, false, 'C');
+            _checkIndefiniteResult(expr, 'y', expected, false, 'C');
         });
 
         it('should integrate variable x to x^2/2 + C', () => {
@@ -821,7 +822,7 @@ describe('ExpressionIntegrator', () => {
             const expr = variable('x');
             const expected = op(op(variable('x'), 'power', num(2)), 'divide', num(2));
             const expectedWithC = op(expected, 'add', variable('C'));
-            checkIndefiniteResult(expr, 'x', expectedWithC, false, 'C');
+            _checkIndefiniteResult(expr, 'x', expectedWithC, false, 'C');
         });
 
         it('should integrate variable y to y^2/2 + C', () => {
@@ -829,32 +830,32 @@ describe('ExpressionIntegrator', () => {
             const expr = variable('y');
             const expected = op(op(variable('y'), 'power', num(2)), 'divide', num(2));
             const expectedWithC = op(expected, 'add', variable('C'));
-            checkIndefiniteResult(expr, 'y', expectedWithC, false, 'C');
+            _checkIndefiniteResult(expr, 'y', expectedWithC, false, 'C');
         });
 
         it('should treat other variables as constants: ∫ y dx = yx + C', () => {
             const expr = variable('y');
             const expected = op(op(variable('y'), 'multiply', variable('x')), 'add', variable('C'));
-            checkIndefiniteResult(expr, 'x', expected, false, 'C');
+            _checkIndefiniteResult(expr, 'x', expected, false, 'C');
         });
 
         it('should apply power rule: ∫ x^2 dx = x^3/3 + C', () => {
             const expr = op(variable('x'), 'power', num(2));
             const expected = op(op(variable('x'), 'power', num(3)), 'divide', num(3));
             const expectedWithC = op(expected, 'add', variable('C'));
-            checkIndefiniteResult(expr, 'x', expectedWithC, false, 'C');
+            _checkIndefiniteResult(expr, 'x', expectedWithC, false, 'C');
         });
 
         it('should apply power rule for negative exponent: ∫ x^-2 dx = x^-1/-1 + C = -1/x + C', () => {
             const expr = op(variable('x'), 'power', num(-2));
             const expected = op(unaryOp('negate', op(num(1), 'divide', variable('x'))), 'add', variable('C'));
-            checkIndefiniteResult(expr, 'x', expected, false, 'C');
+            _checkIndefiniteResult(expr, 'x', expected, false, 'C');
         });
 
         it('should handle integral of 1/x (x^-1) as ln(x) + C', () => {
             const expr = op(variable('x'), 'power', num(-1));
             const expected = op(func('ln', [variable('x')]), 'add', variable('C'));
-            checkIndefiniteResult(expr, 'x', expected, false, 'C');
+            _checkIndefiniteResult(expr, 'x', expected, false, 'C');
         });
 
         it('should apply sum rule: ∫ (x + 5) dx = x^2/2 + 5x + C', () => {
@@ -862,7 +863,7 @@ describe('ExpressionIntegrator', () => {
             const expectedTerm1 = op(op(variable('x'), 'power', num(2)), 'divide', num(2));
             const expectedTerm2 = op(num(5), 'multiply', variable('x'));
             const expected = op(op(expectedTerm2, 'add', expectedTerm1), 'add', variable('C'));
-            checkIndefiniteResult(expr, 'x', expected, false, 'C');
+            _checkIndefiniteResult(expr, 'x', expected, false, 'C');
         });
 
         it('should apply difference rule: ∫ (x^2 - x) dx = x^3/3 - x^2/2 + C', () => {
@@ -870,68 +871,68 @@ describe('ExpressionIntegrator', () => {
             const expectedTerm1 = op(op(variable('x'), 'power', num(3)), 'divide', num(3));
             const expectedTerm2 = op(op(variable('x'), 'power', num(2)), 'divide', num(2));
             const expected = op(op(unaryOp('negate', expectedTerm2), 'add', expectedTerm1), 'add', variable('C'));
-            checkIndefiniteResult(expr, 'x', expected, false, 'C');
+            _checkIndefiniteResult(expr, 'x', expected, false, 'C');
         });
 
         it('should apply constant multiple rule: ∫ 2x dx = x^2 + C', () => {
             const expr = op(num(2), 'multiply', variable('x'));
             const expected = op(op(variable('x'), 'power', num(2)), 'add', variable('C'));
-            checkIndefiniteResult(expr, 'x', expected, false, 'C');
+            _checkIndefiniteResult(expr, 'x', expected, false, 'C');
         });
 
         it('should integrate sin(x) to -cos(x) + C', () => {
             const expr = func('sin', [variable('x')]);
             const expected = op(unaryOp('negate', func('cos', [variable('x')])), 'add', variable('C'));
-            checkIndefiniteResult(expr, 'x', expected, false, 'C');
+            _checkIndefiniteResult(expr, 'x', expected, false, 'C');
         });
 
         it('should integrate cos(x) to sin(x) + C', () => {
             const expr = func('cos', [variable('x')]);
             const expected = op(func('sin', [variable('x')]), 'add', variable('C'));
-            checkIndefiniteResult(expr, 'x', expected, false, 'C');
+            _checkIndefiniteResult(expr, 'x', expected, false, 'C');
         });
 
         it('should integrate exp(x) to exp(x) + C', () => {
             const expr = new ExponentialNode(variable('x'));
             const expected = op(new ExponentialNode(variable('x')), 'add', variable('C'));
-            checkIndefiniteResult(expr, 'x', expected, false, 'C');
+            _checkIndefiniteResult(expr, 'x', expected, false, 'C');
         });
 
         it('should integrate ln(x) to xln(x) - x + C', () => {
             const expr = func('ln', [variable('x')]);
             const expected = op(op(unaryOp('negate', variable('x')), 'add', op(variable('x'), 'multiply', func('ln', [variable('x')]))), 'add', variable('C'));
-            checkIndefiniteResult(expr, 'x', expected, false, 'C');
+            _checkIndefiniteResult(expr, 'x', expected, false, 'C');
         });
 
         it('should integrate a^x (e.g. 2^x) to a^x/ln(a) + C', () => {
             const expr = op(num(2), 'power', variable('x'));
             const expected = op(op(num(2), 'power', variable('x')), 'divide', func('ln', [num(2)]));
             const expectedWithC = op(expected, 'add', variable('C'));
-            checkIndefiniteResult(expr, 'x', expectedWithC, false, 'C');
+            _checkIndefiniteResult(expr, 'x', expectedWithC, false, 'C');
         });
 
         it('should integrate 1^x to x + C', () => {
             const expr = op(num(1), 'power', variable('x'));
             const expected = op(variable('x'), 'add', variable('C'));
-            checkIndefiniteResult(expr, 'x', expected, false, 'C');
+            _checkIndefiniteResult(expr, 'x', expected, false, 'C');
         });
 
         it('should mark 0^x as unintegratable', () => {
             const expr = op(num(0), 'power', variable('x'));
-            checkIndefiniteResult(expr, 'x', "UNINTEGRATABLE_EXPRESSION", true, null);
+            _checkIndefiniteResult(expr, 'x', "UNINTEGRATABLE_EXPRESSION", true, null);
         });
 
         it('should integrate pi^x to pi^x/ln(pi) + C', () => {
             const expr = op(new ConstantNode('pi'), 'power', variable('x'));
             const expected = op(op(new ConstantNode('pi'), 'power', variable('x')), 'divide', func('ln', [new ConstantNode('pi')]));
             const expectedWithC = op(expected, 'add', variable('C'));
-            checkIndefiniteResult(expr, 'x', expectedWithC, false, 'C');
+            _checkIndefiniteResult(expr, 'x', expectedWithC, false, 'C');
         });
 
         it('should apply unary negation: ∫ -x dx = -x^2/2 + C', () => {
             const expr = unaryOp('negate', variable('x'));
             const expected = op(unaryOp('negate', op(op(variable('x'), 'power', num(2)), 'divide', num(2))), 'add', variable('C'));
-            checkIndefiniteResult(expr, 'x', expected, false, 'C');
+            _checkIndefiniteResult(expr, 'x', expected, false, 'C');
         });
 
         it('should handle complex integrable expression: ∫ (3x^2 + sin(x) - 4e^x) dx = x^3 - cos(x) - 4e^x + C', () => {
@@ -949,38 +950,131 @@ describe('ExpressionIntegrator', () => {
             // x^3 - cos(x) - 4e^x
             const expectedIntegrated = op(op(unaryOp('negate', func('cos', [variable('x')])), 'add', unaryOp('negate', op(num(4), 'multiply', new ExponentialNode(variable('x'))))), 'add', op(variable('x'), 'power', num(3)));
             const expectedWithC = op(expectedIntegrated, 'add', variable('C'));
-            checkIndefiniteResult(expr, 'x', expectedWithC, false, 'C');
+            _checkIndefiniteResult(expr, 'x', expectedWithC, false, 'C');
         });
 
         // Unintegratable cases
+        // U-substitution cases (assuming future implementation supports these)
+        it('should integrate (ax+b)^n (e.g., (2x+1)^3) using u-sub to (1/a)*(ax+b)^(n+1)/(n+1) + C', () => {
+            // ∫ (2x+1)^3 dx = (1/2) * (2x+1)^4 / 4 + C = (2x+1)^4 / 8 + C
+            const expr = op(op(num(2), 'multiply', variable('x')), 'add', num(1)); // 2x+1
+            const powerExpr = op(expr, 'power', num(3)); // (2x+1)^3
+            const expected = op(op(expr, 'power', num(4)), 'divide', num(8)); // (2x+1)^4 / 8
+            const expectedWithC = op(expected, 'add', variable('C'));
+            _checkIndefiniteResult(powerExpr, 'x', expectedWithC, false, 'C');
+        });
+
+        it('should integrate e^(ax+b) (e.g., e^(3x+2)) using u-sub to (1/a)e^(ax+b) + C', () => {
+            // ∫ e^(3x+2) dx = (1/3)e^(3x+2) + C
+            const innerExpr = op(op(num(3), 'multiply', variable('x')), 'add', num(2)); // 3x+2
+            const expr = new ExponentialNode(innerExpr); // e^(3x+2)
+            const expected = op(op(num(1), 'divide', num(3)), 'multiply', new ExponentialNode(innerExpr)); // (1/3)e^(3x+2)
+            const expectedWithC = op(expected, 'add', variable('C'));
+            _checkIndefiniteResult(expr, 'x', expectedWithC, false, 'C');
+        });
+
+        it('should integrate 1/(ax+b) (e.g., 1/(5x+4)) using u-sub to (1/a)ln(ax+b) + C', () => {
+            // ∫ 1/(5x+4) dx = (1/5)ln(5x+4) + C
+            const innerExpr = op(op(num(5), 'multiply', variable('x')), 'add', num(4)); // 5x+4
+            const expr = op(num(1), 'divide', innerExpr); // 1/(5x+4)
+            const expected = op(op(num(1), 'divide', num(5)), 'multiply', func('ln', [innerExpr])); // (1/5)ln(5x+4)
+            const expectedWithC = op(expected, 'add', variable('C'));
+            _checkIndefiniteResult(expr, 'x', expectedWithC, false, 'C');
+        });
+
+        it('should integrate cos(ax+b) (e.g., cos(4x)) using u-sub to (1/a)sin(ax+b) + C', () => {
+            // ∫ cos(4x) dx = (1/4)sin(4x) + C
+            const innerExpr = op(num(4), 'multiply', variable('x')); // 4x
+            const expr = func('cos', [innerExpr]); // cos(4x)
+            const expected = op(op(num(1), 'divide', num(4)), 'multiply', func('sin', [innerExpr])); // (1/4)sin(4x)
+            const expectedWithC = op(expected, 'add', variable('C'));
+            _checkIndefiniteResult(expr, 'x', expectedWithC, false, 'C');
+        });
+
+        it('should integrate sin(ax+b) (e.g., sin(2x)) using u-sub to (-1/a)cos(ax+b) + C', () => {
+            // ∫ sin(2x) dx = (-1/2)cos(2x) + C
+            const innerExpr = op(num(2), 'multiply', variable('x')); // 2x
+            const expr = func('sin', [innerExpr]); // sin(2x)
+            const expected = op(op(unaryOp('negate', op(num(1), 'divide', num(2))), 'multiply', func('cos', [innerExpr])), 'add', variable('C')); // -1/2cos(2x)
+            const expectedWithC = expected;
+            _checkIndefiniteResult(expr, 'x', expectedWithC, false, 'C');
+        });
+
+        it('should integrate sin(ax+b) (e.g., sin(x/2)) using u-sub to (-1/a)cos(ax+b) + C', () => {
+            // ∫ sin(x/2) dx = (-1/(1/2))cos(x/2) + C = -2cos(x/2) + C
+            const innerExpr = op(variable('x'), 'divide', num(2)); // x/2
+            const expr = func('sin', [innerExpr]); // sin(x/2)
+            const expected = op(unaryOp('negate', op(num(2), 'multiply', func('cos', [innerExpr]))), 'add', variable('C')); // -2cos(x/2)
+            const expectedWithC = expected;
+            _checkIndefiniteResult(expr, 'x', expectedWithC, false, 'C');
+        });
+
+        // More complex u-substitution cases (f(g(x)) * g'(x) forms)
+        it('should integrate 2x * e^(x^2) dx using u-sub (u=x^2) to e^(x^2) + C', () => {
+            // ∫ 2x * e^(x^2) dx
+            const uExpr = op(variable('x'), 'power', num(2)); // x^2
+            const gPrimeX = op(num(2), 'multiply', variable('x')); // 2x
+            const expr = op(gPrimeX, 'multiply', new ExponentialNode(uExpr)); // 2x * e^(x^2)
+            const expected = new ExponentialNode(uExpr); // e^(x^2)
+            const expectedWithC = op(expected, 'add', variable('C'));
+            _checkIndefiniteResult(expr, 'x', expectedWithC, false, 'C');
+        });
+
+        it('should integrate 3x^2 * cos(x^3) dx using u-sub (u=x^3) to sin(x^3) + C', () => {
+            // ∫ 3x^2 * cos(x^3) dx
+            const uExpr = op(variable('x'), 'power', num(3)); // x^3
+            const gPrimeX = op(num(3), 'multiply', op(variable('x'), 'power', num(2))); // 3x^2
+            const expr = op(gPrimeX, 'multiply', func('cos', [uExpr])); // 3x^2 * cos(x^3)
+            const expected = func('sin', [uExpr]); // sin(x^3)
+            const expectedWithC = op(expected, 'add', variable('C'));
+            _checkIndefiniteResult(expr, 'x', expectedWithC, false, 'C');
+        });
+
+        it('should integrate (1/x) * ln(x) dx using u-sub (u=ln(x)) to (ln(x))^2 / 2 + C', () => {
+            // ∫ (1/x) * ln(x) dx
+            const uExpr = func('ln', [variable('x')]); // ln(x)
+            const gPrimeX = op(num(1), 'divide', variable('x')); // 1/x
+            const expr = op(gPrimeX, 'multiply', uExpr); // (1/x) * ln(x)
+            const expected = op(op(uExpr, 'power', num(2)), 'divide', num(2)); // (ln(x))^2 / 2
+            const expectedWithC = op(expected, 'add', variable('C'));
+            _checkIndefiniteResult(expr, 'x', expectedWithC, false, 'C');
+        });
+
+        it('should integrate x * (x^2+1)^(1/2) dx using u-sub (u=x^2+1) to (1/3)*(x^2+1)^(3/2) + C', () => {
+            // ∫ x * (x^2+1)^(1/2) dx
+            const uExpr = op(op(variable('x'), 'power', num(2)), 'add', num(1)); // x^2+1
+            const gPrimeX_factor = variable('x'); // x (we need 2x, so we'll adjust the expected result)
+            const expr = op(gPrimeX_factor, 'multiply', op(uExpr, 'power', op(num(1), 'divide', num(2)))); // x * (x^2+1)^(1/2)
+            // Expected: (1/2) * (u^(3/2))/(3/2) = (1/2) * (2/3) * u^(3/2) = (1/3) * u^(3/2)
+            const expected = op(op(num(1), 'divide', num(3)), 'multiply', op(uExpr, 'power', op(num(3), 'divide', num(2)))); // (1/3)*(x^2+1)^(3/2)
+            const expectedWithC = op(expected, 'add', variable('C'));
+            _checkIndefiniteResult(expr, 'x', expectedWithC, false, 'C');
+        });
+
+        // Unintegratable cases (remaining, except the one for sin(2x))
         it('should mark tan(x) as unintegratable', () => {
             const expr = func('tan', [variable('x')]);
-            checkIndefiniteResult(expr, 'x', "UNINTEGRATABLE_EXPRESSION", true, null);
+            _checkIndefiniteResult(expr, 'x', "UNINTEGRATABLE_EXPRESSION", true, null);
         });
 
         it('should mark arcsin(x) as unintegratable', () => {
             const expr = func('arcsin', [variable('x')]);
-            checkIndefiniteResult(expr, 'x', "UNINTEGRATABLE_EXPRESSION", true, null);
+            _checkIndefiniteResult(expr, 'x', "UNINTEGRATABLE_EXPRESSION", true, null);
         });
 
         it('should mark product x*sin(x) as unintegratable (requires integration by parts)', () => {
             const expr = op(variable('x'), 'multiply', func('sin', [variable('x')]));
-            checkIndefiniteResult(expr, 'x', "UNINTEGRATABLE_EXPRESSION", true, null);
+            _checkIndefiniteResult(expr, 'x', "UNINTEGRATABLE_EXPRESSION", true, null);
         });
 
         it('should mark complex quotient x/(x+1) as unintegratable', () => {
             const expr = op(variable('x'), 'divide', op(variable('x'), 'add', num(1)));
-            checkIndefiniteResult(expr, 'x', "UNINTEGRATABLE_EXPRESSION", true, null);
-        });
-
-        it('should mark function with complex argument (e.g., sin(2x)) as unintegratable (requires u-sub)', () => {
-            const expr = func('sin', [op(num(2), 'multiply', variable('x'))]);
-            checkIndefiniteResult(expr, 'x', "UNINTEGRATABLE_EXPRESSION", true, null);
+            _checkIndefiniteResult(expr, 'x', "UNINTEGRATABLE_EXPRESSION", true, null);
         });
 
         it('should mark complex power rule like x^y as unintegratable', () => {
             const expr = op(variable('x'), 'power', variable('y'));
-            checkIndefiniteResult(expr, 'x', "UNINTEGRATABLE_EXPRESSION", true, null);
+            _checkIndefiniteResult(expr, 'x', "UNINTEGRATABLE_EXPRESSION", true, null);
         });
 
         it('should integrate e^(ax) (e.g. e^(2x)) to (1/a)e^(ax) + C', () => {
@@ -988,7 +1082,7 @@ describe('ExpressionIntegrator', () => {
             const innerExpr = op(num(2), 'multiply', variable('x'));
             const expr = new ExponentialNode(innerExpr);
             const expected = op(op(num(0.5), 'multiply', new ExponentialNode(innerExpr)), 'add', variable('C'));
-            checkIndefiniteResult(expr, 'x', expected, false, 'C');
+            _checkIndefiniteResult(expr, 'x', expected, false, 'C');
         });
     });
 
@@ -1076,7 +1170,7 @@ describe('ExpressionIntegrator', () => {
         // For a larger interval, the number of rectangles increases, leading to potentially better accuracy
         // or at least consistent accuracy for a given tolerance.
         it('should maintain accuracy for larger intervals (implicit numRectangles scaling)', () => {
-            // ∫ x dx from 0 to 10 = [x^2/2] from 0 to 10 = 100/2 = 50
+            // ∫ x dx from 0 to 10 = [x^2/2] from 0 to 10 = 50
             const expr = variable('x');
             expect(integrator.integrateDefinite(expr, 'x', 0, 10, {})).to.be.closeTo(50, tolerance);
         });
@@ -1103,6 +1197,217 @@ describe('ExpressionIntegrator', () => {
             // So, ∫ (0*x + 0) dx = 0.
             const expr = op(op(variable('a'), 'multiply', variable('x')), 'add', variable('b'));
             expect(integrator.integrateDefinite(expr, 'x', 0, 1, {})).to.be.closeTo(0, tolerance);
+        });
+    });
+});
+
+describe('ExpressionIntegrator - U-Substitution', () => {
+    // Helper to check indefinite integration results (modified for Usub)
+    type CheckUsubFn = (expr: ExpressionNode, variable: string, expectedIntegratedExpr: ExpressionNode | "UNINTEGRATABLE_EXPRESSION", expectedUnintegratable: boolean, expectedConstant: string | null) => void;
+    const _checkUsubResult = (
+        expr: ExpressionNode,
+        variable: string,
+        expectedIntegratedExpr: ExpressionNode | "UNINTEGRATABLE_EXPRESSION",
+        expectedUnintegratable: boolean,
+        expectedConstant: string | null
+    ) => {
+        const result = integrator.integrateIndefiniteUsub(expr, variable); // Call the specific method
+        expect(result.unintegratable).to.equal(expectedUnintegratable);
+        expect(result.constantOfIntegration).to.equal(expectedConstant);
+        if (expectedUnintegratable) {
+            expect(result.integratedExpression).to.equal("UNINTEGRATABLE_EXPRESSION");
+        } else {
+            // Need to compare ASTs for integrated expression
+            // Simplify both for robust comparison, as the Usub method might not simplify fully
+            const simplifiedResult = simplifier.simplify(result.integratedExpression as ExpressionNode);
+            const simplifiedExpected = simplifier.simplify(expectedIntegratedExpr as ExpressionNode);
+            expect(simplifiedResult).to.deep.equal(simplifiedExpected);
+        }
+    };
+
+    describe('integrateIndefiniteUsub()', () => {
+        // Test partitions:
+        // - Polynomial u-sub: (ax+b)^n, x(x^2+c)^n
+        // - Trigonometric u-sub: sin(ax+b), cos(ax+b), sec^2(ax+b), sin(g(x))g'(x), cos(g(x))g'(x)
+        // - Exponential u-sub: e^(ax+b), x*e^(x^2)
+        // - Logarithmic u-sub: 1/(ax+b), (1/x)ln(x)
+        // - Edge cases:
+        //   - Constant u (e.g., sin(5))
+        //   - u-sub that simplifies to a basic integral (e.g. ∫ (x+1)^1 dx -> (x+1)^2/2)
+        //   - Cases where du is not a simple constant multiple of dx (should be unintegratable)
+        //   - Cases where no clear u-sub applies (should be unintegratable)
+        //   - Linear u, non-linear u
+
+        // Linear U-Substitution Cases (f(ax+b) forms)
+        it('should integrate (ax+b)^n (e.g., (2x+1)^3) using u-sub to (1/a)*(ax+b)^(n+1)/(n+1) + C', () => {
+            // ∫ (2x+1)^3 dx = (1/2) * (2x+1)^4 / 4 + C = (2x+1)^4 / 8 + C
+            const innerExpr = op(op(num(2), 'multiply', variable('x')), 'add', num(1)); // 2x+1
+            const powerExpr = op(innerExpr, 'power', num(3)); // (2x+1)^3
+            const expected = op(op(innerExpr, 'power', num(4)), 'divide', num(8)); // (2x+1)^4 / 8
+            const expectedWithC = op(expected, 'add', variable('C'));
+            _checkUsubResult(powerExpr, 'x', expectedWithC, false, 'C');
+        });
+
+        it('should integrate e^(ax+b) (e.g., e^(3x+2)) using u-sub to (1/a)e^(ax+b) + C', () => {
+            // ∫ e^(3x+2) dx = (1/3)e^(3x+2) + C
+            const innerExpr = op(op(num(3), 'multiply', variable('x')), 'add', num(2)); // 3x+2
+            const expr = new ExponentialNode(innerExpr); // e^(3x+2)
+            const expected = op(op(num(1), 'divide', num(3)), 'multiply', new ExponentialNode(innerExpr)); // (1/3)e^(3x+2)
+            const expectedWithC = op(expected, 'add', variable('C'));
+            _checkUsubResult(expr, 'x', expectedWithC, false, 'C');
+        });
+
+        it('should integrate 1/(ax+b) (e.g., 1/(5x+4)) using u-sub to (1/a)ln(ax+b) + C', () => {
+            // ∫ 1/(5x+4) dx = (1/5)ln(5x+4) + C
+            const innerExpr = op(op(num(5), 'multiply', variable('x')), 'add', num(4)); // 5x+4
+            const expr = op(num(1), 'divide', innerExpr); // 1/(5x+4)
+            const expected = op(op(num(1), 'divide', num(5)), 'multiply', func('ln', [innerExpr])); // (1/5)ln(5x+4)
+            const expectedWithC = op(expected, 'add', variable('C'));
+            _checkUsubResult(expr, 'x', expectedWithC, false, 'C');
+        });
+
+        it('should integrate cos(ax+b) (e.g., cos(4x)) using u-sub to (1/a)sin(ax+b) + C', () => {
+            // ∫ cos(4x) dx = (1/4)sin(4x) + C
+            const innerExpr = op(num(4), 'multiply', variable('x')); // 4x
+            const expr = func('cos', [innerExpr]); // cos(4x)
+            const expected = op(op(num(1), 'divide', num(4)), 'multiply', func('sin', [innerExpr])); // (1/4)sin(4x)
+            const expectedWithC = op(expected, 'add', variable('C'));
+            _checkUsubResult(expr, 'x', expectedWithC, false, 'C');
+        });
+
+        it('should integrate sin(ax+b) (e.g., sin(2x)) using u-sub to (-1/a)cos(ax+b) + C', () => {
+            // ∫ sin(2x) dx = (-1/2)cos(2x) + C
+            const innerExpr = op(num(2), 'multiply', variable('x')); // 2x
+            const expr = func('sin', [innerExpr]); // sin(2x)
+            const expected = op(unaryOp('negate', op(op(num(1), 'divide', num(2)), 'multiply', func('cos', [innerExpr]))), 'add', variable('C')); // -1/2cos(2x)
+            _checkUsubResult(expr, 'x', expected, false, 'C');
+        });
+
+        it('should integrate sin(ax+b) (e.g., sin(x/2)) using u-sub to (-1/a)cos(ax+b) + C', () => {
+            // ∫ sin(x/2) dx = (-1/(1/2))cos(x/2) + C = -2cos(x/2) + C
+            const innerExpr = op(variable('x'), 'divide', num(2)); // x/2
+            const expr = func('sin', [innerExpr]); // sin(x/2)
+            const expected = op(unaryOp('negate', op(num(2), 'multiply', func('cos', [innerExpr]))), 'add', variable('C')); // -2cos(x/2)
+            _checkUsubResult(expr, 'x', expected, false, 'C');
+        });
+
+        // Non-Linear U-Substitution Cases (f(g(x)) * g'(x) forms)
+        it('should integrate 2x * e^(x^2) dx using u-sub (u=x^2) to e^(x^2) + C', () => {
+            // ∫ 2x * e^(x^2) dx
+            const uExpr = op(variable('x'), 'power', num(2)); // x^2
+            const gPrimeX = op(num(2), 'multiply', variable('x')); // 2x
+            const expr = op(gPrimeX, 'multiply', new ExponentialNode(uExpr)); // 2x * e^(x^2)
+            const expected = new ExponentialNode(uExpr); // e^(x^2)
+            const expectedWithC = op(expected, 'add', variable('C'));
+            _checkUsubResult(expr, 'x', expectedWithC, false, 'C');
+        });
+
+        it('should integrate 3x^2 * cos(x^3) dx using u-sub (u=x^3) to sin(x^3) + C', () => {
+            // ∫ 3x^2 * cos(x^3) dx
+            const uExpr = op(variable('x'), 'power', num(3)); // x^3
+            const gPrimeX = op(num(3), 'multiply', op(variable('x'), 'power', num(2))); // 3x^2
+            const expr = op(gPrimeX, 'multiply', func('cos', [uExpr])); // 3x^2 * cos(x^3)
+            const expected = func('sin', [uExpr]); // sin(x^3)
+            const expectedWithC = op(expected, 'add', variable('C'));
+            _checkUsubResult(expr, 'x', expectedWithC, false, 'C');
+        });
+
+        it('should integrate (1/x) * ln(x) dx using u-sub (u=ln(x)) to (ln(x))^2 / 2 + C', () => {
+            // ∫ (1/x) * ln(x) dx
+            const uExpr = func('ln', [variable('x')]); // ln(x)
+            const gPrimeX = op(num(1), 'divide', variable('x')); // 1/x
+            const expr = op(gPrimeX, 'multiply', uExpr); // (1/x) * ln(x)
+            const expected = op(op(uExpr, 'power', num(2)), 'divide', num(2)); // (ln(x))^2 / 2
+            const expectedWithC = op(expected, 'add', variable('C'));
+            _checkUsubResult(expr, 'x', expectedWithC, false, 'C');
+        });
+
+        it('should integrate x * (x^2+1)^(1/2) dx using u-sub (u=x^2+1) to (1/3)*(x^2+1)^(3/2) + C', () => {
+            // ∫ x * (x^2+1)^(1/2) dx
+            const uExpr = op(op(variable('x'), 'power', num(2)), 'add', num(1)); // x^2+1
+            const gPrimeX_factor = variable('x'); // x (we need 2x, so we'll adjust the expected result)
+            const expr = op(gPrimeX_factor, 'multiply', op(uExpr, 'power', op(num(1), 'divide', num(2)))); // x * (x^2+1)^(1/2)
+            // Expected: (1/2) * (u^(3/2))/(3/2) = (1/2) * (2/3) * u^(3/2) = (1/3) * u^(3/2)
+            const expected = op(op(num(1), 'divide', num(3)), 'multiply', op(uExpr, 'power', op(num(3), 'divide', num(2)))); // (1/3)*(x^2+1)^(3/2)
+            const expectedWithC = op(expected, 'add', variable('C'));
+            _checkUsubResult(expr, 'x', expectedWithC, false, 'C');
+        });
+
+        it('should integrate sec^2(ax+b) (e.g., sec^2(5x)) using u-sub to (1/a)tan(ax+b) + C', () => {
+            // ∫ sec^2(5x) dx = (1/5)tan(5x) + C
+            const innerExpr = op(num(5), 'multiply', variable('x')); // 5x
+            const expr = op(func('cos', [innerExpr]), 'power', num(-2)); // sec^2(5x) represented as (cos(5x))^-2
+            const expected = op(op(num(1), 'divide', num(5)), 'multiply', func('tan', [innerExpr])); // (1/5)tan(5x)
+            const expectedWithC = op(expected, 'add', variable('C'));
+            _checkUsubResult(expr, 'x', expectedWithC, false, 'C');
+        });
+
+        it('should integrate x * sin(x^2 + 3) dx using u-sub (u=x^2+3) to (-1/2)cos(x^2+3) + C', () => {
+            // ∫ x * sin(x^2 + 3) dx
+            const uExpr = op(op(variable('x'), 'power', num(2)), 'add', num(3)); // x^2+3
+            const expr = op(variable('x'), 'multiply', func('sin', [uExpr])); // x * sin(x^2+3)
+            // du = 2x dx => x dx = (1/2)du
+            // ∫ (1/2)sin(u) du = (-1/2)cos(u) + C
+            const expected = op(unaryOp('negate', op(op(num(1), 'divide', num(2)), 'multiply', func('cos', [uExpr]))), 'add', variable('C'));
+            _checkUsubResult(expr, 'x', expected, false, 'C');
+        });
+
+        it('should integrate x / (x^2 + 1) dx using u-sub (u=x^2+1) to (1/2)ln(x^2+1) + C', () => {
+            // ∫ x / (x^2 + 1) dx
+            const uExpr = op(op(variable('x'), 'power', num(2)), 'add', num(1)); // x^2+1
+            const expr = op(variable('x'), 'divide', uExpr); // x / (x^2+1)
+            // du = 2x dx => x dx = (1/2)du
+            // ∫ (1/2) * (1/u) du = (1/2)ln(u) + C
+            const expected = op(op(num(1), 'divide', num(2)), 'multiply', func('ln', [uExpr]));
+            const expectedWithC = op(expected, 'add', variable('C'));
+            _checkUsubResult(expr, 'x', expectedWithC, false, 'C');
+        });
+
+        // Edge cases and unintegratable by U-sub alone
+        it('should mark a simple power rule expression as unintegratable by u-sub (e.g., x^2)', () => {
+            // This is a basic integral, not a u-substitution case.
+            const expr = op(variable('x'), 'power', num(2));
+            _checkUsubResult(expr, 'x', "UNINTEGRATABLE_EXPRESSION", true, null);
+        });
+
+        it('should mark a constant as unintegratable by u-sub (e.g., 5)', () => {
+            // This is a constant, should be handled by basic integration, not u-sub
+            const expr = num(5);
+            _checkUsubResult(expr, 'x', "UNINTEGRATABLE_EXPRESSION", true, null);
+        });
+
+        it('should mark an expression with no integration variable as unintegratable by u-sub (e.g., sin(5))', () => {
+            // If the expression has no 'x', it's a constant with respect to x. Not a u-sub candidate.
+            const expr = func('sin', [num(5)]);
+            _checkUsubResult(expr, 'x', "UNINTEGRATABLE_EXPRESSION", true, null);
+        });
+
+        it('should mark a general product as unintegratable by u-sub (e.g., x*ln(x))', () => {
+            // This requires integration by parts, not u-sub
+            const expr = op(variable('x'), 'multiply', func('ln', [variable('x')]));
+            _checkUsubResult(expr, 'x', "UNINTEGRATABLE_EXPRESSION", true, null);
+        });
+
+        it('should mark a general quotient as unintegratable by u-sub (e.g., ln(x)/x^2)', () => {
+            // This requires integration by parts or other methods, not simple u-sub
+            const expr = op(func('ln', [variable('x')]), 'divide', op(variable('x'), 'power', num(2)));
+            _checkUsubResult(expr, 'x', "UNINTEGRATABLE_EXPRESSION", true, null);
+        });
+
+        it('should mark a non-standard u-sub form as unintegratable (e.g., sin(x^2) without x factor)', () => {
+            // ∫ sin(x^2) dx - requires special functions or series, not elementary u-sub
+            const expr = func('sin', [op(variable('x'), 'power', num(2))]);
+            _checkUsubResult(expr, 'x', "UNINTEGRATABLE_EXPRESSION", true, null);
+        });
+
+        it('should mark an expression with multiple variables not fitting u-sub pattern as unintegratable (e.g., xy^2)', () => {
+            const expr = op(variable('x'), 'multiply', op(variable('y'), 'power', num(2)));
+            _checkUsubResult(expr, 'x', "UNINTEGRATABLE_EXPRESSION", true, null);
+        });
+
+        it('should mark complex polynomial not fitting u-sub (e.g. x^3+x)', () => {
+            const expr = op(op(variable('x'), 'power', num(3)), 'add', variable('x'));
+            _checkUsubResult(expr, 'x', "UNINTEGRATABLE_EXPRESSION", true, null);
         });
     });
 });

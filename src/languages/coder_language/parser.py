@@ -7,7 +7,7 @@ import os
 from typing import List, Union
 from lark import Lark, Transformer, v_args
 from .ast import (
-    Directive, ReadDirective, RunDirective, ChangeDirective, ReplaceDirective, SpawnDirective, WaitDirective, FinishDirective,
+    Directive, ReadDirective, RunDirective, ChangeDirective, ReplaceDirective, ReplaceItem, InsertDirective, SpawnDirective, WaitDirective, FinishDirective,
     Target, PromptField, EphemeralType, SpawnItem, DirectiveType
 )
 
@@ -38,9 +38,20 @@ class CoderLanguageTransformer(Transformer):
         return ChangeDirective(content=content)
     
     @v_args(inline=True)
-    def replace(self, from_string, to_string):
+    def replace(self, first_item, *other_items):
         """Transform replace directive."""
-        return ReplaceDirective(from_string=from_string, to_string=to_string)
+        items = [first_item] + list(other_items)
+        return ReplaceDirective(items=items)
+    
+    @v_args(inline=True)
+    def replace_item(self, from_string, to_string):
+        """Transform replace item."""
+        return ReplaceItem(from_string=from_string, to_string=to_string)
+    
+    @v_args(inline=True)
+    def insert(self, from_string, to_string):
+        """Transform insert directive."""
+        return InsertDirective(from_string=from_string, to_string=to_string)
     
     @v_args(inline=True)
     def spawn(self, first_item, *other_items):
@@ -112,14 +123,14 @@ class CoderLanguageTransformer(Transformer):
         return self._unescape_string(raw_string)
     
     def _unescape_string(self, s: str) -> str:
-        """Unescape string literals, handling double-backslash correctly."""
+        """Unescape string literals, handling double-backslash and both quote types correctly."""
         # First, replace double-backslash with a placeholder
         placeholder = "\0BACKSLASH\0"
         s = s.replace('\\\\', placeholder)
-        
         escape_map = {
             '\\': '\\',
             '"': '"',
+            "'": "'",
             '/': '/',
             'b': '\b',
             'f': '\f',

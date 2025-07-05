@@ -1,0 +1,52 @@
+// Master Language Grammar for Lark
+// Based on the manager language but simplified for top-level coordination
+
+// Comments
+COMMENT: /\/\/.*/
+
+// Directives
+directive: delegate | finish | read | run | update_documentation
+
+// Delegate directive (single target - always the root agent)
+delegate: "DELEGATE" prompt_field
+
+
+// Finish directive  
+finish: "FINISH" prompt_field
+
+// Read directive (only action directive available for master)
+read: "READ" target ("," target)*
+
+// Update documentation directive
+update_documentation: "UPDATE_DOCUMENTATION" "CONTENT" "=" string
+
+// Run directive
+run: RUN command
+
+
+// Targets
+target: "file" filename   -> file
+      | "folder" filename -> folder
+
+
+// Filename is a quoted string
+filename: string
+
+// Command is a quoted string
+command: string
+
+// Prompt field
+prompt_field: "PROMPT" "=" string
+
+// String literals as a terminal (preserve whitespace and escapes)
+string: STRING
+STRING: /"([^"\\]|\\.)*"/
+
+// Action type tokens (no CREATE/DELETE for master)
+UPDATE_DOCUMENTATION: "UPDATE_DOCUMENTATION"
+RUN: "RUN"
+
+// Ignore whitespace and comments
+%import common.WS
+%ignore WS
+%ignore COMMENT 

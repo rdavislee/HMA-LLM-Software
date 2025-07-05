@@ -1,55 +1,50 @@
 from __future__ import annotations
 
-"""Project initializer utilities.
+"""Project initializer for brand-new codebases.
 
-This module provides a single convenience function – ``initialize_agents`` – that
-turns an *existing* directory structure into an in-memory agent hierarchy that
-can immediately be used by the rest of the system.
+This module exposes a single public coroutine – **initialize_new_project** – that
+bootstraps an empty directory into a fully-scaffolded project using an
+interactive, three-phase workflow controlled by a master agent:
 
-Usage example
--------------
->>> from src.initializer import initialize_agents
->>> root_agent, all_agents = initialize_agents("/path/to/project")
+1. **Product Understanding**: the master agent asks clarifying questions until
+   the human approves moving forward.
+2. **Structure Stage**: the master agent issues RUN commands to create the
+   directory & file scaffold that will host the implementation.
+3. **Implementation**: the master agent spawns the full agent hierarchy and
+   delegates work to implement, test, and verify the project.
 
-The function performs the following tasks:
-1. Sets ``src.ROOT_DIR`` to the provided path (using ``src.set_root_dir``).
-2. Recursively walks the directory tree.
-   • For **every directory** it creates a :class:`~src.agents.manager_agent.ManagerAgent`.
-     The directory's personal file is expected to be ``<folder_name>_README.md``. If the
-     README is absent it is created automatically (empty file).
-   • For **every file** it creates a :class:`~src.agents.coder_agent.CoderAgent` – except
-     the manager READMEs which are already owned by the corresponding directory manager.
-3. Correctly wires **parent / child** relationships between the agents.
-4. Copies all agent tool scripts (e.g., run-mocha.js) from ``scripts/typescript/tools/``
-   into the initialized project root's ``tools/`` directory, so agents can use them.
-5. Returns **both** the root :class:`ManagerAgent` and a flat ``dict`` mapping
-   ``Path`` objects to their associated agents for optional convenience.
+The helper utilities in this file (_ensure_readme, _build_manager, and
+_bootstrap_language_environment) exist solely to support the new-project flow.
 """
 
 from pathlib import Path
-from typing import Dict, Tuple, Optional, List
-import subprocess  # NEW: for bootstrapping TypeScript deps
-import shutil  # NEW: for cleaning up directories
+from typing import Dict, Tuple, Optional, Callable, Awaitable, Union
+import subprocess
+import asyncio
+import time
 
 from src import set_root_dir, ROOT_DIR
 from src.agents.base_agent import BaseAgent
 from src.agents.manager_agent import ManagerAgent
+from src.agents.master_agent import MasterAgent
 from src.agents.coder_agent import CoderAgent
 from src.llm.base import BaseLLMClient
-from src.config import Language, set_global_language
+from src.config import Language, set_global_language, get_global_language
+from src.messages.protocol import Task, TaskMessage, MessageType
+from src.orchestrator.master_prompter import master_prompter
 
-__all__ = ["initialize_agents", "cleanup_project"]
+__all__ = ["initialize_new_project"]
 
+# ---------------------------------------------------------------------------
+# Constants & helper functions
+# ---------------------------------------------------------------------------
 
 IGNORED_DIR_NAMES = {".git", "__pycache__", ".mypy_cache", ".pytest_cache"}
-IGNORED_FILE_NAMES = {"__init__.py"}  # can be extended
+IGNORED_FILE_NAMES = {"__init__.py"}
 
 
 def _ensure_readme(dir_path: Path) -> Path:
-    """Ensure the manager README exists for *dir_path*.
-
-    Returns the *Path* to the README (newly created or pre-existing).
-    """
+    """Ensure a README exists for *dir_path* and return its path."""
     readme_name = f"{dir_path.name}_README.md"
     readme_path = dir_path / readme_name
     if not readme_path.exists():
@@ -59,13 +54,12 @@ def _ensure_readme(dir_path: Path) -> Path:
 
 def _build_manager(
     dir_path: Path,
-    parent: Optional[ManagerAgent],
+    parent: Optional[Union["ManagerAgent", "MasterAgent"]],
     llm_client: Optional[BaseLLMClient],
     max_context_size: int,
     agent_lookup: Dict[Path, "BaseAgent"],
 ) -> ManagerAgent:
-    """Recursively construct agents starting at *dir_path* (which **must** be a directory)."""
-    # Ensure README exists *before* constructing the agent so that BaseAgent picks it up.
+    """Recursively construct agents starting at *dir_path*."""
     _ensure_readme(dir_path)
 
     manager = ManagerAgent(
@@ -76,8 +70,10 @@ def _build_manager(
     )
     agent_lookup[dir_path] = manager
 
-    # First process sub-directories.
-    for child_dir in sorted(p for p in dir_path.iterdir() if p.is_dir() and p.name not in IGNORED_DIR_NAMES):
+    # First, process sub-directories.
+    for child_dir in sorted(
+        p for p in dir_path.iterdir() if p.is_dir() and p.name not in IGNORED_DIR_NAMES
+    ):
         child_manager = _build_manager(
             child_dir,
             parent=manager,
@@ -87,11 +83,10 @@ def _build_manager(
         )
         manager.children.append(child_manager)
 
-    # Then process files.
+    # Then, process regular files.
     for file_path in sorted(p for p in dir_path.iterdir() if p.is_file()):
-        # Skip README – it is personal file for the manager.
         if file_path.name == f"{dir_path.name}_README.md":
-            continue
+            continue  # Personal file for the directory manager
         if file_path.name in IGNORED_FILE_NAMES:
             continue
         coder = CoderAgent(
@@ -106,192 +101,236 @@ def _build_manager(
     return manager
 
 
-# Tool binary paths (populated after _bootstrap_language_environment)
-TSC_BIN = ""
-TS_NODE_BIN = ""
-TSX_BIN = ""
-MOCHA_BIN = ""
+# ---------------------------------------------------------------------------
+# Public API – *initialize_new_project*
+# ---------------------------------------------------------------------------
 
-
-def _bootstrap_language_environment(language: "Language") -> None:
-    """Provision language-specific offline tooling.
-
-    For *typescript* this executes ``scripts/typescript/initializer.py`` which
-    installs vendored tarballs into ``.node_deps``. The global *_BIN constants
-    are populated afterwards so that other modules can reference them.
-    """
-    global TSC_BIN, TS_NODE_BIN, TSX_BIN, MOCHA_BIN
-    from src import ROOT_DIR
-    project_root = Path(ROOT_DIR)
-
-    if language == Language.TYPESCRIPT:
-        # Ensure packages are installed (idempotent).
-        try:
-            subprocess.run(["python", "scripts/typescript/initializer.py", str(project_root)], check=True)
-        except subprocess.CalledProcessError as e:
-            # In CI or restricted environments 'npm' may be unavailable. Skip installation but continue.
-            print(f"[initializer] Warning: TypeScript tooling installation failed ({e}). Continuing assuming tools are pre-bundled.")
-        node_deps = project_root / ".node_deps" / "node_modules"
-        TSC_BIN = str(node_deps / "typescript" / "bin" / "tsc")
-        TS_NODE_BIN = str(node_deps / "ts-node" / "bin" / "ts-node")
-        TSX_BIN = str(node_deps / "tsx" / "dist" / "cli.mjs")
-        MOCHA_BIN = str(node_deps / "mocha" / "bin" / "mocha")
-
-    else:
-        raise ValueError(f"Unsupported language environment: {language}")
-
-
-def initialize_agents(
+async def initialize_new_project(
     root_directory: str | Path,
+    initial_prompt: str,
+    human_interface_fn: Callable[[str], Awaitable[str]],
     *,
     language: Language = Language.TYPESCRIPT,
-    llm_client: Optional[BaseLLMClient] = None,
-    max_context_size: int = 8000,
-) -> Tuple[ManagerAgent, Dict[Path, "BaseAgent"]]:
-    """Initialize the full agent hierarchy for *root_directory*.
+    master_llm_client: Optional[BaseLLMClient] = None,
+    base_llm_client: Optional[BaseLLMClient] = None,
+    max_context_size: int = 80000,
+) -> Tuple["MasterAgent", ManagerAgent, Dict[Path, "BaseAgent"]]:
+    """Interactive three-phase bootstrapping for brand-new projects.
 
-    Parameters
-    ----------
-    root_directory:
-        Path to the project root that will become ``src.ROOT_DIR``.
-    language:
-        Programming language environment for the project.
-    llm_client:
-        Optional LLM client instance to share between agents (can be *None* – the
-        orchestrator may inject one later).
-    max_context_size:
-        Maximum context tokens for each agent's ``BaseAgent`` constructor.
-
-    Returns
-    -------
-    (root_manager, agent_lookup):
-        *root_manager* is the :class:`ManagerAgent` for the repository root.
-        *agent_lookup* contains **all** agents indexed by their absolute :class:`Path`.
+    The coroutine drives a full project lifecycle:
+    1. *Product understanding* – clarify requirements with the user.
+    2. *Structure stage* – create the optimal directory & file scaffold via RUN commands.
+    3. *Implementation* – build agent hierarchy and coordinate implementation.
     """
-    root_path = Path(root_directory).resolve()
-    if not root_path.exists() or not root_path.is_dir():
-        raise ValueError(f"Provided root_directory '{root_directory}' is not an existing directory")
 
-    # Set global ROOT_DIR so that all future agents refer to correct path.
+    root_path = Path(root_directory).resolve()
+    if not root_path.exists():
+        root_path.mkdir(parents=True, exist_ok=True)
+
+    # Guard against accidental use on non-empty directories.
+    existing_items = [item for item in root_path.iterdir() if not item.name.startswith(".")]
+    if existing_items:
+        raise ValueError(
+            f"Directory {root_directory} is not empty. Found: {[item.name for item in existing_items]}"
+        )
+
+    # Global configuration & language toolchain.
     set_root_dir(str(root_path))
-    
-    # Set global language so that all agents use the correct language settings
     set_global_language(language)
 
-    # Bootstrap language-specific tooling *before* walking the tree so that child
-    # agents know binaries exist.
-    _bootstrap_language_environment(language)
-
-    # Create scratch_pads directory for tester agents
+    # Workspace scratch dir for tester agents.
     scratch_pads_dir = root_path / "scratch_pads"
     scratch_pads_dir.mkdir(exist_ok=True)
-    print(f"[Initializer] Created scratch_pads directory: {scratch_pads_dir}")
 
-    # Maintain lookup so that callers can easily retrieve a particular agent if necessary.
+    # Master agent orchestrates the process; manager/coder agents are created later.
+    master_agent = MasterAgent(
+        llm_client=master_llm_client,
+        max_context_size=max_context_size,
+    )
+
+    # Bidirectional handshake between master agent FINISH directives and this initializer.
+    completion_event: asyncio.Event = asyncio.Event()
+    completion_data: Dict[str, Optional[str | asyncio.Event | Dict[str, str]]] = {"message": None}
+
+    async def phase_communication_fn(completion_message: str) -> str:  # noqa: D401 – simple lambda-like helper
+        completion_data["message"] = completion_message
+        completion_event.set()
+        response_event: asyncio.Event = asyncio.Event()
+        response_holder: Dict[str, str] = {"response": ""}
+        completion_data["response_event"] = response_event
+        completion_data["response_holder"] = response_holder
+        await response_event.wait()
+        return response_holder["response"]
+
+    master_agent.set_human_interface_fn(phase_communication_fn)
+
+    # Persistent project documentation.
+    (root_path / "documentation.md").write_text(
+        f"# Project Documentation\n\nInitial Request: {initial_prompt}\n\n"
+    )
+
+    # ---------------------------- Phase 1 – Product understanding ----------------------------
+    print("[Phase 1] Starting product understanding phase…")
+    language_name = str(get_global_language().name) if hasattr(get_global_language(), 'name') else str(get_global_language())
+    phase1_task = Task(
+        task_id=f"phase1_{int(time.time())}",
+        task_string=(
+            f"[LANGUAGE: {language_name}] "
+            "Phase 1: Product Understanding – Learn as much as possible about the human's "
+            f"requirements. Initial idea: {initial_prompt}"
+        ),
+    )
+    phase1_task_msg = TaskMessage(
+        message_type=MessageType.DELEGATION,
+        sender="HUMAN",
+        recipient=master_agent,
+        message_id=f"phase1_init_{int(time.time())}",
+        task=phase1_task,
+    )
+
+    await master_prompter(master_agent, initial_prompt, phase1_task_msg)
+
+    # Approval loop – wait until the human types "Approved".
+    while True:
+        await completion_event.wait()
+        completion_event.clear()
+        completion_message = completion_data["message"]
+        print(f"[Phase 1] Master completed with: {completion_message}")
+        approval = await human_interface_fn(
+            "Type 'Approved' to move to Phase 2 (Structure), or provide additional feedback:"
+        )
+        if approval.strip().lower() == "approved":
+            completion_data["response_holder"]["response"] = "approved"
+            completion_data["response_event"].set()
+            break
+        # Otherwise send additional feedback and continue phase 1.
+        completion_data["response_holder"]["response"] = (
+            f"Additional feedback from human: {approval}. Continue product understanding and use FINISH when ready."
+        )
+        completion_data["response_event"].set()
+
+    # ---------------------------- Phase 2 – Structure stage ----------------------------
+    print("[Phase 2] Starting structure stage…")
+    language_name = str(get_global_language().name) if hasattr(get_global_language(), 'name') else str(get_global_language())
+    phase2_task = Task(
+        task_id=f"phase2_{int(time.time())}",
+        task_string=(
+            f"[LANGUAGE: {language_name}] "
+            "Phase 2: Structure Stage – Create optimal project structure using RUN commands. "
+            "CONSTRAINTS: No folder should have more than 8 items (files + subdirectories); "
+            "Design the structure so each file remains under 1000 lines; Provide placeholder files for all major components; "
+            "Follow best practices for the chosen tech stack; Separate interfaces, implementations, tests, and configs appropriately."
+        ),
+    )
+    phase2_msg = TaskMessage(
+        message_type=MessageType.DELEGATION,
+        sender="HUMAN",
+        recipient=master_agent,
+        message_id=f"phase2_init_{int(time.time())}",
+        task=phase2_task,
+    )
+
+    structure_prompt = (
+        "Proceed to structure stage. Use RUN commands to scaffold the codebase.\n\n"
+        "CONSTRAINTS:\n"
+        "- No folder should have more than 8 items (files + subdirectories)\n"
+        "- Design the structure so each file remains under 1000 lines\n"
+        "- Provide placeholder files for all major components\n"
+        "- Follow best practices for the chosen tech stack\n"
+        "- Separate interfaces, implementations, tests, and configs appropriately\n\n"
+        "When finished, use FINISH to report completion."
+    )
+
+    await master_prompter(master_agent, structure_prompt, phase2_msg)
+
+    while True:
+        await completion_event.wait()
+        completion_event.clear()
+        completion_message = completion_data["message"]
+        print(f"[Phase 2] Master completed with: {completion_message}")
+        approval = await human_interface_fn(
+            "Type 'Approved' to approve the structure and move to Phase 3 (Implementation), or give feedback:"
+        )
+        if approval.strip().lower() == "approved":
+            completion_data["response_holder"]["response"] = "approved"
+            completion_data["response_event"].set()
+            break
+        completion_data["response_holder"]["response"] = (
+            f"Human feedback on structure: {approval}. Please refine and use FINISH when ready."
+        )
+        completion_data["response_event"].set()
+
+    # ---------------------------- Phase 3 – Implementation ----------------------------
+    print("[Phase 3] Creating agent hierarchy…")
     agent_lookup: Dict[Path, "BaseAgent"] = {}
-
     root_manager = _build_manager(
         root_path,
-        parent=None,
-        llm_client=llm_client,
+        parent=None,  # Will be assigned to master_agent below.
+        llm_client=base_llm_client,
         max_context_size=max_context_size,
         agent_lookup=agent_lookup,
     )
+    master_agent.set_root_agent(root_manager)
+    root_manager.parent = master_agent
 
-    return root_manager, agent_lookup
+    print(f"[Phase 3] Created {len(agent_lookup)} agents.")
 
+    # Create README stubs for all manager agents.
+    for agent in agent_lookup.values():
+        if getattr(agent, "is_manager", False):
+            readme_path = agent.personal_file
+            if not readme_path.exists():
+                readme_path.write_text(
+                    f"# {readme_path.parent.name}\n\nFolder managed by agent.\n"
+                )
 
-def cleanup_project(root_directory: str | Path) -> None:
-    """Clean up project resources including the scratch_pads directory.
-    
-    Parameters
-    ----------
-    root_directory:
-        Path to the project root that contains the scratch_pads directory.
-    """
-    root_path = Path(root_directory).resolve()
-    scratch_pads_dir = root_path / "scratch_pads"
-    
-    if scratch_pads_dir.exists():
-        try:
-            shutil.rmtree(scratch_pads_dir)
-            print(f"[Initializer] Cleaned up scratch_pads directory: {scratch_pads_dir}")
-        except Exception as e:
-            print(f"[Initializer] Warning: Failed to cleanup scratch_pads directory: {e}")
-
-
-# ---------------------------------------------------------------------------
-# Prompt execution helpers
-# ---------------------------------------------------------------------------
-import asyncio
-import uuid
-import time
-
-from src.messages.protocol import Task, TaskMessage, MessageType
-from src.orchestrator.manager_prompter import manager_prompter
-
-
-async def _async_execute_root_prompt(root_agent: ManagerAgent, prompt: str) -> str:
-    """Helper coroutine that activates *root_agent* with *prompt* and returns its response."""
-    # Build a synthetic Task/TaskMessage so that the root agent sees a real task.
-    task = Task(task_id=str(uuid.uuid4()), task_string=prompt)
-    task_message = TaskMessage(
+    language_name = str(get_global_language().name) if hasattr(get_global_language(), 'name') else str(get_global_language())
+    phase3_task = Task(
+        task_id=f"phase3_{int(time.time())}",
+        task_string=(
+            f"[LANGUAGE: {language_name}] "
+            "Phase 3: Implementation – Coordinate development via delegation to the root manager. "
+            "Delegate work in logical phases and use FINISH to report progress."
+        ),
+    )
+    phase3_msg = TaskMessage(
         message_type=MessageType.DELEGATION,
-        sender="USER",  # String for user, not agent object
-        recipient=root_agent,
-        message_id=str(uuid.uuid4()),
-        task=task,
+        sender="HUMAN",
+        recipient=master_agent,
+        message_id=f"phase3_init_{int(time.time())}",
+        task=phase3_task,
     )
 
-    # Kick-off the manager prompter pipeline.
-    await manager_prompter(root_agent, prompt, task_message)
+    implementation_prompt = (
+        "Proceed to project implementation. Delegate work to the root manager in logical phases and "
+        "use FINISH to report progress."
+    )
 
-    # Wait until root_agent has completed processing. We consider it done when:
-    #   • It is no longer stalled, AND
-    #   • Its prompt_queue is empty, AND
-    #   • All children have completed (active_children empty)
+    await master_prompter(master_agent, implementation_prompt, phase3_msg)
+
     while True:
-        finished = getattr(root_agent, "final_result", None)
-        if finished is not None:
-            break
-        await asyncio.sleep(0.1)
-
-    # Prefer explicit final_result if set by manager_language
-    final_result = getattr(root_agent, "final_result", None)
-    if final_result is not None:
-        return final_result
-
-    if root_agent.context:
-        return root_agent.context[-1].response
-    return ""
-
-
-def execute_root_prompt(root_agent: ManagerAgent, prompt: str) -> str:
-    """Synchronously execute *prompt* against the *root_agent* hierarchy and return its response."""
-    return asyncio.run(_async_execute_root_prompt(root_agent, prompt))
-
-
-def initialize_and_run(
-    root_directory: str | Path,
-    initial_prompt: str,
-    *,
-    language: Language = Language.TYPESCRIPT,
-    llm_client: Optional[BaseLLMClient] = None,
-    max_context_size: int = 8000,
-) -> str:
-    """Full convenience shortcut: build agents then run *initial_prompt*.
-
-    Returns the root agent's textual response.
-    """
-    try:
-        root_agent, _ = initialize_agents(
-            root_directory,
-            language=language,
-            llm_client=llm_client,
-            max_context_size=max_context_size,
+        await completion_event.wait()
+        completion_event.clear()
+        completion_message = completion_data["message"]
+        print(f"[Phase 3] Master completed with: {completion_message}")
+        approval = await human_interface_fn(
+            "Type 'Approved' to finish the project, or provide additional implementation requests:"
         )
+        if approval.strip().lower() == "approved":
+            completion_data["response_holder"]["response"] = "approved"
+            completion_data["response_event"].set()
+            break
+        completion_data["response_holder"]["response"] = (
+            f"Additional human request: {approval}. Please delegate tasks and use FINISH when ready."
+        )
+        completion_data["response_event"].set()
 
-        return execute_root_prompt(root_agent, initial_prompt)
-    finally:
-        # Always clean up scratch_pads directory when done
-        cleanup_project(root_directory) 
+    # Optional: remove manager README stubs (clean-up step).
+    for agent in agent_lookup.values():
+        if getattr(agent, "is_manager", False):
+            readme_path = agent.personal_file
+            if readme_path.exists():
+                readme_path.unlink()
+
+    print("[Complete] New project initialization finished successfully!")
+    return master_agent, root_manager, agent_lookup 

@@ -80,6 +80,12 @@ class EphemeralAgent(ABC):
         
         # Memory: Dictionary of filenames to file paths for reading
         self.memory: Dict[str, Path] = {}
+        # Automatically add documentation.md from project root to memory if it exists
+        doc_path = getattr(src, 'ROOT_DIR', None)
+        if doc_path is not None:
+            doc_file = doc_path / "documentation.md"
+            if doc_file.exists():
+                self.read_file(str(doc_file))
         
         # Context: List of ContextEntry (prompt-response history)
         self.context: List[ContextEntry] = []

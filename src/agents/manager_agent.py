@@ -29,6 +29,11 @@ from src.llm.providers import (
 from src.llm.providers import get_llm_client
 import src
 
+# Import for type hints only
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from .master_agent import MasterAgent
+
 class ManagerCommand(Enum):
     """Commands that a manager agent can exercise."""
     DELEGATE = "DELEGATE"
@@ -55,7 +60,7 @@ class ManagerAgent(BaseAgent):
     def __init__(
         self,
         path: str,
-        parent: Optional[BaseAgent] = None,
+        parent: Optional[Union[BaseAgent, "MasterAgent"]] = None,
         children: Optional[List[BaseAgent]] = None,
         llm_client: Optional[BaseLLMClient] = None,
         max_content_size: int = 8000
@@ -179,6 +184,9 @@ class ManagerAgent(BaseAgent):
 
         children_display = [_rel_path(child.path) for child in self.children]
         active_children_display = [_rel_path(child.path) for child in self.active_children.keys()]
+        # --- BEGIN: Add ephemeral agents to active_children display ---
+        active_children_display += [f"ephemeral:{repr(agent)}" for agent in self.active_ephemeral_agents]
+        # --- END ---
 
         # Define available terminal commands and utilities
         try:

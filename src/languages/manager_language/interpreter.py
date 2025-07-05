@@ -89,6 +89,45 @@ class ManagerLanguageInterpreter:
             except Exception:
                 return s.replace("\\", "/")
 
+        # --- BEGIN: Adopt on-disk paths that are inside the manager scope but
+        #            don’t yet have an attached child agent ------------------
+        for item in directive.items:
+            target_posix = _to_posix(item.target.name)
+            if target_posix in child_map:
+                continue  # already have a child agent
+
+            potential_path = self.root_dir / target_posix  # absolute path from project root
+            try:
+                # Ensure path is within this manager's directory tree
+                potential_path.resolve().relative_to(Path(self.agent.path).resolve())
+            except ValueError:
+                # Outside manager scope – skip, will be reported as missing later
+                continue
+
+            if potential_path.exists():
+                try:
+                    if potential_path.is_dir():
+                        from src.agents.manager_agent import ManagerAgent  # local import to avoid circular deps
+                        new_child = ManagerAgent(
+                            path=str(potential_path),
+                            parent=self.agent,
+                            llm_client=self.agent.llm_client if hasattr(self.agent, 'llm_client') else None
+                        )
+                    else:
+                        from src.agents.coder_agent import CoderAgent
+                        new_child = CoderAgent(
+                            path=str(potential_path),
+                            parent=self.agent,
+                            llm_client=self.agent.llm_client if hasattr(self.agent, 'llm_client') else None
+                        )
+                    # Register new child
+                    self.agent.children.append(new_child)
+                    child_map[target_posix] = new_child
+                except Exception as e:
+                    # Could not create agent – continue and let normal error flow handle it
+                    pass
+        # --- END adopt logic -------------------------------------------------
+
         missing_children = []
         for item in directive.items:
             target_posix = _to_posix(item.target.name)
@@ -128,8 +167,6 @@ class ManagerLanguageInterpreter:
             # Track delegation in agent (call delegate_task)
             self.agent.delegate_task(child_agent, item.prompt.value)
 
-        # Queue completion message
-        self._queue_self_prompt("Delegate complete")
         return None
     
     def _execute_spawn(self, directive: SpawnDirective) -> None:
@@ -156,8 +193,6 @@ class ManagerLanguageInterpreter:
                 self._queue_self_prompt(f"SPAWN failed: Unknown ephemeral type: {ephemeral_type}")
                 return
 
-        # Queue completion message
-        self._queue_self_prompt("Spawn complete")
     
     def _execute_finish(self, directive: FinishDirective) -> None:
         """Execute a FINISH directive."""
@@ -186,13 +221,21 @@ class ManagerLanguageInterpreter:
                     task=task,
                     result=directive.prompt.value
                 )
-                from src.orchestrator.manager_prompter import manager_prompter
-                asyncio.create_task(manager_prompter(parent, directive.prompt.value, result_message))
+                
+                # Check if parent is a MasterAgent and use appropriate prompter
+                from src.agents.master_agent import MasterAgent
+                if isinstance(parent, MasterAgent):
+                    from src.orchestrator.master_prompter import master_prompter
+                    asyncio.create_task(master_prompter(parent, directive.prompt.value, result_message))
+                else:
+                    from src.orchestrator.manager_prompter import manager_prompter
+                    asyncio.create_task(manager_prompter(parent, directive.prompt.value, result_message))
             else:
-                # Root agent – bubble the result back by attaching it to the agent so callers can access it
-                setattr(self.agent, "final_result", directive.prompt.value)
+                # Manager agents should always have a parent (either another manager or a master)
+                # If no parent exists, this indicates a configuration error
+                self._queue_self_prompt("FINISH failed: Manager agent has no parent - this should not happen")
         except Exception as e:
-            # Queue the error instead of calling manager_prompter directly so that
+            # Queue the error instead of calling prompter directly so that
             # exactly one follow-up turn is scheduled by execute_directive().
             self._queue_self_prompt(f"Failed to finish: {str(e)}")
     
@@ -238,38 +281,50 @@ class ManagerLanguageInterpreter:
     
     def _execute_run(self, directive: RunDirective) -> None:
         command = directive.command
-        command_start = command.split()[0]
+
         if not any(command.startswith(allowed) for allowed in ALLOWED_COMMANDS):
             result = "Invalid command"
         else:
             try:
-                result_obj = subprocess.run(
-                    command,
-                    shell=True,
-                    capture_output=True,
-                    text=True,
-                    cwd=self.root_dir,
-                    timeout=300
-                )
-                if result_obj.returncode == 0:
-                    result = result_obj.stdout
+                if os.name == "nt":
+                    full_cmd = ["powershell.exe", "-Command", command]
+                    completed = subprocess.run(
+                        full_cmd,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                        cwd=self.root_dir,
+                        check=False,
+                    )
                 else:
-                    # Show both stdout and stderr so agent can see test results even when tests fail
-                    output = result_obj.stdout.strip() if result_obj.stdout.strip() else ""
-                    error = result_obj.stderr.strip() if result_obj.stderr.strip() else ""
-                    if output and error:
-                        result = f"Command failed: Output:\n{output}\nError:\n{error}"
-                    elif output:
-                        result = f"Command failed: Output:\n{output}"
-                    elif error:
-                        result = f"Command failed: Error:\n{error}"
+                    completed = subprocess.run(
+                        command,
+                        shell=True,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                        cwd=self.root_dir,
+                        check=False,
+                    )
+
+                stdout_output = completed.stdout.strip()
+                stderr_output = completed.stderr.strip()
+
+                if completed.returncode == 0:
+                    result = stdout_output
+                else:
+                    if stdout_output and stderr_output:
+                        result = f"Command failed: Output:\n{stdout_output}\nError:\n{stderr_output}"
+                    elif stdout_output:
+                        result = f"Command failed: Output:\n{stdout_output}"
+                    elif stderr_output:
+                        result = f"Command failed: Error:\n{stderr_output}"
                     else:
-                        result = f"Command failed with return code {result_obj.returncode}"
-            except subprocess.TimeoutExpired:
-                result = f"Command timed out after 5 minutes: {command}"
+                        result = f"Command failed with return code {completed.returncode}"
+
             except Exception as e:
                 result = f"Failed to execute command '{command}': {str(e)}"
-        # Reprompt self with run result
+
         if self.agent:
             prompt = f"Run command result:\n{result}"
             self._queue_self_prompt(prompt)
@@ -502,7 +557,7 @@ def execute_directive(directive_text: str, agent=None) -> None:
         directive = parse_directive(directive_text)
     except Exception as e:
         # Bubble parsing issues back to the manager agent so the LLM can react
-        error_msg = f"PARSING FAILED: {str(e)}"
+        error_msg = f"PARSING FAILED: {str(e)}\n\nDirective was: {directive_text}\n\nMOST COMMON ISSUE: Multiple directives on same api call, use sequential API calls, aka only one line per API call"
         interpreter._queue_self_prompt(error_msg)
 
         # Make sure the agent is unstalled so that the queued prompt is processed

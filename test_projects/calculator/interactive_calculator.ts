@@ -124,6 +124,14 @@ function processInput(input: string): void {
     promptUser();
 }
 
+// Main application interactive loop:
+// 1. Prompts the user for input.
+// 2. Processes the input:
+//    - Checks for special commands (exit, help, vars, clear).
+//    - Attempts to set a variable if the input matches 'var_name = value'.
+//    - If not a command or variable assignment, attempts to evaluate as a mathematical expression.
+// 3. Displays the result or an error message.
+// 4. Recursively calls itself to prompt for the next input, continuing the loop until 'exit' is entered.
 function promptUser(): void {
     rl.question('🧮 Enter expression: ', (input) => {
         if (input.trim() === '') {
