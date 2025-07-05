@@ -1,30 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Send, User, Bot, Plus, History, MessageSquare, Loader2, AlertCircle, Square } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Send, User, Bot, Plus, MessageSquare, Loader2, AlertCircle, Square } from 'lucide-react';
 import websocketService, { ChatMessage as WSChatMessage, AgentUpdate } from '../../src/services/websocket';
-
-interface Message {
-  id: string;
-  type: 'user' | 'assistant' | 'system';
-  content: string;
-  timestamp: Date;
-  agentId?: string;
-  metadata?: {
-    filePath?: string;
-    codeBlock?: boolean;
-    syntax?: string;
-  };
-}
-
-interface Settings {
-  theme: 'light' | 'dark' | 'system';
-  tabSize: number;
-  showLineNumbers: boolean;
-  showTimestamps: boolean;
-  performanceMode: 'balanced' | 'performance' | 'quality';
-  accentColor: string;
-  fontSize: number;
-  autoSave: boolean;
-}
+import { useSocketEvent } from '../../src/hooks/useSocketEvent';
+import { Settings, ChatMessage as Message } from '../../src/types';
 
 interface ChatPanelProps {
   onNewChat?: () => void;
@@ -36,9 +14,11 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onNewChat, settings }) => {
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'connecting' | 'disconnected'>('disconnected');
   const [activeAgents, setActiveAgents] = useState<Map<string, AgentUpdate>>(new Map());
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Ensure we request a welcome message only once per browser session
+  const hasWelcomedRef = useRef(false);
 
   // Auto-scroll to bottom when new messages arrive
   const scrollToBottom = () => {
@@ -49,127 +29,88 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onNewChat, settings }) => {
     scrollToBottom();
   }, [messages]);
 
-  // Initialize WebSocket connection
+  // Initialize and manage WebSocket connection
   useEffect(() => {
-    // Connect to WebSocket server
-    try {
-      websocketService.connect();
-    } catch (error) {
-      setError('Failed to initialize WebSocket connection');
-      setConnectionStatus('disconnected');
-    }
-
-    // Set up event listeners
-    websocketService.on('connected', () => {
-      setConnectionStatus('connected');
-      setError(null);
-    });
-
-    websocketService.on('disconnected', () => {
-      setConnectionStatus('disconnected');
-      setError('Disconnected from server');
-    });
-
-    // Update connection status when connecting
-    let statusInterval: NodeJS.Timeout;
-    
-    const updateConnectionStatus = () => {
-      const status = websocketService.getConnectionStatus();
-      setConnectionStatus(status);
-      // Stop polling once connected or disconnected
-      if (status !== 'connecting') {
-        clearInterval(statusInterval);
+    if (websocketService.getConnectionStatus() === 'disconnected') {
+      try {
+        websocketService.connect();
+      } catch (error) {
+        setError('Failed to initialize WebSocket connection');
       }
-    };
-    
-    // Check status periodically while connecting (less aggressive polling)
-    statusInterval = setInterval(updateConnectionStatus, 500);
-
-    websocketService.on('message', (wsMessage: WSChatMessage) => {
-      const message: Message = {
-        id: wsMessage.id,
-        type: wsMessage.sender === 'user' ? 'user' : wsMessage.sender === 'system' ? 'system' : 'assistant',
-        content: wsMessage.content,
-        timestamp: new Date(wsMessage.timestamp),
-        agentId: wsMessage.agentId,
-        metadata: wsMessage.metadata
-      };
-      
-      setMessages(prev => [...prev, message]);
-      setIsLoading(false);
-    });
-
-    websocketService.on('agent_update', (update: AgentUpdate) => {
-      setActiveAgents(prev => {
-        const newMap = new Map(prev);
-        if (update.status === 'inactive' || update.status === 'completed') {
-          newMap.delete(update.agentId);
-        } else {
-          newMap.set(update.agentId, update);
-        }
-        return newMap;
-      });
-
-      // Add agent status messages to chat (only for root/main agents to reduce noise)
-      if (update.status === 'active' && update.task && (update.agentId === 'root' || !update.parentId)) {
-        const statusMessage: Message = {
-          id: `agent-status-${Date.now()}`,
-          type: 'system',
-          content: `🤖 Agent ${update.agentId} started: ${update.task}`,
-          timestamp: new Date(),
-          agentId: update.agentId
-        };
-        setMessages(prev => [...prev, statusMessage]);
-      }
-    });
-
-    websocketService.on('error', (errorMessage: string) => {
-      setError(errorMessage);
-      setIsLoading(false);
-    });
-
-    // Check initial connection status
-    const initialStatus = websocketService.getConnectionStatus();
-    setConnectionStatus(initialStatus);
-    
-    // Start polling if we're in connecting state
-    if (initialStatus === 'connecting') {
-      updateConnectionStatus();
     }
-
-    // Cleanup
-    return () => {
-      clearInterval(statusInterval);
-      websocketService.off('connected');
-      websocketService.off('disconnected');
-      websocketService.off('message');
-      websocketService.off('agent_update');
-      websocketService.off('error');
-    };
   }, []);
+
+  const handleConnectionStatus = useCallback(() => {
+    const status = websocketService.getConnectionStatus();
+    if (status === 'connected') {
+      setError(null);
+      if (!hasWelcomedRef.current) {
+        websocketService.newChat();
+        hasWelcomedRef.current = true;
+      }
+    } else if (status === 'disconnected') {
+      setError('Disconnected from server');
+    }
+  }, []);
+
+  useSocketEvent('connected', handleConnectionStatus);
+  useSocketEvent('disconnected', handleConnectionStatus);
+
+  useSocketEvent('message', (wsMessage: WSChatMessage) => {
+    const message: Message = {
+      id: wsMessage.id,
+      type: wsMessage.sender === 'user' ? 'user' : wsMessage.sender === 'system' ? 'system' : 'assistant',
+      content: wsMessage.content,
+      timestamp: new Date(wsMessage.timestamp),
+      agentId: wsMessage.agentId,
+      metadata: wsMessage.metadata
+    };
+    
+    setMessages(prev => [...prev, message]);
+    // Stop loading when a message (the response) is received.
+    setIsLoading(false);
+  });
+
+  useSocketEvent('agent_update', (update: AgentUpdate) => {
+    setActiveAgents(prev => {
+      const newMap = new Map(prev);
+      if (update.status === 'inactive' || update.status === 'completed' || update.status === 'error') {
+        newMap.delete(update.agentId);
+      } else {
+        newMap.set(update.agentId, update);
+      }
+      return newMap;
+    });
+
+    if (update.status === 'completed' || update.status === 'error') {
+      setIsLoading(false);
+    }
+  });
+
+  useSocketEvent('error', (errorMessage: string) => {
+    setError(errorMessage);
+    setIsLoading(false);
+  });
 
   const handleSendMessage = async () => {
     // If already loading (agent is thinking), stop the current thinking
     if (isLoading) {
       websocketService.stopAgentThinking();
-      setIsLoading(false);
-      setError(null);
       
-      // Add a system message indicating the task was stopped
+      // We don't set isLoading to false immediately.
+      // We wait for an 'agent_update' with a completed/error status.
+      // This makes the UI more honest about the agent's state.
       const stopMessage: Message = {
         id: Date.now().toString(),
         type: 'system',
-        content: 'Previous task stopped.',
+        content: 'Stop request sent. Waiting for agent to terminate...',
         timestamp: new Date()
       };
       setMessages(prev => [...prev, stopMessage]);
-      
-      // Clear active agents
-      setActiveAgents(new Map());
       return;
     }
     
-    if (inputValue.trim() && !isLoading && connectionStatus === 'connected') {
+    if (inputValue.trim() && !isLoading) {
       const newMessage: Message = {
         id: Date.now().toString(),
         type: 'user',
@@ -185,10 +126,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onNewChat, settings }) => {
       // Send message through WebSocket
       try {
         websocketService.sendPrompt(inputValue);
-              } catch (error) {
-          setError('Failed to send message');
-          setIsLoading(false);
-        }
+      } catch (error) {
+        setError('Failed to send message');
+        setIsLoading(false);
+      }
     }
   };
 
@@ -211,31 +152,14 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onNewChat, settings }) => {
     // Call the parent callback to clear the code editor
     onNewChat?.();
     
-    // Send new chat request to server to get welcome message
+    // Send new-chat request to server (this will produce the welcome system message)
     websocketService.newChat();
-    
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
-    }
-  };
-
-  const getConnectionStatusColor = () => {
-    switch (connectionStatus) {
-      case 'connected': return 'text-green-400';
-      case 'connecting': return 'text-yellow-400';
-      case 'disconnected': return 'text-red-400';
-    }
-  };
-
-  const getConnectionStatusText = () => {
-    switch (connectionStatus) {
-      case 'connected': return 'Connected';
-      case 'connecting': return 'Connecting...';
-      case 'disconnected': return 'Disconnected';
     }
   };
 
@@ -249,9 +173,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onNewChat, settings }) => {
             <h2 className="text-yellow-400 font-semibold text-lg">AI Assistant</h2>
           </div>
           <div className="flex items-center gap-2">
-            <span className={`text-xs ${getConnectionStatusColor()}`}>
-              {getConnectionStatusText()}
-            </span>
             <button
               onClick={handleNewChat}
               className="flex items-center gap-2 px-3 py-1.5 bg-yellow-400 hover:bg-yellow-300 text-black rounded-lg transition-colors text-sm font-medium"
@@ -359,18 +280,18 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ onNewChat, settings }) => {
             onChange={(e) => setInputValue(e.target.value)}
             onKeyPress={handleKeyPress}
             placeholder={
-              connectionStatus !== 'connected' 
-                ? "Connecting to server..."
-                : isLoading
-                ? "Agent is thinking... Click Stop to cancel"
-                : "Describe what you want to build..." 
+              websocketService.isConnected()
+                ? isLoading
+                  ? "Agent is thinking... Click Stop to cancel"
+                  : "Describe what you want to build..." 
+                : "Connecting to server..."
             }
-            disabled={connectionStatus !== 'connected'}
+            disabled={!websocketService.isConnected()}
             className="flex-1 bg-gray-900 text-gray-100 border border-yellow-400/20 rounded-lg px-4 py-2 focus:outline-none focus:border-yellow-400 text-sm placeholder-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"
           />
           <button
             onClick={handleSendMessage}
-            disabled={(!inputValue.trim() && !isLoading) || connectionStatus !== 'connected'}
+            disabled={(!inputValue.trim() && !isLoading) || !websocketService.isConnected()}
             className={`p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
               isLoading 
                 ? 'bg-red-500 hover:bg-red-600 text-white' 

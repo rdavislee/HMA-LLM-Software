@@ -161,6 +161,7 @@ export interface WebSocketEvents {
   editor_edit: (edit: EditorEdit) => void;
   editor_ack: (ack: EditorAck) => void;
   editor_sync: (sync: EditorSync) => void;
+  file_save_ack: (data: { filePath: string; success: boolean; error?: string }) => void;
   // New terminal events
   terminal_data: (data: TerminalData) => void;
   terminal_session: (session: TerminalSession) => void;
@@ -180,7 +181,7 @@ export interface WebSocketEvents {
 
 class WebSocketService {
   private socket: Socket | null = null;
-  private eventListeners: Partial<WebSocketEvents> = {};
+  private eventListeners: Partial<Record<keyof WebSocketEvents, Array<(...args: any[]) => void>>> = {};
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private reconnectDelay = 1000;
@@ -274,6 +275,9 @@ class WebSocketService {
             break;
           case 'editor_sync':
             this.handleEditorSync(parsedData.payload);
+            break;
+          case 'file_save_ack':
+            this.emit('file_save_ack', parsedData.payload);
             break;
           // New terminal cases
           case 'terminal_data':
@@ -478,6 +482,32 @@ class WebSocketService {
     return opId;
   }
   
+  sendEditorContent(projectId: string, filePath: string, content: string) {
+    const message = JSON.stringify({
+      type: 'editor_content_change',
+      payload: { projectId, filePath, content }
+    });
+
+    if (this.socket?.connected) {
+      this.socket.send(message);
+    } else {
+      this.messageQueue.push(message);
+    }
+  }
+  
+  saveFile(filePath: string, content: string) {
+    const message = JSON.stringify({
+      type: 'file_save',
+      payload: { filePath, content }
+    });
+
+    if (this.socket?.connected) {
+      this.socket.send(message);
+    } else {
+      this.messageQueue.push(message);
+    }
+  }
+  
   requestFileSync(filePath: string) {
     const message = JSON.stringify({
       type: 'editor_sync_request',
@@ -572,17 +602,37 @@ class WebSocketService {
   }
 
   on<T extends keyof WebSocketEvents>(event: T, callback: WebSocketEvents[T]) {
-    this.eventListeners[event] = callback;
+    if (!this.eventListeners[event]) {
+      this.eventListeners[event] = [];
+    }
+    this.eventListeners[event]!.push(callback as any);
   }
 
-  off<T extends keyof WebSocketEvents>(event: T) {
-    delete this.eventListeners[event];
+  off<T extends keyof WebSocketEvents>(event: T, callback?: WebSocketEvents[T]) {
+    if (!this.eventListeners[event]) return;
+    
+    if (callback) {
+      // Remove specific callback
+      const index = this.eventListeners[event]!.indexOf(callback as any);
+      if (index > -1) {
+        this.eventListeners[event]!.splice(index, 1);
+      }
+    } else {
+      // Remove all callbacks for this event
+      this.eventListeners[event] = [];
+    }
   }
 
   private emit<T extends keyof WebSocketEvents>(event: T, ...args: any[]) {
-    const callback = this.eventListeners[event];
-    if (callback) {
-      (callback as any)(...args);
+    const listeners = this.eventListeners[event];
+    if (listeners) {
+      listeners.forEach(callback => {
+        try {
+          callback(...args);
+        } catch (error) {
+          console.error(`Error in ${event} listener:`, error);
+        }
+      });
     }
   }
 
@@ -606,20 +656,10 @@ class WebSocketService {
   }
 
   // Terminal methods
-  createTerminalSession(projectId: string): string {
-    const sessionId = `term_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
-    const session: TerminalSession = {
-      sessionId,
-      projectId,
-      status: 'starting'
-    };
-    
-    this.terminalSessions.set(sessionId, session);
-    
+  createTerminalSession(projectId: string) {
     const message = JSON.stringify({
       type: 'terminal_create',
-      payload: { sessionId, projectId }
+      payload: { projectId } // Let server generate the session ID
     });
     
     if (this.socket?.connected) {
@@ -627,8 +667,6 @@ class WebSocketService {
     } else {
       this.messageQueue.push(message);
     }
-    
-    return sessionId;
   }
   
   sendTerminalData(sessionId: string, data: string) {

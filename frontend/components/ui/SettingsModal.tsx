@@ -1,17 +1,7 @@
 import React, { useState } from 'react';
 import { X, Sun, Moon, Monitor, RotateCcw, Keyboard, Zap, Palette } from 'lucide-react';
 import Slider from './Slider';
-
-interface Settings {
-  theme: 'light' | 'dark' | 'system';
-  tabSize: number;
-  showLineNumbers: boolean;
-  showTimestamps: boolean;
-  performanceMode: 'balanced' | 'performance' | 'quality';
-  accentColor: string;
-  fontSize: number;
-  autoSave: boolean;
-}
+import { Settings } from '../../types';
 
 interface SettingsModalProps {
   isOpen: boolean;

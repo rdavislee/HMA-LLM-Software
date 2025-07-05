@@ -1,18 +1,9 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import * as monaco from 'monaco-editor';
-import { Copy, Download, Save, Loader2 } from 'lucide-react';
-import websocketService, { EditorEdit, EditorSync, EditorDiff } from '../../src/services/websocket';
-
-interface Settings {
-  theme: 'light' | 'dark' | 'system';
-  tabSize: number;
-  showLineNumbers: boolean;
-  showTimestamps: boolean;
-  performanceMode: 'balanced' | 'performance' | 'quality';
-  accentColor: string;
-  fontSize: number;
-  autoSave: boolean;
-}
+import { Copy, Download, Save, Loader2, Check, AlertCircle } from 'lucide-react';
+import websocketService, { EditorSync } from '../../src/services/websocket';
+import { useSocketEvent } from '../../src/hooks/useSocketEvent';
+import { Settings } from '../../src/types';
 
 interface MonacoEditorProps {
   onClearCode?: (clearFn: () => void) => void;
@@ -56,18 +47,28 @@ const MonacoEditor: React.FC<MonacoEditorProps> = ({
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [copySuccess, setCopySuccess] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isApplyingRemote, setIsApplyingRemote] = useState(false);
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   
-  // Track the current model to avoid recreating it
+  const isApplyingRemoteChange = useRef(false);
   const currentModelRef = useRef<monaco.editor.ITextModel | null>(null);
+  const debounceTimeoutRef = useRef<number | null>(null);
+
+  // Debounced content sender
+  const sendContentChange = useCallback((content: string) => {
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current);
+    }
+    debounceTimeoutRef.current = window.setTimeout(() => {
+      if (currentFileName) {
+        websocketService.sendEditorContent(projectId, currentFileName, content);
+      }
+    }, 500); // 500ms debounce interval
+  }, [projectId, currentFileName]);
 
   // Initialize Monaco editor
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // Create editor instance
     const editor = monaco.editor.create(containerRef.current, {
       value: '',
       language: 'javascript',
@@ -75,161 +76,120 @@ const MonacoEditor: React.FC<MonacoEditorProps> = ({
       fontSize: settings?.fontSize || 14,
       tabSize: settings?.tabSize || 2,
       lineNumbers: settings?.showLineNumbers ? 'on' : 'off',
-      minimap: {
-        enabled: settings?.performanceMode !== 'performance'
-      },
+      minimap: { enabled: settings?.performanceMode !== 'performance' },
       automaticLayout: true,
       scrollBeyondLastLine: false,
       wordWrap: 'on',
       formatOnPaste: true,
       formatOnType: true,
     });
-
     editorRef.current = editor;
 
-    // Handle local changes
-    const disposable = editor.onDidChangeModelContent((event) => {
-      if (isApplyingRemote) return; // Don't send remote changes back
-      
-      setHasUnsavedChanges(true);
-      
-      // Convert Monaco changes to our diff format
-      event.changes.forEach(change => {
-        const diff: EditorDiff = {
-          start: change.rangeOffset,
-          end: change.rangeOffset + change.rangeLength,
-          text: change.text
-        };
-        
-        const position = editor.getPosition();
-        const cursor = position ? {
-          line: position.lineNumber,
-          column: position.column
-        } : undefined;
-        
-        if (currentFileName) {
-          websocketService.sendEditorEdit(projectId, currentFileName, diff, cursor);
-        }
-      });
+    const disposable = editor.onDidChangeModelContent(() => {
+      if (isApplyingRemoteChange.current) return;
+      setSaveStatus('idle'); // Any edit resets save status
+      const value = editor.getModel()?.getValue() || '';
+      sendContentChange(value);
     });
 
     return () => {
       disposable.dispose();
       editor.dispose();
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
+      }
     };
-  }, []);
+  }, [sendContentChange]);
 
   // Update editor settings
   useEffect(() => {
     if (!editorRef.current) return;
-
     editorRef.current.updateOptions({
       theme: settings?.theme === 'dark' ? 'vs-dark' : 'vs',
       fontSize: settings?.fontSize || 14,
       tabSize: settings?.tabSize || 2,
       lineNumbers: settings?.showLineNumbers ? 'on' : 'off',
-      minimap: {
-        enabled: settings?.performanceMode !== 'performance'
-      },
+      minimap: { enabled: settings?.performanceMode !== 'performance' },
     });
   }, [settings]);
 
-  // Handle file changes
+  // Handle file changes and initial content
   useEffect(() => {
-    if (!editorRef.current || !currentFileName) return;
+    if (!editorRef.current) return;
 
-    // Determine language from file extension
+    if (!currentFileName) {
+      editorRef.current.setModel(null);
+      if (currentModelRef.current) {
+        currentModelRef.current.dispose();
+        currentModelRef.current = null;
+      }
+      return;
+    }
+
     const extension = currentFileName.split('.').pop()?.toLowerCase();
     const language = languageMap[extension || ''] || 'plaintext';
-
-    // Create or update model
     const uri = monaco.Uri.parse(`file:///${currentFileName}`);
     let model = monaco.editor.getModel(uri);
+    
+    // Dispose of the old model if it's different
+    if (currentModelRef.current && currentModelRef.current.uri.toString() !== uri.toString()) {
+        currentModelRef.current.dispose();
+    }
     
     if (!model) {
       model = monaco.editor.createModel(importedContent || '', language, uri);
     } else {
-      // Update existing model
-      if (importedContent !== undefined && importedContent !== model.getValue()) {
-        model.setValue(importedContent);
-      }
       monaco.editor.setModelLanguage(model, language);
+      if (model.getValue() !== (importedContent || '')) {
+        isApplyingRemoteChange.current = true;
+        model.setValue(importedContent || '');
+        isApplyingRemoteChange.current = false;
+      }
     }
     
     currentModelRef.current = model;
     editorRef.current.setModel(model);
+    setSaveStatus('idle');
     
-    // Request sync from server
     websocketService.requestFileSync(currentFileName);
     
   }, [currentFileName, importedContent]);
 
-  // Handle remote edits
-  useEffect(() => {
-    const handleRemoteEdit = (edit: EditorEdit) => {
-      if (!editorRef.current || !currentModelRef.current) return;
-      if (edit.filePath !== currentFileName) return; // Not for current file
-      
-      setIsApplyingRemote(true);
-      
-      try {
-        const model = currentModelRef.current;
-        const startPos = model.getPositionAt(edit.diff.start);
-        const endPos = model.getPositionAt(edit.diff.end);
-        
-        const range = new monaco.Range(
-          startPos.lineNumber,
-          startPos.column,
-          endPos.lineNumber,
-          endPos.column
-        );
-        
-        // Apply the edit
-        model.pushEditOperations(
-          [],
-          [{
-            range: range,
-            text: edit.diff.text,
-            forceMoveMarkers: true
-          }],
-          () => null
-        );
-        
-      } finally {
-        setIsApplyingRemote(false);
+  // Handle remote sync from the server
+  useSocketEvent('editor_sync', (sync: EditorSync) => {
+    if (!editorRef.current || !currentModelRef.current || sync.filePath !== currentFileName) return;
+    
+    isApplyingRemoteChange.current = true;
+    try {
+      const model = currentModelRef.current;
+      if (model.getValue() !== sync.content) {
+        model.setValue(sync.content);
+        setSaveStatus('idle');
       }
-    };
-    
-    const handleEditorSync = (sync: EditorSync) => {
-      if (!editorRef.current || sync.filePath !== currentFileName) return;
-      
-      setIsApplyingRemote(true);
-      
-      try {
-        const model = currentModelRef.current;
-        if (model && model.getValue() !== sync.content) {
-          model.setValue(sync.content);
-        }
-        
-      } finally {
-        setIsApplyingRemote(false);
+    } finally {
+      isApplyingRemoteChange.current = false;
+    }
+  });
+
+  // Handle save acknowledgement
+  useSocketEvent('file_save_ack', (data) => {
+    if (data.filePath === currentFileName) {
+      if (data.success) {
+        setSaveStatus('success');
+      } else {
+        setSaveStatus('error');
       }
-    };
-    
-    websocketService.on('editor_edit', handleRemoteEdit);
-    websocketService.on('editor_sync', handleEditorSync);
-    
-    return () => {
-      websocketService.off('editor_edit');
-      websocketService.off('editor_sync');
-    };
-  }, [currentFileName]);
+      // Reset status after a delay
+      setTimeout(() => setSaveStatus('idle'), 2000);
+    }
+  });
 
   // Clear function
   const clearCode = useCallback(() => {
     if (editorRef.current && currentModelRef.current) {
+      isApplyingRemoteChange.current = true;
       currentModelRef.current.setValue('');
-      setHasUnsavedChanges(false);
+      isApplyingRemoteChange.current = false;
     }
   }, []);
 
@@ -248,6 +208,7 @@ const MonacoEditor: React.FC<MonacoEditorProps> = ({
       setCopySuccess(true);
       setTimeout(() => setCopySuccess(false), 2000);
     } catch (err) {
+      console.error('Failed to copy text: ', err);
     }
   };
 
@@ -268,38 +229,51 @@ const MonacoEditor: React.FC<MonacoEditorProps> = ({
   };
 
   const handleSave = async () => {
-    if (!currentFileName || !hasUnsavedChanges) return;
+    if (!currentFileName || !currentModelRef.current || saveStatus === 'saving') return;
     
-    setIsSaving(true);
+    setSaveStatus('saving');
     
     try {
-      // In a real implementation, this would trigger a save to the backend
-      // For now, we just mark as saved
-      setHasUnsavedChanges(false);
-      
       // Auto-format on save if enabled
       if (editorRef.current) {
         await editorRef.current.getAction('editor.action.formatDocument')?.run();
       }
-    } finally {
-      setIsSaving(false);
+      const content = currentModelRef.current.getValue();
+      websocketService.saveFile(currentFileName, content);
+    } catch (err) {
+      console.error('Save failed:', err);
+      setSaveStatus('error');
+      setTimeout(() => setSaveStatus('idle'), 2000);
     }
   };
 
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.ctrlKey || e.metaKey) {
-        if (e.key === 's') {
-          e.preventDefault();
-          handleSave();
-        }
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        handleSave();
       }
     };
     
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [hasUnsavedChanges, currentFileName]);
+    const editorElement = containerRef.current;
+    editorElement?.addEventListener('keydown', handleKeyDown);
+    
+    return () => editorElement?.removeEventListener('keydown', handleKeyDown);
+  }, [handleSave]);
+  
+  const getSaveButton = () => {
+    switch (saveStatus) {
+      case 'saving':
+        return <><Loader2 className="w-4 h-4 animate-spin" /> <span className="text-sm">Saving...</span></>;
+      case 'success':
+        return <><Check className="w-4 h-4 text-green-400" /> <span className="text-sm text-green-400">Saved!</span></>;
+      case 'error':
+        return <><AlertCircle className="w-4 h-4 text-red-400" /> <span className="text-sm text-red-400">Failed</span></>;
+      default:
+        return <><Save className="w-4 h-4" /> <span className="text-sm">Save</span></>;
+    }
+  };
 
   return (
     <div className="h-full bg-gray-900 flex flex-col">
@@ -310,9 +284,6 @@ const MonacoEditor: React.FC<MonacoEditorProps> = ({
           {currentFileName && (
             <span className="text-gray-400 text-sm font-mono bg-gray-800 px-2 py-1 rounded flex items-center gap-2">
               {currentFileName}
-              {hasUnsavedChanges && (
-                <span className="w-2 h-2 bg-yellow-400 rounded-full" title="Unsaved changes" />
-              )}
             </span>
           )}
         </div>
@@ -320,20 +291,15 @@ const MonacoEditor: React.FC<MonacoEditorProps> = ({
         <div className="flex items-center gap-2">
           <button
             onClick={handleSave}
-            disabled={!hasUnsavedChanges || isSaving}
-            className={`flex items-center gap-2 px-3 py-1 transition-colors ${
-              !hasUnsavedChanges
+            disabled={saveStatus === 'saving' || !currentFileName}
+            className={`flex items-center gap-2 px-3 py-1 transition-colors rounded-md ${
+              !currentFileName || saveStatus === 'saving'
                 ? 'text-gray-600 cursor-not-allowed'
-                : 'text-gray-400 hover:text-yellow-400'
+                : 'text-gray-400 hover:text-yellow-400 hover:bg-yellow-400/10'
             }`}
             title="Save file (Ctrl+S)"
           >
-            {isSaving ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Save className="w-4 h-4" />
-            )}
-            <span className="text-sm">Save</span>
+            {getSaveButton()}
           </button>
           
           <button 

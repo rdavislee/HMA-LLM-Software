@@ -1,11 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ChevronDown, Code } from 'lucide-react';
-import pythonIcon from '../../src/assets/icons/python-logo.png';
+import pythonIcon from '../../assets/icons/python-logo.png';
 
 interface Language {
     code: string;
     name: string;
-    icon: string | string; // Allow both emoji strings and image URLs
+    icon: string;
     extension: string;
     isImage?: boolean; // Flag to indicate if icon is an image
 }

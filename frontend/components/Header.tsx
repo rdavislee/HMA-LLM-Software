@@ -30,6 +30,7 @@ interface HeaderProps {
   onProjectImport?: (files: ImportedFile[]) => void;
   onClearProject?: () => void;
   hasProjectFiles?: boolean;
+  connectionStatus?: 'connected' | 'connecting' | 'disconnected';
 }
 
 const Header: React.FC<HeaderProps> = ({
@@ -39,7 +40,8 @@ const Header: React.FC<HeaderProps> = ({
   onSettingsChange,
   onProjectImport,
   onClearProject,
-  hasProjectFiles = false
+  hasProjectFiles = false,
+  connectionStatus = 'connecting'
 }) => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
@@ -93,8 +95,22 @@ const Header: React.FC<HeaderProps> = ({
       setShowClearConfirm(false);
     } else {
       setShowClearConfirm(true);
-      // Auto-hide confirmation after 3 seconds
-      setTimeout(() => setShowClearConfirm(false), 3000);
+    }
+  };
+
+  const getConnectionStatusColor = () => {
+    switch (connectionStatus) {
+      case 'connected': return 'bg-green-400';
+      case 'connecting': return 'bg-yellow-400';
+      case 'disconnected': return 'bg-red-400';
+    }
+  };
+  
+  const getConnectionStatusText = () => {
+    switch (connectionStatus) {
+      case 'connected': return 'Connected';
+      case 'connecting': return 'Connecting';
+      case 'disconnected': return 'Disconnected';
     }
   };
 
@@ -160,9 +176,9 @@ const Header: React.FC<HeaderProps> = ({
           </button>
 
           {/* Connection Status */}
-          <div className="flex items-center gap-2 ml-2">
-            <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
-            <span className="text-sm text-gray-400">Connected</span>
+          <div className="flex items-center gap-2 ml-2" title={getConnectionStatusText()}>
+            <div className={`w-2 h-2 rounded-full ${getConnectionStatusColor()} ${connectionStatus !== 'disconnected' ? 'animate-pulse' : ''}`}></div>
+            <span className="text-sm text-gray-400 hidden md:inline">{getConnectionStatusText()}</span>
           </div>
         </div>
       </div>

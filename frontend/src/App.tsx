@@ -8,33 +8,8 @@ import InteractiveTerminal from '../components/editor/Terminal';
 import { PanelLeftClose, PanelLeftOpen, Folder, GitBranch } from 'lucide-react';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import websocketService, { CodeStream, FileTreeUpdate, ProjectStatus } from './services/websocket';
-
-interface Settings {
-  theme: 'light' | 'dark' | 'system';
-  tabSize: number;
-  showLineNumbers: boolean;
-  showTimestamps: boolean;
-  performanceMode: 'balanced' | 'performance' | 'quality';
-  accentColor: string;
-  fontSize: number;
-  autoSave: boolean;
-}
-
-interface ImportedFile {
-  name: string;
-  path: string;
-  type: 'file' | 'directory';
-  size?: number;
-  content?: string;
-}
-
-interface FileNode {
-  name: string;
-  path: string;
-  type: 'file' | 'directory';
-  content?: string;
-  children?: FileNode[];
-}
+import { Settings, FileNode, ImportedFile } from '../types';
+import { useSocketEvent } from './hooks/useSocketEvent';
 
 function App() {
   const [isChatCollapsed, setIsChatCollapsed] = useState(false);
@@ -47,6 +22,7 @@ function App() {
   const [streamingContent, setStreamingContent] = useState<Map<string, string>>(new Map());
   const [projectStatus, setProjectStatus] = useState<ProjectStatus | null>(null);
   const [gitStatus, setGitStatus] = useState<{ branch: string; isDirty: boolean } | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'connecting' | 'disconnected'>('disconnected');
   const [settings, setSettings] = useState<Settings>(() => {
     // Load settings from localStorage
     const saved = localStorage.getItem('hive-settings');
@@ -68,6 +44,20 @@ function App() {
       autoSave: true
     };
   });
+
+  // Manage WebSocket connection lifecycle
+  useEffect(() => {
+    if (websocketService.getConnectionStatus() === 'disconnected') {
+      websocketService.connect();
+    }
+  }, []);
+
+  const handleConnectionStatus = useCallback(() => {
+    setConnectionStatus(websocketService.getConnectionStatus());
+  }, []);
+
+  useSocketEvent('connected', handleConnectionStatus);
+  useSocketEvent('disconnected', handleConnectionStatus);
 
   /* ---------- File tree manipulation callbacks ---------- */
 
@@ -137,10 +127,8 @@ function App() {
   /* ---------- WebSocket setup effect ---------- */
 
   useEffect(() => {
-    websocketService.connect('ws://localhost:8080');
-    
     // Handle code streaming
-    websocketService.on('code_stream', (stream: CodeStream) => {
+    const handleCodeStream = (stream: CodeStream) => {
       if (stream.isComplete) {
         updateFileContent(stream.filePath, stream.content);
         setStreamingContent(prev => {
@@ -167,10 +155,10 @@ function App() {
         }
         return prev;
       });
-    });
+    };
 
     // Handle file tree updates
-    websocketService.on('file_tree_update', (update: FileTreeUpdate) => {
+    const handleFileTreeUpdate = (update: FileTreeUpdate) => {
       switch (update.action) {
         case 'create':
           update.fileType === 'file' ? createFile(update.filePath, update.content || '') : createFolder(update.filePath);
@@ -182,27 +170,33 @@ function App() {
           deleteFileOrFolder(update.filePath);
           break;
       }
-    });
+    };
 
     // Handle project status updates
-    websocketService.on('project_status', (status: ProjectStatus) => {
+    const handleProjectStatus = (status: ProjectStatus) => {
       setProjectStatus(status);
       
       // Clear imported files when project becomes active (files have been processed)
       if (status.status === 'active') {
         setImportedFiles([]);
       }
-    });
+    };
 
     // Handle git status updates
-    websocketService.on('git_status', (data) => {
+    const handleGitStatus = (data: { status: GitStatus | null }) => {
       if (data.status) {
         setGitStatus({
           branch: data.status.current_branch,
           isDirty: data.status.is_dirty
         });
       }
-    });
+    };
+
+    // Register listeners
+    websocketService.on('code_stream', handleCodeStream);
+    websocketService.on('file_tree_update', handleFileTreeUpdate);
+    websocketService.on('project_status', handleProjectStatus);
+    websocketService.on('git_status', handleGitStatus);
 
     // Cleanup
     return () => {
@@ -210,7 +204,6 @@ function App() {
       websocketService.off('file_tree_update');
       websocketService.off('project_status');
       websocketService.off('git_status');
-      websocketService.disconnect();
     };
   }, [createFile, createFolder, updateFileContent, deleteFileOrFolder]);
 
@@ -415,6 +408,7 @@ function App() {
         onProjectImport={handleProjectImport}
         onClearProject={handleClearProject}
         hasProjectFiles={projectFiles.length > 0 || importedFiles.length > 0}
+        connectionStatus={connectionStatus}
       />
 
       {/* Main Content */}
