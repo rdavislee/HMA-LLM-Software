@@ -113,7 +113,7 @@ async def initialize_new_project(
     language: Language = Language.TYPESCRIPT,
     master_llm_client: Optional[BaseLLMClient] = None,
     base_llm_client: Optional[BaseLLMClient] = None,
-    max_context_size: int = 8000,
+    max_context_size: int = 80000,
 ) -> Tuple["MasterAgent", ManagerAgent, Dict[Path, "BaseAgent"]]:
     """Interactive three-phase bootstrapping for brand-new projects.
 

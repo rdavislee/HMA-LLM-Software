@@ -7,12 +7,9 @@ RUN "npm run build"              // Compile first
 RUN "npm test"                   // Run all tests
 Targeted Testing:
 RUN "npm test -- --grep 'specific test'"
-RUN "npx mocha dist/test/specific.test.js"
 Diagnostics:
-RUN "npx tsc --noEmit"          // Check TypeScript errors
-RUN "npx eslint src/"           // Linting
 Run Scratch Pad:
-RUN "npx tsx scratch_pads/debug_script.ts"
+RUN "npm run ..."
 Python Projects
 Testing:
 RUN "python -m pytest -v"                           // All tests
@@ -42,9 +39,6 @@ RUN "findstr /n \"function\" src/calculator.ts" // Search with line numbers
 RUN "dir src"                                   // List directory
 RUN "Get-Content src/calculator.ts | Select-String 'pattern'"  // PowerShell search
 Scratch Pad Execution
-TypeScript:
-RUN "npx tsx scratch_pads/debug_script.ts"     // Fast execution with tsx
-RUN "npx ts-node scratch_pads/debug_script.ts" // Alternative
 Python:
 RUN "python scratch_pads/debug_script.py"
 Java:
@@ -70,7 +64,7 @@ RUN "python -m pytest test/test_calc.py::test_division_by_zero -v"
 RUN "mvn test -Dtest=CalculatorTest#testDivisionByZero"
 Error Diagnostics
 // TypeScript compilation errors
-RUN "npx tsc --noEmit"
+RUN "npm run build"
 
 // Python import errors
 RUN "python -c \"import src.calculator; print('Import successful')\""
@@ -99,7 +93,6 @@ Environment Verification
 // Node/TypeScript
 RUN "node --version"
 RUN "npm --version"
-RUN "npx tsc --version"
 
 // Python
 RUN "python --version"
@@ -118,7 +111,6 @@ Deep Debug (When Requested)
 RUN "npm test -- --grep 'specific failure'"
 READ "src/complex.ts"
 CHANGE CONTENT="import { complexFunction } from '../src/complex';\n\n// Debug code here"
-RUN "npx tsx scratch_pads/debug_script.ts"
 // Report detailed findings
 Multiple Test Failures
 RUN "python -m pytest -v"       // See all failures

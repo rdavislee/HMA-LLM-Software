@@ -5,37 +5,49 @@
 ### Reading Files & Folders
 ```
 READ file "src/README.md"
+
 READ file "src/calculator.ts", file "src/types.ts"
+
 READ folder "src"  // Loads src/src_README.md
 ```
 
 ### Creating/Deleting
 ```
 CREATE file "src/parser.interface.ts"
+
 CREATE folder "src/utils"
+
 DELETE file "src/old-config.json"
+
 DELETE folder "src/deprecated"
 ```
 
 ### Delegation to Direct Children
 ```
 DELEGATE file "src/calculator.interface.ts" PROMPT="SPEC: Define Calculator interface with add, subtract, multiply, divide methods"
+
 DELEGATE file "src/calculator.test.ts" PROMPT="TEST: Read calculator.interface.ts first. Write comprehensive test suite"
+
 DELEGATE file "src/calculator.ts" PROMPT="IMPLEMENT: Read calculator.interface.ts and calculator.test.ts. Build Calculator class to pass all tests"
+
 DELEGATE folder "src/services" PROMPT="Implement all service layer components with full test coverage"
 ```
 
 ### Running Commands
 ```
 RUN "npm test"
+
 RUN "python -m pytest"
+
 RUN "mvn test"
 ```
 
 ### Spawning Tester Agents
 ```
 SPAWN tester PROMPT="Test calculator.ts implementation"
+
 SPAWN tester PROMPT="Debug failing tests in auth module"
+
 SPAWN tester PROMPT="Verify all files in src/ folder compile and pass tests"
 ```
 
@@ -47,6 +59,7 @@ UPDATE_README CONTENT="# Parser Module\n\nThis folder contains the recursive des
 ### Finishing
 ```
 FINISH PROMPT="Parser module complete with 100% test coverage"
+
 FINISH PROMPT="Authentication blocked: needs TokenService from ../shared/ outside my scope"
 ```
 
@@ -65,18 +78,22 @@ WAIT  // Cannot FINISH while lexer.ts still working
 ```
 // 1. Spec phase
 CREATE file "src/auth.interface.ts"
+
 DELEGATE file "src/auth.interface.ts" PROMPT="SPEC: Define authentication interface with login, logout, refresh methods"
 
 // 2. Test phase  
 CREATE file "src/auth.test.ts"
+
 DELEGATE file "src/auth.test.ts" PROMPT="TEST: Read auth.interface.ts. Write tests for all methods including edge cases"
 
 // 3. Implementation phase
 CREATE file "src/auth.ts"
+
 DELEGATE file "src/auth.ts" PROMPT="IMPLEMENT: Read auth.interface.ts and auth.test.ts. Build AuthService to pass all tests"
 
 // 4. Verification
 SPAWN tester PROMPT="Test auth.ts implementation"
+
 UPDATE_README CONTENT="# Authentication Service\n\nHandles user authentication, session management, and token operations.\n\n## Files\n- auth.interface.ts - [FINISHED] Auth service interface\n- auth.test.ts - [FINISHED] Full test coverage\n- auth.ts - [FINISHED] Auth service implementation"
 FINISH PROMPT="Authentication implemented with full coverage"
 ```
@@ -123,6 +140,7 @@ DELEGATE file "src/module.test.ts" PROMPT="TEST: Actually implement comprehensiv
 
 // Child claims: "Cannot proceed, human intervention required"
 READ file "src/problem.ts"
+
 SPAWN tester PROMPT="Debug problem.ts - find workaround for claimed blocker"
 ```
 

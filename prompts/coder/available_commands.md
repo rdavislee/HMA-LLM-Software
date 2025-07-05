@@ -10,7 +10,6 @@ No test-fix loops - After first test failure, must use tester agents
 Language-Specific Commands
 TypeScript Projects
 Compilation & Diagnostics:
-RUN "npx tsc --noEmit"          // Check errors without output
 RUN "npm run build"             // Full compilation
 One Direct Test:
 RUN "npm test"                  // Allowed ONCE per task

@@ -729,6 +729,71 @@ MODEL_CLIENTS = {
 }
 
 
+def _patch_quota_handler():
+    """Monkey-patch all client generate_response methods to gracefully handle
+    quota/context window errors. When such an error is detected we:
+    1. Wait 60 seconds (simple back-off).
+    2. Return a FINISH directive so the calling agent can gracefully exit and
+       ask the parent to reprompt with a fresh, smaller context.
+    This avoids the need for changes in every agent implementation – the
+    safeguard lives in one central place.
+    """
+
+    import asyncio
+    import inspect
+
+    # Keywords signalling quota or context problems. All lowercase for easier
+    # comparison.
+    _ERROR_KEYWORDS = {
+        "quota",                   # generic quota exceeded
+        "resourceexhausted",      # Google / gRPC 429
+        "context length",         # OpenAI / Anthropic style
+        "maximum context",        # OpenAI style
+        "token limit",            # generic token limit overrun
+        "too many tokens",        # Anthropic style
+        "context window",         # DeepSeek / others
+    }
+
+    def _needs_wrap(cls):
+        return not getattr(cls, "_quota_wrapper_installed", False)
+
+    def _wrap(cls):
+        original = cls.generate_response
+
+        # Ensure we keep a reference to the original for potential debugging
+        setattr(cls, "_orig_generate_response", original)
+
+        async def wrapped(self, *args, **kwargs):  # type: ignore[override]
+            try:
+                return await original(self, *args, **kwargs)
+            except Exception as e:  # noqa: BLE001 – intentionally broad
+                msg = str(e).lower()
+                if any(key in msg for key in _ERROR_KEYWORDS):
+                    # Detected quota/context window related error – back-off
+                    print(
+                        f"[providers] Quota/Context error detected from {cls.__name__}: {e}. "
+                        "Sleeping 60 s then returning FINISH directive."
+                    )
+                    await asyncio.sleep(60)
+                    return (
+                        'FINISH PROMPT="Context became too large. Please reprompt me with the same task."'
+                    )
+                # Unknown exception – bubble up unchanged
+                raise
+
+        # Preserve metadata for nicer debugging / introspection
+        wrapped = asyncio.coroutine(wrapped) if not inspect.iscoroutinefunction(original) else wrapped
+        setattr(cls, "generate_response", wrapped)
+        setattr(cls, "_quota_wrapper_installed", True)
+
+    for _client_cls in set(MODEL_CLIENTS.values()):
+        if _needs_wrap(_client_cls):
+            _wrap(_client_cls)
+
+# Install the handler immediately upon import
+_patch_quota_handler()
+
+
 def get_llm_client(model_name: str) -> BaseLLMClient:
     """Factory function to get the appropriate LLM client for a model name."""
     if model_name not in MODEL_CLIENTS:

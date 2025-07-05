@@ -48,7 +48,7 @@ ALLOWED_COMMANDS = {
     'flake8',
     'black',
     'isort',
-    'mypy',
+    'mypy'
 }
 
 # Directories whose contents should be collapsed in codebase structure views

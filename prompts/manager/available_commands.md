@@ -14,19 +14,12 @@
 
 **Compilation & Diagnostics:**
 ```
-RUN "npx tsc --noEmit"          // Check errors without compiling
 RUN "npm run build"             // Full compilation
 ```
 
 **Single Direct Test (after compilation):**
 ```
 RUN "npm test"                  // Run test suite once
-```
-
-**Code Quality:**
-```
-RUN "npx eslint src/"          // Linting
-RUN "npx tsc --noEmit"         // Type checking
 ```
 
 ### Python Projects

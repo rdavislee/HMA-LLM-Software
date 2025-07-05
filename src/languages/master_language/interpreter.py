@@ -190,47 +190,46 @@ class MasterLanguageInterpreter:
         return None
 
     def _execute_run(self, directive: RunDirective) -> None:
-        """Execute a RUN directive (no file operation restrictions for master)."""
+        """Execute a RUN directive – simplified version that captures full output without blocking the event-loop."""
         command = directive.command
-        
+
         try:
-            # Use PowerShell explicitly on Windows
-            if os.name == 'nt':  # Windows
-                # Use PowerShell instead of cmd.exe
-                full_command = ['powershell.exe', '-Command', command]
-                result_obj = subprocess.run(
-                    full_command,
-                    capture_output=True,
+            if os.name == "nt":
+                full_cmd = ["powershell.exe", "-Command", command]
+                completed = subprocess.run(
+                    full_cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
                     text=True,
                     cwd=self.root_dir,
-                    timeout=300
+                    check=False,
                 )
             else:
-                # Unix/Linux - use shell=True
-                result_obj = subprocess.run(
+                completed = subprocess.run(
                     command,
                     shell=True,
-                    capture_output=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
                     text=True,
                     cwd=self.root_dir,
-                    timeout=300
+                    check=False,
                 )
-                
-            if result_obj.returncode == 0:
-                result = f"RUN succeeded: Output:\n{result_obj.stdout.strip()}" if result_obj.stdout.strip() else "RUN succeeded"
+
+            stdout_output = completed.stdout.strip()
+            stderr_output = completed.stderr.strip()
+
+            if completed.returncode == 0:
+                result = f"RUN succeeded: Output:\n{stdout_output}" if stdout_output else "RUN succeeded"
             else:
-                output = result_obj.stdout.strip() if result_obj.stdout.strip() else ""
-                error = result_obj.stderr.strip() if result_obj.stderr.strip() else ""
-                if output and error:
-                    result = f"RUN failed: Output:\n{output}\nError:\n{error}"
-                elif output:
-                    result = f"RUN failed: Output:\n{output}"
-                elif error:
-                    result = f"RUN failed: Error:\n{error}"
+                if stdout_output and stderr_output:
+                    result = f"RUN failed: Output:\n{stdout_output}\nError:\n{stderr_output}"
+                elif stdout_output:
+                    result = f"RUN failed: Output:\n{stdout_output}"
+                elif stderr_output:
+                    result = f"RUN failed: Error:\n{stderr_output}"
                 else:
-                    result = f"RUN failed with return code {result_obj.returncode}"
-        except subprocess.TimeoutExpired:
-            result = f"RUN failed: Command timed out after 5 minutes: {command}"
+                    result = f"RUN failed with return code {completed.returncode}"
+
         except Exception as e:
             result = f"Failed to execute command '{command}': {str(e)}"
         
