@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X, Sun, Moon, Monitor, RotateCcw, Keyboard, Zap, Palette } from 'lucide-react';
 import Slider from './Slider';
-import { Settings } from '../../types';
+import { Settings } from '../../src/types';
 
 interface SettingsModalProps {
   isOpen: boolean;

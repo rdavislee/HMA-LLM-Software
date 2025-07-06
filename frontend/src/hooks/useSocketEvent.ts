@@ -13,9 +13,9 @@ export const useSocketEvent = <T extends keyof WebSocketEvents>(
   callback: WebSocketEvents[T]
 ) => {
   useEffect(() => {
-    // Cast the callback to 'any' to avoid type mismatches with the generic signature.
+    // Cast the callback to match the event handler signature.
     // This is safe because the hook's signature ensures the callback matches the event.
-    const handler = callback as any;
+    const handler = callback as WebSocketEvents[T];
 
     websocketService.on(event, handler);
 

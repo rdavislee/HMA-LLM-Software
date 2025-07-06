@@ -111,7 +111,7 @@ const MonacoEditor: React.FC<MonacoEditorProps> = ({
       lineNumbers: settings?.showLineNumbers ? 'on' : 'off',
       minimap: { enabled: settings?.performanceMode !== 'performance' },
     });
-  }, [settings]);
+  }, [settings?.theme, settings?.fontSize, settings?.tabSize, settings?.showLineNumbers, settings?.performanceMode]);
 
   // Handle file changes and initial content
   useEffect(() => {
@@ -228,7 +228,7 @@ const MonacoEditor: React.FC<MonacoEditorProps> = ({
     URL.revokeObjectURL(url);
   };
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     if (!currentFileName || !currentModelRef.current || saveStatus === 'saving') return;
     
     setSaveStatus('saving');
@@ -245,7 +245,7 @@ const MonacoEditor: React.FC<MonacoEditorProps> = ({
       setSaveStatus('error');
       setTimeout(() => setSaveStatus('idle'), 2000);
     }
-  };
+  }, [currentFileName, saveStatus]);
 
   // Keyboard shortcuts
   useEffect(() => {

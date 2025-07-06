@@ -41,4 +41,22 @@ export interface ChatMessage {
     codeBlock?: boolean;
     syntax?: string;
   };
+}
+
+// Project Initialization types
+export interface Language {
+  code: string;
+  name: string;
+  extension: string;
+}
+
+export interface ProjectInitializationState {
+  isActive: boolean;
+  phase: 1 | 2 | 3 | null;
+  phaseTitle: 'Product Understanding' | 'Structure Stage' | 'Implementation' | null;
+  status: 'active' | 'waiting_approval' | 'completed' | 'error' | null;
+  projectId?: string;
+  projectPath?: string;
+  requiresApproval: boolean;
+  selectedLanguage?: Language;
 } 

@@ -18,6 +18,7 @@ class TokenType(Enum):
     WAIT = "WAIT"
     UPDATE_DOCUMENTATION = "UPDATE_DOCUMENTATION"
     RUN = "RUN"
+    MESSAGE = "MESSAGE"
     FILE = "FILE"
     FOLDER = "FOLDER"
     IDENTIFIER = "IDENTIFIER"
@@ -268,8 +269,29 @@ class UpdateDocumentationDirective(Directive):
         return f'UPDATE_DOCUMENTATION CONTENT="{self.content}"'
 
 
+@dataclass
+class MessageDirective(Directive):
+    """Represents a MESSAGE directive for sending regular messages to human during conversation."""
+    prompt: PromptField
+    
+    def execute(self, context: dict) -> dict:
+        """Execute message directive by adding message to context."""
+        if 'messages' not in context:
+            context['messages'] = []
+        
+        context['messages'].append({
+            'message': self.prompt.value,
+            'status': 'pending'
+        })
+        
+        return context
+    
+    def __str__(self) -> str:
+        return f"MESSAGE {self.prompt}"
+
+
 # Type alias for any directive
-DirectiveType = Union[DelegateDirective, SpawnDirective, FinishDirective, ReadDirective, WaitDirective, RunDirective, UpdateDocumentationDirective]
+DirectiveType = Union[DelegateDirective, SpawnDirective, FinishDirective, ReadDirective, WaitDirective, RunDirective, UpdateDocumentationDirective, MessageDirective]
 
 
 @dataclass

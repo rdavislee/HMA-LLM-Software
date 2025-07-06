@@ -8,7 +8,7 @@ import os
 from typing import List, Union
 from lark import Lark, Transformer, v_args
 from .ast import (
-    Directive, DelegateDirective, SpawnDirective, FinishDirective, ReadDirective, WaitDirective, RunDirective, UpdateDocumentationDirective,
+    Directive, DelegateDirective, SpawnDirective, FinishDirective, ReadDirective, WaitDirective, RunDirective, UpdateDocumentationDirective, MessageDirective,
     SpawnItem, Target, EphemeralType, PromptField, DirectiveType
 )
 
@@ -43,6 +43,11 @@ class MasterLanguageTransformer(Transformer):
     def finish(self, prompt_field):
         """Transform finish directive."""
         return FinishDirective(prompt=prompt_field)
+    
+    @v_args(inline=True)
+    def message(self, prompt_field):
+        """Transform message directive."""
+        return MessageDirective(prompt=prompt_field)
     
     @v_args(inline=True)
     def read(self, *targets):

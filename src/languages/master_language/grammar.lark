@@ -5,7 +5,7 @@
 COMMENT: /\/\/.*/
 
 // Directives
-directive: delegate | spawn | finish | read | wait | run | update_documentation
+directive: delegate | spawn | finish | message | read | wait | run | update_documentation
 
 // Delegate directive (single target - always the root agent)
 delegate: "DELEGATE" prompt_field
@@ -16,6 +16,9 @@ spawn_item: ephemeral_type prompt_field
 
 // Finish directive  
 finish: "FINISH" prompt_field
+
+// Message directive (for regular conversation during phases)
+message: "MESSAGE" prompt_field
 
 // Read directive (only action directive available for master)
 read: "READ" target ("," target)*

@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { ChevronRight, ChevronDown, File, Folder, FolderOpen, Code, FileText, Image, Loader2 } from 'lucide-react';
-import websocketService, { AgentUpdate } from '../../src/services/websocket';
+import { AgentUpdate } from '../../src/services/websocket';
 import { FileNode, ImportedFile } from '../../src/types';
 import { useSocketEvent } from '../../src/hooks/useSocketEvent';
 

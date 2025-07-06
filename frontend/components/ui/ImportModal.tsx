@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { X, Upload, Folder, File, AlertCircle, CheckCircle, Loader2, FolderOpen } from 'lucide-react';
 import { ImportedFile } from '../../src/types';
 
@@ -167,6 +167,7 @@ const ImportModal: React.FC<ImportModalProps> = ({
       onClose();
       setImportedFiles([]);
     } catch (err) {
+      console.error('Import error:', err);
       setError('Failed to import project. Please try again.');
     } finally {
       setIsImporting(false);

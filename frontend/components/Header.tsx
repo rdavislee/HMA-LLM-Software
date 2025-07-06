@@ -1,33 +1,18 @@
 import React, { useState } from 'react';
-import { Settings, User, Upload, Hexagon, Trash2 } from 'lucide-react';
+import { Settings, User, Upload, Hexagon, Trash2, Rocket } from 'lucide-react';
 import SettingsModal from './ui/SettingsModal';
 import ImportModal from './ui/ImportModal';
-
-interface Settings {
-  theme: 'light' | 'dark' | 'system';
-  tabSize: number;
-  showLineNumbers: boolean;
-  showTimestamps: boolean;
-  performanceMode: 'balanced' | 'performance' | 'quality';
-  accentColor: string;
-  fontSize: number;
-  autoSave: boolean;
-}
-
-interface ImportedFile {
-  name: string;
-  path: string;
-  type: 'file' | 'directory';
-  size?: number;
-  content?: string;
-}
+import NewProjectModal from './ui/NewProjectModal';
+import { Language, Settings as AppSettings, ImportedFile } from '../src/types';
 
 interface HeaderProps {
   onSettingsClick?: () => void;
   onProfileClick?: () => void;
   onImportClick?: () => void;
-  onSettingsChange?: (settings: Settings) => void;
+  onNewProjectClick?: () => void;
+  onSettingsChange?: (settings: AppSettings) => void;
   onProjectImport?: (files: ImportedFile[]) => void;
+  onProjectStart?: (language: Language, prompt: string, projectName?: string) => void;
   onClearProject?: () => void;
   hasProjectFiles?: boolean;
   connectionStatus?: 'connected' | 'connecting' | 'disconnected';
@@ -37,16 +22,19 @@ const Header: React.FC<HeaderProps> = ({
   onSettingsClick,
   onProfileClick,
   onImportClick,
+  onNewProjectClick,
   onSettingsChange,
   onProjectImport,
+  onProjectStart,
   onClearProject,
   hasProjectFiles = false,
   connectionStatus = 'connecting'
 }) => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const [isNewProjectOpen, setIsNewProjectOpen] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
-  const [settings, setSettings] = useState<Settings>(() => {
+  const [settings, setSettings] = useState<AppSettings>(() => {
     // Load settings from localStorage
     const saved = localStorage.getItem('hive-settings');
     if (saved) {
@@ -68,7 +56,7 @@ const Header: React.FC<HeaderProps> = ({
     };
   });
 
-  const handleSettingsChange = (newSettings: Settings) => {
+  const handleSettingsChange = (newSettings: AppSettings) => {
     setSettings(newSettings);
     localStorage.setItem('hive-settings', JSON.stringify(newSettings));
     onSettingsChange?.(newSettings);
@@ -84,9 +72,18 @@ const Header: React.FC<HeaderProps> = ({
     onImportClick?.();
   };
 
+  const handleNewProjectClick = () => {
+    setIsNewProjectOpen(true);
+    onNewProjectClick?.();
+  };
+
   const handleProjectImport = (files: ImportedFile[]) => {
     console.log('Importing project files:', files);
     onProjectImport?.(files);
+  };
+
+  const handleProjectStart = (language: Language, prompt: string, projectName?: string) => {
+    onProjectStart?.(language, prompt, projectName);
   };
 
   const handleClearProject = () => {
@@ -159,6 +156,14 @@ const Header: React.FC<HeaderProps> = ({
           )}
 
           <button
+            onClick={handleNewProjectClick}
+            className="flex items-center gap-2 px-3 py-2 bg-yellow-400 hover:bg-yellow-300 text-black rounded-lg transition-colors font-medium text-sm"
+          >
+            <Rocket className="w-4 h-4" />
+            <span className="hidden sm:inline">New Project</span>
+          </button>
+
+          <button
             onClick={handleSettingsClick}
             className="p-2 rounded-lg hover:bg-yellow-400/10 transition-colors group"
           >
@@ -196,6 +201,13 @@ const Header: React.FC<HeaderProps> = ({
         isOpen={isImportOpen}
         onClose={() => setIsImportOpen(false)}
         onImport={handleProjectImport}
+      />
+
+      {/* New Project Modal */}
+      <NewProjectModal
+        isOpen={isNewProjectOpen}
+        onClose={() => setIsNewProjectOpen(false)}
+        onStartProject={handleProjectStart}
       />
     </>
   );
