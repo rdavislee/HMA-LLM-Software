@@ -7,34 +7,15 @@ import GitPanel from '../components/git/GitPanel';
 import InteractiveTerminal from '../components/editor/Terminal';
 import { PanelLeftClose, PanelLeftOpen, Folder, GitBranch } from 'lucide-react';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
-import websocketService, { CodeStream, FileTreeUpdate, ProjectStatus } from './services/websocket';
-
-interface Settings {
-  theme: 'light' | 'dark' | 'system';
-  tabSize: number;
-  showLineNumbers: boolean;
-  showTimestamps: boolean;
-  performanceMode: 'balanced' | 'performance' | 'quality';
-  accentColor: string;
-  fontSize: number;
-  autoSave: boolean;
-}
-
-interface ImportedFile {
-  name: string;
-  path: string;
-  type: 'file' | 'directory';
-  size?: number;
-  content?: string;
-}
-
-interface FileNode {
-  name: string;
-  path: string;
-  type: 'file' | 'directory';
-  content?: string;
-  children?: FileNode[];
-}
+import websocketService, { 
+  CodeStream, 
+  FileTreeUpdate, 
+  ProjectStatus, 
+  GitStatus,
+  ProjectInitStatus
+} from './services/websocket';
+import { Settings, FileNode, ImportedFile, ProjectInitializationState, Language } from './types';
+import { useSocketEvent } from './hooks/useSocketEvent';
 
 function App() {
   const [isChatCollapsed, setIsChatCollapsed] = useState(false);
@@ -44,9 +25,19 @@ function App() {
   const [clearCodeEditor, setClearCodeEditor] = useState<(() => void) | null>(null);
   const [importedFiles, setImportedFiles] = useState<ImportedFile[]>([]);
   const [projectFiles, setProjectFiles] = useState<FileNode[]>([]);
-  const [streamingContent, setStreamingContent] = useState<Map<string, string>>(new Map());
   const [projectStatus, setProjectStatus] = useState<ProjectStatus | null>(null);
   const [gitStatus, setGitStatus] = useState<{ branch: string; isDirty: boolean } | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'connecting' | 'disconnected'>('disconnected');
+  
+  // Project initialization state
+  const [projectInitState, setProjectInitState] = useState<ProjectInitializationState>({
+    isActive: false,
+    phase: null,
+    phaseTitle: null,
+    status: null,
+    requiresApproval: false
+  });
+
   const [settings, setSettings] = useState<Settings>(() => {
     // Load settings from localStorage
     const saved = localStorage.getItem('hive-settings');
@@ -69,6 +60,20 @@ function App() {
     };
   });
 
+  // Manage WebSocket connection lifecycle
+  useEffect(() => {
+    if (websocketService.getConnectionStatus() === 'disconnected') {
+      websocketService.connect();
+    }
+  }, []);
+
+  const handleConnectionStatus = useCallback(() => {
+    setConnectionStatus(websocketService.getConnectionStatus());
+  }, []);
+
+  useSocketEvent('connected', handleConnectionStatus);
+  useSocketEvent('disconnected', handleConnectionStatus);
+
   /* ---------- File tree manipulation callbacks ---------- */
 
   const createFile = useCallback((filePath: string, content: string) => {
@@ -76,16 +81,18 @@ function App() {
     const fileName = parts.pop() || '';
     setProjectFiles((prev: FileNode[]) => {
       const newFiles = [...prev];
-      let current: any = { children: newFiles };
+      let current: FileNode = { name: '', path: '', type: 'directory', children: newFiles };
       for (const part of parts) {
         let found = current.children?.find((f: FileNode) => f.name === part && f.type === 'directory');
         if (!found) {
           found = { name: part, path: parts.slice(0, parts.indexOf(part) + 1).join('/'), type: 'directory', children: [] };
+          if (!current.children) current.children = [];
           current.children.push(found);
         }
         current = found;
       }
-      if (!current.children?.find((f: FileNode) => f.name === fileName)) {
+      if (!current.children) current.children = [];
+      if (!current.children.find((f: FileNode) => f.name === fileName)) {
         current.children.push({ name: fileName, path: filePath, type: 'file', content });
       }
       return newFiles;
@@ -96,11 +103,12 @@ function App() {
     const parts = folderPath.split('/');
     setProjectFiles((prev: FileNode[]) => {
       const newFiles = [...prev];
-      let current: any = { children: newFiles };
+      let current: FileNode = { name: '', path: '', type: 'directory', children: newFiles };
       for (const part of parts) {
         let found = current.children?.find((f: FileNode) => f.name === part && f.type === 'directory');
         if (!found) {
           found = { name: part, path: parts.slice(0, parts.indexOf(part) + 1).join('/'), type: 'directory', children: [] };
+          if (!current.children) current.children = [];
           current.children.push(found);
         }
         current = found;
@@ -137,24 +145,10 @@ function App() {
   /* ---------- WebSocket setup effect ---------- */
 
   useEffect(() => {
-    websocketService.connect('ws://localhost:8080');
-    
     // Handle code streaming
-    websocketService.on('code_stream', (stream: CodeStream) => {
+    const handleCodeStream = (stream: CodeStream) => {
       if (stream.isComplete) {
         updateFileContent(stream.filePath, stream.content);
-        setStreamingContent(prev => {
-          const newMap = new Map(prev);
-          newMap.delete(stream.filePath);
-          return newMap;
-        });
-      } else {
-        setStreamingContent(prev => {
-          const newMap = new Map(prev);
-          const existing = newMap.get(stream.filePath) || '';
-          newMap.set(stream.filePath, existing + stream.content);
-          return newMap;
-        });
       }
 
       // If this is the currently selected file, update the editor
@@ -167,13 +161,17 @@ function App() {
         }
         return prev;
       });
-    });
+    };
 
     // Handle file tree updates
-    websocketService.on('file_tree_update', (update: FileTreeUpdate) => {
+    const handleFileTreeUpdate = (update: FileTreeUpdate) => {
       switch (update.action) {
         case 'create':
-          update.fileType === 'file' ? createFile(update.filePath, update.content || '') : createFolder(update.filePath);
+          if (update.fileType === 'file') {
+            createFile(update.filePath, update.content || '');
+          } else {
+            createFolder(update.filePath);
+          }
           break;
         case 'update':
           updateFileContent(update.filePath, update.content || '');
@@ -182,27 +180,47 @@ function App() {
           deleteFileOrFolder(update.filePath);
           break;
       }
-    });
+    };
 
     // Handle project status updates
-    websocketService.on('project_status', (status: ProjectStatus) => {
+    const handleProjectStatus = (status: ProjectStatus) => {
       setProjectStatus(status);
       
       // Clear imported files when project becomes active (files have been processed)
       if (status.status === 'active') {
         setImportedFiles([]);
       }
-    });
+    };
 
     // Handle git status updates
-    websocketService.on('git_status', (data) => {
+    const handleGitStatus = (data: { status: GitStatus | null }) => {
       if (data.status) {
         setGitStatus({
           branch: data.status.current_branch,
           isDirty: data.status.is_dirty
         });
       }
-    });
+    };
+
+    // Handle project initialization status updates
+    const handleProjectInitStatus = (status: ProjectInitStatus) => {
+      setProjectInitState({
+        isActive: true,
+        phase: status.phase,
+        phaseTitle: status.phaseTitle,
+        status: status.status,
+        projectId: status.projectId,
+        projectPath: status.projectPath,
+        requiresApproval: status.requiresApproval
+      });
+    };
+
+    // Register listeners
+    websocketService.on('code_stream', handleCodeStream);
+    websocketService.on('file_tree_update', handleFileTreeUpdate);
+    websocketService.on('project_status', handleProjectStatus);
+    websocketService.on('git_status', handleGitStatus);
+    websocketService.on('project_init_status', handleProjectInitStatus);
 
     // Cleanup
     return () => {
@@ -210,7 +228,7 @@ function App() {
       websocketService.off('file_tree_update');
       websocketService.off('project_status');
       websocketService.off('git_status');
-      websocketService.disconnect();
+      websocketService.off('project_init_status');
     };
   }, [createFile, createFolder, updateFileContent, deleteFileOrFolder]);
 
@@ -221,11 +239,13 @@ function App() {
     
     // Generate hover color (slightly darker)
     const color = settings.accentColor;
-    const darkerColor = color.replace(/^#/, '').match(/.{2}/g)?.map(hex => {
+    const darkerColor = color.replace(/^#/, '').match(/.{2}/g)?.map((hex: string) => {
       const num = parseInt(hex, 16);
       return Math.max(0, num - 20).toString(16).padStart(2, '0');
     }).join('');
-    root.style.setProperty('--accent-color-hover', `#${darkerColor}`);
+    if (darkerColor) {
+      root.style.setProperty('--accent-color-hover', `#${darkerColor}`);
+    }
   }, [settings.accentColor]);
 
   // Apply performance mode
@@ -297,13 +317,11 @@ function App() {
     
     // Clear project files
     setProjectFiles([]);
-    setStreamingContent(new Map());
     setCurrentFile(null);
     setProjectStatus(null);
   };
 
   const handleClearProject = () => {
-    
     // Clear the code editor if the function is available
     if (clearCodeEditor) {
       clearCodeEditor();
@@ -312,13 +330,11 @@ function App() {
     // Clear all project state
     setProjectFiles([]);
     setImportedFiles([]);
-    setStreamingContent(new Map());
     setCurrentFile(null);
     setProjectStatus(null);
     
     // Notify backend to clear project
     websocketService.clearProject();
-    
   };
 
   const handleSaveFile = () => {
@@ -404,6 +420,22 @@ function App() {
 
   const statusData = getStatusBarData();
 
+  // Handle project start
+  const handleProjectStart = (language: Language, prompt: string, projectName?: string) => {
+    // Start project initialization
+    websocketService.startProjectInitialization(language.code, prompt, projectName);
+    
+    // Update UI state
+    setProjectInitState({
+      isActive: true,
+      phase: 1,
+      phaseTitle: 'Product Understanding',
+      status: 'active',
+      requiresApproval: false,
+      selectedLanguage: language
+    });
+  };
+
   return (
     <div className="h-screen bg-black text-white flex flex-col overflow-hidden">
       {/* Header */}
@@ -411,10 +443,13 @@ function App() {
         onSettingsClick={() => {}}
         onProfileClick={() => {}}
         onImportClick={handleImportClick}
+        onNewProjectClick={() => {}}
         onSettingsChange={handleSettingsChange}
         onProjectImport={handleProjectImport}
+        onProjectStart={handleProjectStart}
         onClearProject={handleClearProject}
         hasProjectFiles={projectFiles.length > 0 || importedFiles.length > 0}
+        connectionStatus={connectionStatus}
       />
 
       {/* Main Content */}
@@ -423,7 +458,14 @@ function App() {
         <div className={`transition-all duration-300 ${
           isChatCollapsed ? 'w-0' : 'w-1/3'
         } min-w-0 flex flex-col`}>
-          {!isChatCollapsed && <ChatPanel onNewChat={handleNewChat} settings={settings} />}
+          {!isChatCollapsed && (
+            <ChatPanel 
+              isConnected={connectionStatus === 'connected'}
+              onNewChat={handleNewChat}
+              onProjectStart={handleProjectStart}
+              projectInitState={projectInitState}
+            />
+          )}
         </div>
 
         {/* Chat Toggle Button */}
@@ -477,9 +519,7 @@ function App() {
                   {activeSidebarTab === 'files' && (
                     <FileTree 
                       onFileSelect={(filePath, content) => {
-                        
                         if (content !== undefined) {
-                          const fileName = filePath.split('/').pop() || 'Unknown';
                           const language = getLanguageFromExtension(filePath);
                           
                           setCurrentFile({
@@ -490,8 +530,6 @@ function App() {
                           
                           // Notify backend of file selection
                           websocketService.selectFile(filePath);
-                          
-                        } else {
                         }
                       }}
                       importedFiles={importedFiles}

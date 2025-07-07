@@ -1,14 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ChevronDown, Code } from 'lucide-react';
-import pythonIcon from '../../src/assets/icons/python-logo.png';
-
-interface Language {
-    code: string;
-    name: string;
-    icon: string | string; // Allow both emoji strings and image URLs
-    extension: string;
-    isImage?: boolean; // Flag to indicate if icon is an image
-}
+import { Language } from '../../src/types';
 
 interface LanguageDropdownProps {
     defaultLanguage?: string;
@@ -16,33 +8,33 @@ interface LanguageDropdownProps {
 }
 
 const LanguageDropdown: React.FC<LanguageDropdownProps> = ({
-    defaultLanguage = 'javascript',
+    defaultLanguage,
     onLanguageChange
 }) => {
     const [ isOpen, setIsOpen ] = useState(false);
-    const [ selectedLanguage, setSelectedLanguage ] = useState(defaultLanguage);
+    const [ selectedLanguage, setSelectedLanguage ] = useState(defaultLanguage || '');
     const dropdownRef = useRef<HTMLDivElement>(null);
 
     const languages: Language[] = [
-        { code: 'javascript', name: 'JavaScript', icon: '🟨', extension: '.js' },
-        { code: 'typescript', name: 'TypeScript', icon: '🔷', extension: '.ts' },
-        { code: 'python', name: 'Python', icon: pythonIcon, extension: '.py', isImage: true },
-        { code: 'java', name: 'Java', icon: '☕', extension: '.java' },
-        { code: 'csharp', name: 'C#', icon: '🔵', extension: '.cs' },
-        { code: 'cpp', name: 'C++', icon: '⚡', extension: '.cpp' },
-        { code: 'html', name: 'HTML', icon: '🌐', extension: '.html' },
-        { code: 'css', name: 'CSS', icon: '🎨', extension: '.css' },
-        { code: 'react', name: 'React', icon: '⚛️', extension: '.jsx' },
-        { code: 'vue', name: 'Vue.js', icon: '💚', extension: '.vue' },
-        { code: 'php', name: 'PHP', icon: '🐘', extension: '.php' },
-        { code: 'ruby', name: 'Ruby', icon: '💎', extension: '.rb' },
-        { code: 'go', name: 'Go', icon: '🐹', extension: '.go' },
-        { code: 'rust', name: 'Rust', icon: '🦀', extension: '.rs' },
-        { code: 'swift', name: 'Swift', icon: '🍎', extension: '.swift' },
-        { code: 'kotlin', name: 'Kotlin', icon: '🟣', extension: '.kt' }
+        { code: 'javascript', name: 'JavaScript', extension: '.js' },
+        { code: 'typescript', name: 'TypeScript', extension: '.ts' },
+        { code: 'python', name: 'Python', extension: '.py' },
+        { code: 'java', name: 'Java', extension: '.java' },
+        { code: 'csharp', name: 'C#', extension: '.cs' },
+        { code: 'cpp', name: 'C++', extension: '.cpp' },
+        { code: 'html', name: 'HTML', extension: '.html' },
+        { code: 'css', name: 'CSS', extension: '.css' },
+        { code: 'react', name: 'React', extension: '.jsx' },
+        { code: 'vue', name: 'Vue.js', extension: '.vue' },
+        { code: 'php', name: 'PHP', extension: '.php' },
+        { code: 'ruby', name: 'Ruby', extension: '.rb' },
+        { code: 'go', name: 'Go', extension: '.go' },
+        { code: 'rust', name: 'Rust', extension: '.rs' },
+        { code: 'swift', name: 'Swift', extension: '.swift' },
+        { code: 'kotlin', name: 'Kotlin', extension: '.kt' }
       ];
 
-      const currentLanguage = languages.find(lang => lang.code === selectedLanguage) || languages[0];
+      const currentLanguage = languages.find(lang => lang.code === selectedLanguage);
 
       useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -61,35 +53,25 @@ const LanguageDropdown: React.FC<LanguageDropdownProps> = ({
         onLanguageChange?.(language);
       };
 
-      const renderIcon = (language: Language) => {
-        if (language.isImage) {
-          return (
-            <img 
-              src={language.icon as string} 
-              alt={`${language.name} icon`}
-              className="w-5 h-5 object-contain"
-            />
-          );
-        }
-        return <span className="text-lg">{language.icon}</span>;
-      };
-
       return (
         <div className="relative" ref={dropdownRef}>
           <button
             onClick={() => setIsOpen(!isOpen)}
-            className="flex items-center gap-2 px-3 py-2 bg-gray-800 hover:bg-gray-700 border border-yellow-400/20 rounded-lg transition-colors text-sm"
+            className={`flex items-center gap-2 px-3 py-2 bg-gray-800 hover:bg-gray-700 border rounded-lg transition-colors text-sm w-full ${
+              !currentLanguage ? 'border-gray-600 text-gray-500' : 'border-yellow-400/20 text-gray-300'
+            }`}
           >
             <Code className="w-4 h-4 text-gray-400" />
-            {renderIcon(currentLanguage)}
-            <span className="hidden sm:inline text-gray-300">{currentLanguage.name}</span>
+            <span className="flex-1 text-left">
+              {currentLanguage ? currentLanguage.name : 'Select a programming language...'}
+            </span>
             <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${
               isOpen ? 'rotate-180' : ''
             }`} />
           </button>
     
           {isOpen && (
-            <div className="absolute top-full right-0 mt-2 w-56 bg-gray-800 border border-yellow-400/20 rounded-lg shadow-xl z-50 max-h-80 overflow-y-auto">
+            <div className="absolute top-full left-0 mt-2 w-full bg-gray-800 border border-yellow-400/20 rounded-lg shadow-xl z-50 max-h-80 overflow-y-auto">
               <div className="p-2">
                 <div className="px-3 py-2 text-xs font-medium text-yellow-400 uppercase tracking-wide border-b border-yellow-400/20 mb-2">
                   Programming Languages
@@ -104,7 +86,7 @@ const LanguageDropdown: React.FC<LanguageDropdownProps> = ({
                         : 'text-gray-300 hover:bg-gray-700 hover:text-yellow-400'
                     }`}
                   >
-                    {renderIcon(language)}
+                    <Code className="w-4 h-4 text-gray-400" />
                     <div className="flex-1">
                       <span className="text-sm font-medium">{language.name}</span>
                       <span className="text-xs text-gray-500 block">{language.extension}</span>

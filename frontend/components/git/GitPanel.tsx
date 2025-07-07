@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   GitBranch, 
   GitCommit, 
@@ -128,28 +128,27 @@ const GitPanel: React.FC<GitPanelProps> = ({ isOpen, onClose }) => {
     }
   }, [operationStatus]);
 
+  const refreshGitData = useCallback(async () => {
+    if (!projectLoaded) return;
+    
+    try {
+      setIsLoading(prev => ({ ...prev, refresh: true }));
+      websocketService.requestGitStatus();
+      websocketService.requestGitCommits(50);
+      websocketService.requestGitBranches();
+    } catch (error) {
+      console.error('Error refreshing git data:', error);
+    } finally {
+      setIsLoading(prev => ({ ...prev, refresh: false }));
+    }
+  }, [projectLoaded]);
+
   // Load git data when panel opens
   useEffect(() => {
     if (isOpen && projectLoaded) {
       refreshGitData();
     }
-  }, [isOpen, projectLoaded]);
-
-  const refreshGitData = async () => {
-    if (!projectLoaded) {
-      setOperationStatus({ type: 'info', message: 'No project loaded. Import a project to use Git features.' });
-      return;
-    }
-    
-    setIsLoading(prev => ({ ...prev, refresh: true }));
-    try {
-      websocketService.requestGitStatus();
-      websocketService.requestGitCommits();
-      websocketService.requestGitBranches();
-    } finally {
-      setIsLoading(prev => ({ ...prev, refresh: false }));
-    }
-  };
+  }, [isOpen, projectLoaded, refreshGitData]);
 
   // Set up WebSocket event listeners
   useEffect(() => {
@@ -799,7 +798,7 @@ const GitPanel: React.FC<GitPanelProps> = ({ isOpen, onClose }) => {
                     <Filter className="w-4 h-4 text-gray-400" />
                     <select
                       value={filterType}
-                      onChange={(e) => setFilterType(e.target.value as any)}
+                      onChange={(e) => setFilterType(e.target.value as 'all' | 'author' | 'message')}
                       className="flex-1 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-gray-100 focus:outline-none focus:border-yellow-400"
                     >
                       <option value="all">All fields</option>

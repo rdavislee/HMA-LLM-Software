@@ -1,22 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { ChevronRight, ChevronDown, File, Folder, FolderOpen, Code, FileText, Image, Loader2 } from 'lucide-react';
-import websocketService, { AgentUpdate } from '../../src/services/websocket';
-
-interface FileNode {
-  name: string;
-  path: string;
-  type: 'file' | 'directory';
-  content?: string;
-  children?: FileNode[];
-}
-
-interface ImportedFile {
-  name: string;
-  path: string;
-  type: 'file' | 'directory';
-  size?: number;
-  content?: string;
-}
+import { AgentUpdate } from '../../src/services/websocket';
+import { FileNode, ImportedFile } from '../../src/types';
+import { useSocketEvent } from '../../src/hooks/useSocketEvent';
 
 interface FileTreeProps {
   onFileSelect?: (filePath: string, content?: string) => void;
@@ -71,24 +57,18 @@ const FileTree: React.FC<FileTreeProps> = ({ onFileSelect, importedFiles = [], p
     return paths;
   }, [activeAgents]);
 
-  // Listen for agent updates
-  useEffect(() => {
-    websocketService.on('agent_update', (update: AgentUpdate) => {
-      setActiveAgents(prev => {
-        const newMap = new Map(prev);
-        if (update.status === 'inactive' || update.status === 'completed') {
-          newMap.delete(update.agentId);
-        } else {
-          newMap.set(update.agentId, update);
-        }
-        return newMap;
-      });
+  // Use the useSocketEvent hook instead of manual listener management
+  useSocketEvent('agent_update', (update: AgentUpdate) => {
+    setActiveAgents(prev => {
+      const newMap = new Map(prev);
+      if (update.status === 'inactive' || update.status === 'completed') {
+        newMap.delete(update.agentId);
+      } else {
+        newMap.set(update.agentId, update);
+      }
+      return newMap;
     });
-
-    return () => {
-      websocketService.off('agent_update');
-    };
-  }, []);
+  });
 
   const toggleFolder = (path: string) => {
     setExpandedFolders(prev => {

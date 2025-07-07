@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 interface KeyboardShortcutsProps {
   onNewChat?: () => void;
@@ -10,23 +10,34 @@ interface KeyboardShortcutsProps {
   onCommandPalette?: () => void;
 }
 
-export const useKeyboardShortcuts = ({
-  onNewChat,
-  onSaveFile,
-  onToggleTerminal,
-  onToggleSidebar,
-  onToggleGitPanel,
-  onOpenSettings,
-  onCommandPalette
-}: KeyboardShortcutsProps) => {
+export const useKeyboardShortcuts = (props: KeyboardShortcutsProps) => {
+  const callbackRef = useRef(props);
+
+  useEffect(() => {
+    callbackRef.current = props;
+  }, [props]);
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Prevent shortcuts when typing in input fields
-      if (event.target instanceof HTMLInputElement || 
-          event.target instanceof HTMLTextAreaElement ||
-          (event.target as HTMLElement).contentEditable === 'true') {
+      // Prevent shortcuts when an input element is focused
+      const target = event.target as HTMLElement;
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable
+      ) {
         return;
       }
+
+      const {
+        onNewChat,
+        onSaveFile,
+        onToggleTerminal,
+        onToggleSidebar,
+        onToggleGitPanel,
+        onOpenSettings,
+        onCommandPalette
+      } = callbackRef.current;
 
       // Ctrl+N - New chat
       if (event.ctrlKey && event.key === 'n') {
@@ -58,7 +69,7 @@ export const useKeyboardShortcuts = ({
         onToggleSidebar?.();
       }
 
-      // Ctrl+G - Toggle git panel
+      // Ctrl+Shift+G - Toggle git panel
       if (event.ctrlKey && event.shiftKey && event.key === 'G') {
         event.preventDefault();
         onToggleGitPanel?.();
@@ -76,5 +87,5 @@ export const useKeyboardShortcuts = ({
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [onNewChat, onSaveFile, onToggleTerminal, onToggleSidebar, onToggleGitPanel, onOpenSettings, onCommandPalette]);
+  }, []); // Empty dependency array ensures this effect runs only once
 }; 

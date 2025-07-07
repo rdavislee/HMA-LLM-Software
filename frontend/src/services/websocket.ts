@@ -1,4 +1,5 @@
 import { io, Socket } from 'socket.io-client';
+import { ImportedFile } from '../types';
 
 export interface ChatMessage {
   id: string;
@@ -144,8 +145,31 @@ export interface GitBranch {
 export interface GitUpdate {
   eventType: string;
   projectPath: string;
-  data: Record<string, any>;
+  data: Record<string, unknown>;
   timestamp: string;
+}
+
+// Project Initialization interfaces
+export interface ProjectInitRequest {
+  language: string;
+  initialPrompt: string;
+  projectName?: string;
+}
+
+export interface ProjectInitStatus {
+  phase: 1 | 2 | 3;
+  phaseTitle: 'Product Understanding' | 'Structure Stage' | 'Implementation';
+  status: 'active' | 'waiting_approval' | 'completed' | 'error';
+  projectId?: string;
+  projectPath?: string;
+  message?: string;
+  requiresApproval: boolean;
+}
+
+export interface PhaseApproval {
+  phase: 1 | 2 | 3;
+  approved: boolean;
+  feedback?: string;
 }
 
 export interface WebSocketEvents {
@@ -161,6 +185,7 @@ export interface WebSocketEvents {
   editor_edit: (edit: EditorEdit) => void;
   editor_ack: (ack: EditorAck) => void;
   editor_sync: (sync: EditorSync) => void;
+  file_save_ack: (data: { filePath: string; success: boolean; error?: string }) => void;
   // New terminal events
   terminal_data: (data: TerminalData) => void;
   terminal_session: (session: TerminalSession) => void;
@@ -176,15 +201,24 @@ export interface WebSocketEvents {
   git_checkout_result: (data: { branchName: string; success: boolean }) => void;
   git_push_result: (data: { success: boolean; remoteName: string; branchName?: string }) => void;
   git_pull_result: (data: { success: boolean; remoteName: string }) => void;
+  // Project Initialization events
+  project_init_status: (status: ProjectInitStatus) => void;
+}
+
+type EventHandler<T = unknown> = (...args: T[]) => void;
+
+interface QueuedMessage {
+  event: string;
+  data: unknown;
 }
 
 class WebSocketService {
   private socket: Socket | null = null;
-  private eventListeners: Partial<WebSocketEvents> = {};
+  private eventListeners: Partial<Record<keyof WebSocketEvents, Array<EventHandler>>> = {};
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private reconnectDelay = 1000;
-  private messageQueue: any[] = [];
+  private messageQueue: QueuedMessage[] = [];
   private isConnecting = false;
   
   // New properties for operation tracking
@@ -227,25 +261,24 @@ class WebSocketService {
     if (!this.socket) return;
 
     this.socket.on('connect', () => {
-      console.log('Connected to WebSocket server');
-      this.isConnecting = false;
+      console.log('Connected to server');
       this.reconnectAttempts = 0;
-      this.emit('connected');
-      
-      // Send any queued messages
       this.processMessageQueue();
-      
-      // Replay pending operations on reconnection
-      this.replayPendingOps();
+      this.emit('connected');
     });
 
-    this.socket.on('disconnect', () => {
-      console.log('Disconnected from WebSocket server');
+    this.socket.on('disconnect', (reason: string) => {
+      console.log('Disconnected from server:', reason);
       this.emit('disconnected');
     });
 
+    this.socket.on('connect_error', (error: Error) => {
+      console.error('Connection error:', error);
+      this.handleReconnect();
+    });
+
     // Handle different message types from the server
-    this.socket.on('message', (data: any) => {
+    this.socket.on('message', (data: unknown) => {
       try {
         const parsedData = typeof data === 'string' ? JSON.parse(data) : data;
         
@@ -274,6 +307,9 @@ class WebSocketService {
             break;
           case 'editor_sync':
             this.handleEditorSync(parsedData.payload);
+            break;
+          case 'file_save_ack':
+            this.emit('file_save_ack', parsedData.payload);
             break;
           // New terminal cases
           case 'terminal_data':
@@ -316,6 +352,10 @@ class WebSocketService {
           case 'git_pull_result':
             this.emit('git_pull_result', parsedData.payload);
             break;
+          // Project Initialization cases
+          case 'project_init_status':
+            this.emit('project_init_status', parsedData.payload);
+            break;
           default:
             console.warn('Unknown message type:', parsedData.type);
         }
@@ -324,125 +364,130 @@ class WebSocketService {
       }
     });
 
-    this.socket.on('error', (error: any) => {
+    this.socket.on('error', (error: Error) => {
       console.error('WebSocket error:', error);
       this.emit('error', error.message || 'WebSocket error occurred');
     });
+  }
 
-    this.socket.on('connect_error', (error: any) => {
-      console.error('Connection error:', error);
-      this.isConnecting = false;
-      this.reconnectAttempts++;
-      
-      if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-        this.emit('error', 'Failed to connect after multiple attempts');
-      }
-    });
+  private handleReconnect() {
+    this.isConnecting = false;
+    this.reconnectAttempts++;
+    
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      this.emit('error', 'Failed to connect after multiple attempts');
+      return;
+    }
+
+    setTimeout(() => {
+      console.log(`Attempting to reconnect... (${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+      this.connect();
+    }, this.reconnectDelay * this.reconnectAttempts);
   }
 
   private processMessageQueue() {
     while (this.messageQueue.length > 0 && this.socket?.connected) {
       const message = this.messageQueue.shift();
-      this.socket.send(message);
+      if (message) {
+        this.socket.send(JSON.stringify(message));
+      }
     }
   }
 
   sendPrompt(prompt: string, agentId: string = 'root') {
-    const message = JSON.stringify({
+    const messageData = {
       type: 'prompt',
       payload: {
         prompt,
         agentId
       }
-    });
+    };
 
     if (this.socket?.connected) {
-      this.socket.send(message);
+      this.socket.send(JSON.stringify(messageData));
     } else {
       // Queue the message if not connected
-      this.messageQueue.push(message);
+      this.messageQueue.push({ event: 'prompt', data: messageData });
       this.emit('error', 'Not connected to server. Message queued.');
     }
   }
 
   stopAgentThinking() {
-    const message = JSON.stringify({
+    const messageData = {
       type: 'stop',
       payload: {}
-    });
+    };
 
     if (this.socket?.connected) {
-      this.socket.send(message);
+      this.socket.send(JSON.stringify(messageData));
       console.log('Sent stop command to server');
     }
   }
 
-  importProject(files: any[]) {
-    const message = JSON.stringify({
+  importProject(files: ImportedFile[]) {
+    const messageData = {
       type: 'import_project',
-      payload: {
-        files
-      }
-    });
+      payload: { files }
+    };
 
     if (this.socket?.connected) {
-      this.socket.send(message);
+      this.socket.send(JSON.stringify(messageData));
     } else {
-      this.messageQueue.push(message);
+      this.messageQueue.push({ event: 'import_project', data: messageData });
       this.emit('error', 'Not connected to server. Message queued.');
     }
   }
 
   selectFile(filePath: string) {
-    const message = JSON.stringify({
+    const messageData = {
       type: 'file_select',
       payload: {
         filePath
       }
-    });
+    };
 
     if (this.socket?.connected) {
-      this.socket.send(message);
+      this.socket.send(JSON.stringify(messageData));
     }
   }
 
   clearProject() {
-    const message = JSON.stringify({
+    const messageData = {
       type: 'clear_project',
       payload: {}
-    });
+    };
 
     if (this.socket?.connected) {
-      this.socket.send(message);
+      this.socket.send(JSON.stringify(messageData));
     } else {
-      this.messageQueue.push(message);
+      this.messageQueue.push({ event: 'clear_project', data: messageData });
     }
   }
 
   newChat() {
-    const message = JSON.stringify({
+    const messageData = {
       type: 'new_chat',
       payload: {}
-    });
+    };
 
     if (this.socket?.connected) {
-      this.socket.send(message);
+      this.socket.send(JSON.stringify(messageData));
     } else {
-      this.messageQueue.push(message);
+      this.messageQueue.push({ event: 'new_chat', data: messageData });
     }
   }
 
   editCode(filePath: string, content: string) {
-    const message = JSON.stringify({
+    const messageData = {
       type: 'code_edit',
       payload: {
         filePath,
         content
       }
-    });
+    };
 
     if (this.socket?.connected) {
-      this.socket.send(message);
+      this.socket.send(JSON.stringify(messageData));
     }
   }
 
@@ -463,29 +508,55 @@ class WebSocketService {
     // Store in pending ops
     this.pendingOps.set(opId, edit);
     
-    const message = JSON.stringify({
+    const messageData = {
       type: 'editor_edit',
       payload: edit
-    });
+    };
     
     if (this.socket?.connected) {
-      this.socket.send(message);
+      this.socket.send(JSON.stringify(messageData));
     } else {
-      this.messageQueue.push(message);
+      this.messageQueue.push({ event: 'editor_edit', data: messageData });
       this.emit('error', 'Not connected to server. Edit queued.');
     }
     
     return opId;
   }
   
+  sendEditorContent(projectId: string, filePath: string, content: string) {
+    const messageData = {
+      type: 'editor_content_change',
+      payload: { projectId, filePath, content }
+    };
+
+    if (this.socket?.connected) {
+      this.socket.send(JSON.stringify(messageData));
+    } else {
+      this.messageQueue.push({ event: 'editor_content_change', data: messageData });
+    }
+  }
+  
+  saveFile(filePath: string, content: string) {
+    const messageData = {
+      type: 'file_save',
+      payload: { filePath, content }
+    };
+
+    if (this.socket?.connected) {
+      this.socket.send(JSON.stringify(messageData));
+    } else {
+      this.messageQueue.push({ event: 'file_save', data: messageData });
+    }
+  }
+  
   requestFileSync(filePath: string) {
-    const message = JSON.stringify({
+    const messageData = {
       type: 'editor_sync_request',
       payload: { filePath }
-    });
+    };
     
     if (this.socket?.connected) {
-      this.socket.send(message);
+      this.socket.send(JSON.stringify(messageData));
     }
   }
   
@@ -535,23 +606,7 @@ class WebSocketService {
     this.emit('editor_sync', sync);
   }
   
-  private async replayPendingOps() {
-    // Replay pending operations after reconnection
-    if (this.pendingOps.size > 0) {
-      console.log(`Replaying ${this.pendingOps.size} pending operations`);
-      
-      for (const [_opId, edit] of this.pendingOps.entries()) {
-        const message = JSON.stringify({
-          type: 'editor_edit',
-          payload: edit
-        });
-        
-        if (this.socket?.connected) {
-          this.socket.send(message);
-        }
-      }
-    }
-  }
+
   
   clearPendingOps(filePath?: string) {
     if (filePath) {
@@ -572,17 +627,35 @@ class WebSocketService {
   }
 
   on<T extends keyof WebSocketEvents>(event: T, callback: WebSocketEvents[T]) {
-    this.eventListeners[event] = callback;
+    if (!this.eventListeners[event]) {
+      this.eventListeners[event] = [];
+    }
+    this.eventListeners[event]!.push(callback as EventHandler);
   }
 
-  off<T extends keyof WebSocketEvents>(event: T) {
-    delete this.eventListeners[event];
-  }
-
-  private emit<T extends keyof WebSocketEvents>(event: T, ...args: any[]) {
-    const callback = this.eventListeners[event];
+  off<T extends keyof WebSocketEvents>(event: T, callback?: WebSocketEvents[T]) {
+    if (!this.eventListeners[event]) return;
+    
     if (callback) {
-      (callback as any)(...args);
+      const index = this.eventListeners[event]!.indexOf(callback as EventHandler);
+      if (index > -1) {
+        this.eventListeners[event]!.splice(index, 1);
+      }
+    } else {
+      this.eventListeners[event] = [];
+    }
+  }
+
+  private emit<T extends keyof WebSocketEvents>(event: T, ...args: Parameters<WebSocketEvents[T]>) {
+    const listeners = this.eventListeners[event];
+    if (listeners) {
+      listeners.forEach(callback => {
+        try {
+          callback(...args);
+        } catch (error) {
+          console.error(`Error in event listener for ${event}:`, error);
+        }
+      });
     }
   }
 
@@ -606,61 +679,49 @@ class WebSocketService {
   }
 
   // Terminal methods
-  createTerminalSession(projectId: string): string {
-    const sessionId = `term_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
-    const session: TerminalSession = {
-      sessionId,
-      projectId,
-      status: 'starting'
+  createTerminalSession(projectId: string) {
+    const messageData = {
+      type: 'terminal_create',
+      payload: { projectId } // Let server generate the session ID
     };
     
-    this.terminalSessions.set(sessionId, session);
-    
-    const message = JSON.stringify({
-      type: 'terminal_create',
-      payload: { sessionId, projectId }
-    });
-    
     if (this.socket?.connected) {
-      this.socket.send(message);
+      this.socket.send(JSON.stringify(messageData));
     } else {
-      this.messageQueue.push(message);
+      this.messageQueue.push({ event: 'terminal_create', data: messageData });
     }
-    
-    return sessionId;
   }
   
   sendTerminalData(sessionId: string, data: string) {
-    const message = JSON.stringify({
+    const messageData = {
       type: 'terminal_data',
       payload: { sessionId, data }
-    });
+    };
     
     if (this.socket?.connected) {
-      this.socket.send(message);
+      this.socket.send(JSON.stringify(messageData));
     }
   }
   
   resizeTerminal(sessionId: string, cols: number, rows: number) {
-    const message = JSON.stringify({
+    const messageData = {
       type: 'terminal_resize',
       payload: { sessionId, cols, rows }
-    });
+    };
     
     if (this.socket?.connected) {
-      this.socket.send(message);
+      this.socket.send(JSON.stringify(messageData));
     }
   }
   
   closeTerminal(sessionId: string) {
-    const message = JSON.stringify({
+    const messageData = {
       type: 'terminal_close',
       payload: { sessionId }
-    });
+    };
     
     if (this.socket?.connected) {
-      this.socket.send(message);
+      this.socket.send(JSON.stringify(messageData));
     }
     
     this.terminalSessions.delete(sessionId);
@@ -678,132 +739,204 @@ class WebSocketService {
   // Git-related methods
 
   requestGitStatus() {
-    const message = JSON.stringify({
+    const messageData = {
       type: 'git_status',
       payload: {}
-    });
+    };
 
     if (this.socket?.connected) {
-      this.socket.send(message);
+      this.socket.send(JSON.stringify(messageData));
     }
   }
 
   requestGitDiff(filePath: string, staged: boolean = false) {
-    const message = JSON.stringify({
+    const messageData = {
       type: 'git_diff',
       payload: {
         filePath,
         staged
       }
-    });
+    };
 
     if (this.socket?.connected) {
-      this.socket.send(message);
+      this.socket.send(JSON.stringify(messageData));
     }
   }
 
   stageFile(filePath: string) {
-    const message = JSON.stringify({
+    const messageData = {
       type: 'git_stage',
       payload: {
         filePath
       }
-    });
+    };
 
     if (this.socket?.connected) {
-      this.socket.send(message);
+      this.socket.send(JSON.stringify(messageData));
     }
   }
 
   unstageFile(filePath: string) {
-    const message = JSON.stringify({
+    const messageData = {
       type: 'git_unstage',
       payload: {
         filePath
       }
-    });
+    };
 
     if (this.socket?.connected) {
-      this.socket.send(message);
+      this.socket.send(JSON.stringify(messageData));
     }
   }
 
   commitChanges(message: string, authorName?: string, authorEmail?: string) {
-    const commitMessage = JSON.stringify({
+    const messageData = {
       type: 'git_commit',
       payload: {
         message,
         authorName,
         authorEmail
       }
-    });
+    };
 
     if (this.socket?.connected) {
-      this.socket.send(commitMessage);
+      this.socket.send(JSON.stringify(messageData));
     }
   }
 
   requestGitBranches() {
-    const message = JSON.stringify({
+    const messageData = {
       type: 'git_branches',
       payload: {}
-    });
+    };
 
     if (this.socket?.connected) {
-      this.socket.send(message);
+      this.socket.send(JSON.stringify(messageData));
     }
   }
 
   checkoutBranch(branchName: string) {
-    const message = JSON.stringify({
+    const messageData = {
       type: 'git_checkout',
       payload: {
         branchName
       }
-    });
+    };
 
     if (this.socket?.connected) {
-      this.socket.send(message);
+      this.socket.send(JSON.stringify(messageData));
     }
   }
 
   pushChanges(remoteName: string = 'origin', branchName?: string) {
-    const message = JSON.stringify({
+    const messageData = {
       type: 'git_push',
       payload: {
         remoteName,
         branchName
       }
-    });
+    };
 
     if (this.socket?.connected) {
-      this.socket.send(message);
+      this.socket.send(JSON.stringify(messageData));
     }
   }
 
   pullChanges(remoteName: string = 'origin') {
-    const message = JSON.stringify({
+    const messageData = {
       type: 'git_pull',
       payload: {
         remoteName
       }
-    });
+    };
 
     if (this.socket?.connected) {
-      this.socket.send(message);
+      this.socket.send(JSON.stringify(messageData));
     }
   }
 
   requestGitCommits(maxCount: number = 50) {
-    const message = JSON.stringify({
-      type: 'git_commits',
-      payload: {
-        maxCount
-      }
-    });
+    if (!this.socket?.connected) {
+      console.warn('Cannot request git commits: not connected');
+      return;
+    }
+
+    this.socket.emit('git_commits', { maxCount });
+  }
+
+  // Project Initialization methods
+  
+  /**
+   * Start a new project initialization process
+   * @param language - Programming language for the project
+   * @param initialPrompt - Initial description of what to build
+   * @param projectName - Optional project name (auto-generated if not provided)
+   */
+  startProjectInitialization(language: string, initialPrompt: string, projectName?: string) {
+    const request: ProjectInitRequest = {
+      language,
+      initialPrompt,
+      projectName
+    };
+
+    const messageData = {
+      type: 'start_project_init',
+      payload: request
+    };
 
     if (this.socket?.connected) {
-      this.socket.send(message);
+      this.socket.send(JSON.stringify(messageData));
+    } else {
+      this.messageQueue.push({ event: 'start_project_init', data: messageData });
+      this.emit('error', 'Not connected to server. Project initialization queued.');
+    }
+  }
+
+  /**
+   * Approve the current phase of project initialization
+   * @param phase - Current phase number (1, 2, or 3)
+   */
+  approvePhase(phase: 1 | 2 | 3) {
+    const approval: PhaseApproval = {
+      phase,
+      approved: true
+    };
+
+    const messageData = {
+      type: 'approve_phase',
+      payload: approval
+    };
+
+    if (this.socket?.connected) {
+      this.socket.send(JSON.stringify(messageData));
+    } else {
+      this.messageQueue.push({ event: 'approve_phase', data: messageData });
+      this.emit('error', 'Not connected to server. Phase approval queued.');
+    }
+  }
+
+  /**
+   * Reject the current phase with optional feedback
+   * @param phase - Current phase number (1, 2, or 3)
+   * @param feedback - Optional feedback for why the phase was rejected
+   */
+  rejectPhase(phase: 1 | 2 | 3, feedback?: string) {
+    const rejection: PhaseApproval = {
+      phase,
+      approved: false,
+      feedback
+    };
+
+    const messageData = {
+      type: 'reject_phase',
+      payload: rejection
+    };
+
+    if (this.socket?.connected) {
+      this.socket.send(JSON.stringify(messageData));
+    } else {
+      this.messageQueue.push({ event: 'reject_phase', data: messageData });
+      this.emit('error', 'Not connected to server. Phase rejection queued.');
     }
   }
 }

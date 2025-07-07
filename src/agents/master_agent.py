@@ -461,6 +461,29 @@ class MasterAgent:
         self.human_interface_fn = human_interface_fn
         self.update_activity()
     
+    async def send_message_to_human(self, message: str) -> str:
+        """Send a regular message to the human and wait for response.
+        
+        This is different from FINISH - it's for ongoing conversation during phases.
+        
+        Args:
+            message: The message to send to the human
+            
+        Returns:
+            str: The human's response
+        """
+        if self.human_interface_fn:
+            try:
+                response = await self.human_interface_fn(message)
+                self.update_activity()
+                return response
+            except Exception as e:
+                print(f"[MasterAgent] Error sending message to human: {e}")
+                return "Error occurred while waiting for response"
+        else:
+            print(f"[MasterAgent] No human interface function available")
+            return "No human interface available"
+    
     def delegate_task(self, child_agent, task_description: str) -> None:
         """Delegate a task to the root agent.
         

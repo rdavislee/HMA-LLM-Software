@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Terminal as TerminalIcon, X, Minus, Square, Play, RefreshCw } from 'lucide-react';
+import { Terminal as TerminalIcon, X, Minus, Play, RefreshCw } from 'lucide-react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import websocketService, { TerminalSession, TerminalData } from '../../src/services/websocket';
+import { useSocketEvent } from '../../src/hooks/useSocketEvent';
 import '@xterm/xterm/css/xterm.css';
 
 interface TerminalProps {
@@ -13,28 +14,45 @@ interface TerminalProps {
 const InteractiveTerminal: React.FC<TerminalProps> = ({ projectId }) => {
   const [isMinimized, setIsMinimized] = useState(false);
   const [terminalSession, setTerminalSession] = useState<TerminalSession | null>(null);
-  const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isPulsing, setIsPulsing] = useState(false);
   
   const terminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
-  const sessionIdRef = useRef<string | null>(null);
+  const resizeTimeoutRef = useRef<number | null>(null);
+
+  const handleResize = useCallback(() => {
+    if (fitAddonRef.current && !isMinimized) {
+      fitAddonRef.current.fit();
+    }
+  }, [isMinimized]);
+
+  // Debounced resize handler for sending updates to the server
+  const debouncedResize = useCallback((cols: number, rows: number) => {
+    if (resizeTimeoutRef.current) {
+      clearTimeout(resizeTimeoutRef.current);
+    }
+    resizeTimeoutRef.current = window.setTimeout(() => {
+      if (terminalSession?.sessionId) {
+        websocketService.resizeTerminal(terminalSession.sessionId, cols, rows);
+      }
+    }, 200);
+  }, [terminalSession]);
 
   // Initialize xterm.js terminal
   const initializeTerminal = useCallback(() => {
     if (!terminalRef.current || xtermRef.current) return;
 
-    // Create terminal instance
     const terminal = new Terminal({
       cursorBlink: true,
       fontSize: 14,
       fontFamily: '"Fira Code", "Consolas", "Monaco", monospace',
       theme: {
-        background: '#111827', // gray-900
-        foreground: '#f9fafb', // gray-50
-        cursor: '#facc15', // yellow-400
-        selectionBackground: '#374151', // gray-700
+        background: '#111827',
+        foreground: '#f9fafb',
+        cursor: '#facc15',
+        selectionBackground: '#374151',
         black: '#1f2937',
         red: '#ef4444',
         green: '#10b981',
@@ -51,199 +69,152 @@ const InteractiveTerminal: React.FC<TerminalProps> = ({ projectId }) => {
         brightMagenta: '#c084fc',
         brightCyan: '#22d3ee',
         brightWhite: '#ffffff'
-      }
+      },
+      allowProposedApi: true,
     });
 
-    // Create addons
     const fitAddon = new FitAddon();
     const webLinksAddon = new WebLinksAddon();
 
-    // Load addons
     terminal.loadAddon(fitAddon);
     terminal.loadAddon(webLinksAddon);
-
-    // Open terminal in DOM
     terminal.open(terminalRef.current);
 
-    // Store references
     xtermRef.current = terminal;
     fitAddonRef.current = fitAddon;
 
-    // Handle terminal input
     terminal.onData((data) => {
-      if (sessionIdRef.current) {
-        websocketService.sendTerminalData(sessionIdRef.current, data);
+      if (terminalSession?.sessionId && terminalSession.status === 'running') {
+        websocketService.sendTerminalData(terminalSession.sessionId, data);
       }
     });
 
-    // Handle terminal resize
     terminal.onResize(({ cols, rows }) => {
-      if (sessionIdRef.current) {
-        websocketService.resizeTerminal(sessionIdRef.current, cols, rows);
-      }
+      debouncedResize(cols, rows);
     });
 
-    // Fit terminal to container
-    setTimeout(() => {
-      try {
-        fitAddon.fit();
-      } catch (err) {
-      }
-    }, 100);
+    setTimeout(() => handleResize(), 100);
 
-    // Show welcome message
     terminal.writeln('\x1b[1;33m╭─ Hive Interactive Terminal ─╮\x1b[0m');
     terminal.writeln('\x1b[1;33m│ Container-backed workspace  │\x1b[0m');
     terminal.writeln('\x1b[1;33m╰─────────────────────────────╯\x1b[0m');
     terminal.writeln('');
-
-    return terminal;
-  }, []);
+  }, [terminalSession, handleResize, debouncedResize]);
 
   // Create terminal session
   const createSession = useCallback(async () => {
     const effectiveProjectId = projectId || 'default';
-    if (!effectiveProjectId || isConnecting) return;
+    if (!effectiveProjectId || terminalSession?.status === 'starting' || terminalSession?.status === 'running') return;
 
-    setIsConnecting(true);
     setError(null);
-
-    try {
-      const sessionId = websocketService.createTerminalSession(effectiveProjectId);
-      sessionIdRef.current = sessionId;
+    websocketService.createTerminalSession(effectiveProjectId);
       
-      if (xtermRef.current) {
-        xtermRef.current.writeln('\x1b[33mStarting container workspace...\x1b[0m');
-      }
-    } catch (err) {
-      setError('Failed to create terminal session');
-      setIsConnecting(false);
-    }
-  }, [projectId, isConnecting]);
-
-  // Restart terminal session
-  const restartSession = useCallback(() => {
-    if (sessionIdRef.current) {
-      websocketService.closeTerminal(sessionIdRef.current);
-      sessionIdRef.current = null;
-    }
-    setTerminalSession(null);
-    setError(null);
-    
     if (xtermRef.current) {
-      xtermRef.current.clear();
+      xtermRef.current.writeln('\x1b[33mRequesting container workspace...\x1b[0m');
     }
-    
-    setTimeout(() => {
-      createSession();
-    }, 500);
-  }, [createSession]);
+  }, [projectId, terminalSession]);
 
-  // Initialize terminal on mount
+  // Initialize terminal and create session on mount
   useEffect(() => {
     if (!isMinimized && terminalRef.current) {
       initializeTerminal();
-      
-      // Always create a session when terminal is initialized, use default project if none provided
-      const effectiveProjectId = projectId || 'default';
-      if (effectiveProjectId && !sessionIdRef.current) {
+      if (!terminalSession) {
         createSession();
       }
     }
+  }, [isMinimized, initializeTerminal, createSession, terminalSession]);
 
+  // Cleanup effect
+  useEffect(() => {
     return () => {
-      // Cleanup on unmount
-      if (sessionIdRef.current) {
-        websocketService.closeTerminal(sessionIdRef.current);
+      if (terminalSession?.sessionId) {
+        websocketService.closeTerminal(terminalSession.sessionId);
       }
       if (xtermRef.current) {
         xtermRef.current.dispose();
         xtermRef.current = null;
       }
-    };
-  }, [isMinimized, initializeTerminal, createSession, projectId]);
-
-  // Handle WebSocket events
-  useEffect(() => {
-    const handleTerminalData = (data: TerminalData) => {
-      if (data.sessionId === sessionIdRef.current && xtermRef.current) {
-        xtermRef.current.write(data.data);
+      if (resizeTimeoutRef.current) {
+        clearTimeout(resizeTimeoutRef.current);
       }
     };
+  }, [terminalSession]);
 
-    const handleTerminalSession = (session: TerminalSession) => {
-      if (session.sessionId === sessionIdRef.current) {
-        setTerminalSession(session);
-        setIsConnecting(false);
-        
-        if (xtermRef.current) {
-          switch (session.status) {
-            case 'running':
+  // WebSocket event handlers
+  useSocketEvent('terminal_data', (data: TerminalData) => {
+    if (data.sessionId === terminalSession?.sessionId && xtermRef.current && !isMinimized) {
+      xtermRef.current.write(data.data);
+      // Pulse animation to show activity when minimized
+      if (isMinimized) {
+        setIsPulsing(true);
+        setTimeout(() => setIsPulsing(false), 500);
+      }
+    }
+  });
+
+  useSocketEvent('terminal_session', (session: TerminalSession) => {
+    const effectiveProjectId = projectId || 'default';
+    if (session.projectId === effectiveProjectId) {
+      setTerminalSession(session);
+      
+      if (xtermRef.current) {
+        switch (session.status) {
+          case 'running':
+            if (terminalSession?.status !== 'running') {
               xtermRef.current.writeln('\x1b[32m✓ Container ready! Welcome to your workspace.\x1b[0m');
               xtermRef.current.writeln('');
-              break;
-            case 'error':
-              xtermRef.current.writeln('\x1b[31m✗ Failed to start container workspace.\x1b[0m');
-              setError('Container failed to start');
-              break;
-            case 'stopped':
+              handleResize();
+            }
+            break;
+          case 'error':
+            xtermRef.current.writeln('\x1b[31m✗ Failed to start container workspace.\x1b[0m');
+            setError('Container failed to start');
+            break;
+          case 'stopped':
+            if (terminalSession?.status !== 'stopped') {
               xtermRef.current.writeln('\x1b[33m○ Container workspace stopped.\x1b[0m');
-              break;
-          }
+            }
+            break;
         }
       }
-    };
-
-    websocketService.on('terminal_data', handleTerminalData);
-    websocketService.on('terminal_session', handleTerminalSession);
-
-    return () => {
-      websocketService.off('terminal_data');
-      websocketService.off('terminal_session');
-    };
-  }, []);
+    }
+  });
 
   // Handle window resize
   useEffect(() => {
-    const handleResize = () => {
-      if (fitAddonRef.current && !isMinimized) {
-        setTimeout(() => {
-          try {
-            fitAddonRef.current?.fit();
-          } catch (err) {
-          }
-        }, 100);
-      }
-    };
-
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [isMinimized]);
+  }, [handleResize]);
 
   // Fit terminal when expanded
   useEffect(() => {
-    if (!isMinimized && fitAddonRef.current) {
-      setTimeout(() => {
-        try {
-          fitAddonRef.current?.fit();
-        } catch (err) {
-        }
-      }, 100);
+    if (!isMinimized) {
+      setTimeout(() => handleResize(), 100);
     }
-  }, [isMinimized]);
+  }, [isMinimized, handleResize]);
+
 
   if (isMinimized) {
+    const statusClass = terminalSession?.status === 'running' ? 'bg-green-400' : 'bg-yellow-400';
     return (
-      <div className="bg-gray-900 border-t border-yellow-400/20 p-2">
+      <div className="bg-gray-900 border-t border-yellow-400/20 p-2 flex items-center justify-between">
         <button
           onClick={() => setIsMinimized(false)}
           className="flex items-center gap-2 text-yellow-400 hover:text-yellow-300 transition-colors"
         >
           <TerminalIcon className="w-4 h-4" />
-          <span className="text-sm font-medium">
-            Terminal {terminalSession?.status === 'running' ? '(running)' : '(minimized)'}
-          </span>
+          <span className="text-sm font-medium">Terminal</span>
         </button>
+        <div className="flex items-center gap-2">
+          {terminalSession?.status && (
+            <span className={`text-xs capitalize px-2 py-0.5 rounded-full ${
+              terminalSession.status === 'running' ? 'text-green-900 bg-green-400' : 'text-yellow-900 bg-yellow-400'
+            }`}>
+              {terminalSession.status}
+            </span>
+          )}
+          <div className={`w-2 h-2 rounded-full ${statusClass} ${isPulsing ? 'animate-pulse' : ''}`} />
+        </div>
       </div>
     );
   }
@@ -258,10 +229,16 @@ const InteractiveTerminal: React.FC<TerminalProps> = ({ projectId }) => {
             Interactive Terminal
           </span>
           {terminalSession?.status === 'running' && (
-            <span className="text-green-400 text-xs">●</span>
+            <span className="text-green-400 text-xs flex items-center gap-1">
+              <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+              Running
+            </span>
           )}
-          {isConnecting && (
-            <RefreshCw className="w-3 h-3 text-yellow-400 animate-spin" />
+          {(terminalSession?.status === 'starting') && (
+            <span className="text-yellow-400 text-xs flex items-center gap-1">
+              <RefreshCw className="w-3 h-3 animate-spin" />
+              Starting
+            </span>
           )}
           {terminalSession?.containerId && (
             <span className="text-gray-500 text-xs font-mono">
@@ -271,23 +248,13 @@ const InteractiveTerminal: React.FC<TerminalProps> = ({ projectId }) => {
         </div>
         
         <div className="flex items-center gap-1">
-          {!terminalSession && !isConnecting && (
+          {(terminalSession?.status === 'stopped' || terminalSession?.status === 'error') && (
             <button
               onClick={createSession}
               className="p-1 text-gray-400 hover:text-yellow-400 transition-colors"
               title="Start terminal"
             >
               <Play className="w-3 h-3" />
-            </button>
-          )}
-          
-          {(error || terminalSession?.status === 'error') && (
-            <button
-              onClick={restartSession}
-              className="p-1 text-gray-400 hover:text-yellow-400 transition-colors"
-              title="Restart terminal"
-            >
-              <RefreshCw className="w-3 h-3" />
             </button>
           )}
           
@@ -301,8 +268,8 @@ const InteractiveTerminal: React.FC<TerminalProps> = ({ projectId }) => {
           
           <button 
             onClick={() => {
-              if (sessionIdRef.current) {
-                websocketService.closeTerminal(sessionIdRef.current);
+              if (terminalSession?.sessionId) {
+                websocketService.closeTerminal(terminalSession.sessionId);
               }
             }}
             className="w-6 h-6 rounded hover:bg-red-500/20 flex items-center justify-center transition-colors"
@@ -321,14 +288,10 @@ const InteractiveTerminal: React.FC<TerminalProps> = ({ projectId }) => {
       )}
 
       {/* Terminal Container */}
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 overflow-hidden p-2" style={{ backgroundColor: '#111827' }}>
         <div 
           ref={terminalRef}
           className="h-full w-full"
-          style={{ 
-            backgroundColor: '#111827',
-            padding: '8px'
-          }}
         />
       </div>
     </div>

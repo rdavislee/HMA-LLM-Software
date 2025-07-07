@@ -1,8 +1,11 @@
 import React from 'react';
-import { DivideIcon as LucideIcon } from 'lucide-react';
+import type { LucideProps } from 'lucide-react';
+
+// The Icon prop should accept any component that takes Lucide-like props.
+type LucideIconComponent = React.ComponentType<LucideProps>;
 
 interface IconButtonProps {
-  icon: typeof LucideIcon;
+  icon: LucideIconComponent;
   onClick?: () => void;
   variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
   size?: 'sm' | 'md' | 'lg';
