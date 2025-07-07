@@ -195,25 +195,40 @@ class MasterLanguageInterpreter:
 
         try:
             if os.name == "nt":
+                from types import SimpleNamespace
                 full_cmd = ["powershell.exe", "-Command", command]
-                completed = subprocess.run(
-                    full_cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    text=True,
-                    cwd=self.root_dir,
-                    check=False,
-                )
-            else:
-                completed = subprocess.run(
-                    command,
-                    shell=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    text=True,
-                    cwd=self.root_dir,
-                    check=False,
-                )
+                try:
+                    proc = subprocess.Popen(
+                        full_cmd,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                        cwd=self.root_dir,
+                        creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
+                    )
+                    stdout_output, stderr_output = proc.communicate(timeout=120)
+                    # Clip oversized outputs
+                    MAX_RUN_OUTPUT_CHARS = 100000
+                    def _clip(s: str, limit: int = MAX_RUN_OUTPUT_CHARS):
+                        return s if len(s) <= limit else s[:limit] + f"\n... [truncated {len(s) - limit} chars]"
+                    stdout_output = _clip(stdout_output)
+                    stderr_output = _clip(stderr_output)
+                    completed = SimpleNamespace(stdout=stdout_output, stderr=stderr_output, returncode=proc.returncode)
+                except subprocess.TimeoutExpired:
+                    subprocess.call(["taskkill", "/F", "/T", "/PID", str(proc.pid)])
+                    stdout_output, stderr_output = proc.communicate()
+                    # Clip oversized outputs
+                    MAX_RUN_OUTPUT_CHARS = 100000
+                    def _clip(s: str, limit: int = MAX_RUN_OUTPUT_CHARS):
+                        return s if len(s) <= limit else s[:limit] + f"\n... [truncated {len(s) - limit} chars]"
+                    stdout_output = _clip(stdout_output)
+                    stderr_output = _clip(stderr_output)
+                    prompt_msg = (
+                        "RUN failed: Timed-out after 120 s. Most likely an infinite loop in the code.\n"
+                        f"Output:\n{stdout_output}\nError:\n{stderr_output}"
+                    )
+                    self._queue_self_prompt(prompt_msg)
+                    return
 
             stdout_output = completed.stdout.strip()
             stderr_output = completed.stderr.strip()

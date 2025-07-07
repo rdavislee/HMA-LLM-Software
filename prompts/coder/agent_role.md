@@ -77,7 +77,11 @@ Make another change
 Get same/different error
 Repeat until context exhausted
 
-**IF YOU CANNOT COMPILE YOUR CODE AFTER MANY NPM RUN BUILDS OR THE EQUIVALENT IN YOUR LANGUAGE, YOU NEED TO FINISH AND RECOMMEND YOUR PARENT TO SPAWN A TESTER**
+**IF YOU CANNOT COMPILE YOUR CODE AFTER MANY COMPILATIONS, YOU NEED TO FINISH AND RECOMMEND YOUR PARENT TO SPAWN A TESTER**
+
+**IF TESTS DO NOT RUN BECAUSE OF ENVIRONMENT RELATED ERRORS, IMMEDIATELY FINISH AND SEND TO MASTER**
+
+**If your test file is having tons of issues and you are using expect, try assert tests instead**
 
 MANDATORY Protocol:
 
@@ -110,6 +114,8 @@ Compilation Error Protocol
 **READ dependency files (ANYTHING YOU ARE IMPORTING) and check LIBRARY IMPORTS when dealing with compile errors**
 Compilation errors need tester analysis too!
 RUN "npm run build"
+**Use console commands to help pinpoint bugs. They can be removed after the bug is fixed**
+
 // If compilation errors
 
 // DON'T just try random fixes!
@@ -151,13 +157,16 @@ VERIFY specs have clear pre/postconditions
 If specs inadequate: FINISH requesting better specs
 If specs adequate:
 
-Design test partitions
-Cover entire input space
-Test edge cases
-Test error conditions
-NO implementation code in tests
+*Test suites should have partitions in comments at the top of the suite. Then, tests should say which partitions they cover*
+1. Design test partitions - DO THIS IN ONE COMMAND BEFORE IMPLEMENTING THE TEST SUITE.
+    a. You can create partitions on inputs, aspects of inputs, return values, etc. Make sure to make enough tests such that an implementation to cover all those tests is almost 100% correct.
+2. Cover the testing partitions you made one command ago. You should have a tests to cover each partition, and document which partitions they cover. Try to cover both positive and negative results, as well. Test suites should be large, don't be afraid to write 1000 line+ test suites.
+3. Make sure your code follows the following:
+    a. Test edge cases
+    b. Test error conditions
+    c. NO implementation code in tests
 
-
+**DURING TESTING AND IMPLEMENTATION, IT IS IMPORTANT TO READ TEST FILES, COMPARE AGAINST INTENDED USE IN DOCUMENTATION, AND DECIDE IF THE CURRENT TESTS COVER ALL POSSIBLE PARTITIONS OF THE TEST SPACE**
 
 IMPLEMENT Task (Implementation Files Only)
 
@@ -192,6 +201,10 @@ Code follows specifications exactly
 No compilation errors
 Clean, readable implementation
 Proper error handling
+
+**IF A TEST COMMAND IS TIMING OUT, THERE IS AN INFITNITE LOOP ON THE TEST IT IS TIMING OUT ON. IDENTIFY THE TEST IT TIMED OUT ON, AS THAT IS MOST LIKELY THE CULPRIT, NOT THE ERROR MESSAGE. IT WOULD BE USEFUL TO KNOW WHAT TEST EXACTLY CAUSED THE INFINITE LOOP**
+
+Thoughts can go at the top of code files in comments. This is recommended if you have a large fix. Just make sure to clean up thought comments.
 
 When to FINISH
 Success:

@@ -109,31 +109,44 @@ class CoderLanguageInterpreter:
             return
 
         try:
-            if os.name == "nt":
-                full_cmd = ["powershell.exe", "-Command", command]
-                completed = subprocess.run(
+            # Windows branch – use Popen so we can kill the entire process tree on timeout
+            full_cmd = ["powershell.exe", "-Command", command]
+            try:
+                proc = subprocess.Popen(
                     full_cmd,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     text=True,
                     cwd=self.project_root,
-                    check=False,
+                    creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
                 )
-            else:
-                completed = subprocess.run(
-                    command,
-                    shell=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    text=True,
-                    cwd=self.project_root,
-                    check=False,
+                stdout_output, stderr_output = proc.communicate(timeout=120)
+                # Clip potentially huge outputs to prevent context explosion
+                MAX_RUN_OUTPUT_CHARS = 100000
+                def _clip(s: str, limit: int = MAX_RUN_OUTPUT_CHARS):
+                    return s if len(s) <= limit else s[:limit] + f"\n... [truncated {len(s) - limit} chars]"
+                stdout_output = _clip(stdout_output)
+                stderr_output = _clip(stderr_output)
+            except subprocess.TimeoutExpired:
+                # Kill the whole tree (powershell + descendants)
+                subprocess.call(["taskkill", "/F", "/T", "/PID", str(proc.pid)])
+                stdout_output, stderr_output = proc.communicate()
+                # Clip potentially huge outputs to prevent context explosion
+                MAX_RUN_OUTPUT_CHARS = 100000
+                def _clip(s: str, limit: int = MAX_RUN_OUTPUT_CHARS):
+                    return s if len(s) <= limit else s[:limit] + f"\n... [truncated {len(s) - limit} chars]"
+                stdout_output = _clip(stdout_output)
+                stderr_output = _clip(stderr_output)
+                prompt = (
+                    "RUN failed: Timed-out after 120 s. Most likely an infinite loop in the code.\n"
+                    f"Output:\n{stdout_output}\nError:\n{stderr_output}"
                 )
+                self._queue_self_prompt(prompt)
+                return
 
-            stdout_output = completed.stdout.strip()
-            stderr_output = completed.stderr.strip()
+            completed_returncode = proc.returncode
 
-            if completed.returncode == 0:
+            if completed_returncode == 0:
                 prompt = f"RUN succeeded: Output:\n{stdout_output}"
             else:
                 if stdout_output and stderr_output:
@@ -143,7 +156,7 @@ class CoderLanguageInterpreter:
                 elif stderr_output:
                     prompt = f"RUN failed: Error:\n{stderr_output}"
                 else:
-                    prompt = f"RUN failed with return code {completed.returncode}"
+                    prompt = f"RUN failed with return code {completed_returncode}"
 
             self._queue_self_prompt(prompt)
 

@@ -9,7 +9,8 @@ from typing import Optional
 class Language(Enum):
     """Programming language environments supported by the system."""
     TYPESCRIPT = "typescript"
-    # Future: PYTHON = "python"
+    PYTHON = "python"
+    JAVA = "java"
 
 # Global language setting
 _CURRENT_LANGUAGE: Optional[Language] = None
@@ -28,8 +29,12 @@ def get_language_extension(language: Optional[Language] = None) -> str:
     lang = language or _CURRENT_LANGUAGE
     if lang == Language.TYPESCRIPT:
         return ".ts"
-    # Default fallback
-    return ".py"
+    elif lang == Language.JAVA:
+        return ".java"  
+    elif lang == Language.PYTHON:
+        return ".py"
+    else:
+        raise ValueError(f"Unsupported language: {lang}")
 
 # Global constants for allowed terminal commands (for manager, coder, and ephemeral agents only)
 ALLOWED_COMMANDS = {

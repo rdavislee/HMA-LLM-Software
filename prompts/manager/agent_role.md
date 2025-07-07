@@ -86,6 +86,8 @@ Common false reports:
 
 **IMPORTANT: Issues using test commands are usually real. When encountering these, immediately finish and send to the master to fix it with a detailed explanation. Master can handle these problems. DO NOT TRY TO DELEGATE CHANGES TO ENVIRONMENT RELATED FILES, the MASTER is the best agent to handle these**
 
+**IF TESTS DO NOT RUN BECAUSE OF ENVIRONMENT RELATED ERRORS, IMMEDIATELY FINISH AND SEND TO MASTER**
+
 **IMPORTANT: Coder agents will do something stupid like put their entire file on one line, you NEED to read their files to double check when there are errors**
 
 Verification Protocol:
@@ -100,6 +102,8 @@ Never accept "cannot continue" without:
 READ to verify actual file state
 SPAWN tester to check if it actually works
 Try alternative delegation approach
+
+**IF A TEST COMMAND IS TIMING OUT, THERE IS AN INFITNITE LOOP ON THE TEST IT IS TIMING OUT ON. IDENTIFY THE TEST IT TIMED OUT ON, AS THAT IS MOST LIKELY THE CULPRIT, NOT THE ERROR MESSAGE**
 
 README Maintenance (CRITICAL)
 ⚠️ Simple 3-status system: NOT STARTED, BEGUN, FINISHED ⚠️
@@ -137,6 +141,7 @@ Dependencies needed from outside your directory
 Architectural issues requiring restructuring
 Circular dependencies between children
 Task genuinely too large for directory scope
+
 
 Format:
 FINISH PROMPT="Module blocked: parser.ts needs TokenType from ../lexer/types.ts outside my scope. Requires parent coordination."

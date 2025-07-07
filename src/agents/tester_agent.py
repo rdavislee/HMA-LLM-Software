@@ -297,8 +297,8 @@ def debug_helper():
             # Save context (truncate CHANGE commands to prevent context bloat)
             action = response.split()[0] if response.strip() else "NO_ACTION"
             print(f"[{self.parent_path}_tester] Prompt: {current_prompt} | Output: {response}")
-            truncated_prompt = self._truncate_command(current_prompt)
-            self.context.append(ContextEntry(prompt=truncated_prompt, response=response))
+            truncated_response = self._truncate_command(response)
+            self.context.append(ContextEntry(prompt=current_prompt, response=truncated_response))
             
             # Clear prompt queue
             self.prompt_queue.clear()

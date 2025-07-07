@@ -33,6 +33,7 @@ from src.llm.providers import (  # noqa: E402
     Gemini25ProClient,
     Gemini25FlashClient,
 )
+from src.config import Language
 
 # ---------------------------------------------------------------------------
 # Human ↔︎ master interface helper
@@ -75,6 +76,31 @@ async def async_main() -> None:
         print("Initial prompt cannot be empty; aborting.")
         sys.exit(1)
 
+    # ------------------------------------------------------------------
+    # Choose programming language
+    # ------------------------------------------------------------------
+    language_choice = (
+        input(
+            "Select the programming language for the project (python/typescript/java) [typescript]: "
+        )
+        .strip()
+        .lower()
+    ) or "typescript"
+
+    valid_languages = {
+        "python": Language.PYTHON,
+        "typescript": Language.TYPESCRIPT,
+        "java": Language.JAVA,
+    }
+
+    if language_choice not in valid_languages:
+        print(
+            f"Unsupported language '{language_choice}'. Must be one of: python, typescript, or java. Aborting."
+        )
+        sys.exit(1)
+
+    chosen_language = valid_languages[language_choice]
+
     # ---------------------------------------------------------------------
     # Spin-up the system
     # ---------------------------------------------------------------------
@@ -87,6 +113,7 @@ async def async_main() -> None:
         root_directory=root_path,
         initial_prompt=initial_prompt,
         human_interface_fn=terminal_human_interface,
+        language=chosen_language,
         master_llm_client=master_llm,
         base_llm_client=base_llm,
     )
