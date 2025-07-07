@@ -148,51 +148,20 @@ async def initialize_new_project(
         max_context_size=max_context_size,
     )
 
-    # Phase tracking for WebSocket communication
-    current_phase = 1
-
     # Bidirectional handshake between master agent FINISH directives and this initializer.
     completion_event: asyncio.Event = asyncio.Event()
     completion_data: Dict[str, Optional[str | asyncio.Event | Dict[str, str]]] = {"message": None}
 
     async def phase_communication_fn(completion_message: str) -> str:  # noqa: D401 – simple lambda-like helper
-        nonlocal current_phase
         completion_data["message"] = completion_message
         completion_event.set()
         response_event: asyncio.Event = asyncio.Event()
         response_holder: Dict[str, str] = {"response": ""}
         completion_data["response_event"] = response_event
         completion_data["response_holder"] = response_holder
-        
-        # Determine if this is a phase completion or just a message
-        is_phase_completion = "use FINISH" in completion_message or "Phase" in completion_message
-        
-        if is_phase_completion:
-            # Create a more detailed prompt for the human interface
-            phase_names = {1: "Product Understanding", 2: "Structure Stage", 3: "Implementation"}
-            phase_name = phase_names.get(current_phase, f"Phase {current_phase}")
-            
-            detailed_prompt = f"**{phase_name} Complete**\n\n{completion_message}\n\nReady to proceed to the next phase?"
-            
-            # Call the human interface function with the detailed prompt
-            response = await human_interface_fn(detailed_prompt)
-            
-            # Set the response and trigger the event
-            response_holder["response"] = response
-            response_event.set()
-            
-            # Wait for the response to be processed
-            await response_event.wait()
-            return response_holder["response"]
-        else:
-            # This is just a regular message from the Master Agent
-            # Send it to the human interface and don't wait for a response
-            await human_interface_fn(completion_message)
-            
-            # Return empty string to continue
-            response_holder["response"] = ""
-            response_event.set()
-            return ""
+
+        await response_event.wait()
+        return response_holder["response"]
 
     master_agent.set_human_interface_fn(phase_communication_fn)
 
@@ -203,7 +172,6 @@ async def initialize_new_project(
 
     # ---------------------------- Phase 1 – Product understanding ----------------------------
     print("[Phase 1] Starting product understanding phase…")
-    current_phase = 1
     language_name = str(get_global_language().name) if hasattr(get_global_language(), 'name') else str(get_global_language())
     phase1_task = Task(
         task_id=f"phase1_{int(time.time())}",
@@ -230,7 +198,7 @@ async def initialize_new_project(
         completion_message = completion_data["message"]
         print(f"[Phase 1] Master completed with: {completion_message}")
         approval = await human_interface_fn(
-            f"**Phase 1: Product Understanding Complete**\n\n{completion_message}\n\nType 'Approved' to move to Phase 2 (Structure), or provide additional feedback:"
+            "Type 'Approved' to move to Phase 2 (Structure), or provide additional feedback:"
         )
         if approval.strip().lower() == "approved":
             completion_data["response_holder"]["response"] = "approved"
@@ -244,7 +212,6 @@ async def initialize_new_project(
 
     # ---------------------------- Phase 2 – Structure stage ----------------------------
     print("[Phase 2] Starting structure stage…")
-    current_phase = 2
     language_name = str(get_global_language().name) if hasattr(get_global_language(), 'name') else str(get_global_language())
     phase2_task = Task(
         task_id=f"phase2_{int(time.time())}",
@@ -283,7 +250,7 @@ async def initialize_new_project(
         completion_message = completion_data["message"]
         print(f"[Phase 2] Master completed with: {completion_message}")
         approval = await human_interface_fn(
-            f"**Phase 2: Structure Stage Complete**\n\n{completion_message}\n\nType 'Approved' to approve the structure and move to Phase 3 (Implementation), or give feedback:"
+            "Type 'Approved' to approve the structure and move to Phase 3 (Implementation), or give feedback:"
         )
         if approval.strip().lower() == "approved":
             completion_data["response_holder"]["response"] = "approved"
@@ -296,7 +263,6 @@ async def initialize_new_project(
 
     # ---------------------------- Phase 3 – Implementation ----------------------------
     print("[Phase 3] Creating agent hierarchy…")
-    current_phase = 3
     agent_lookup: Dict[Path, "BaseAgent"] = {}
     root_manager = _build_manager(
         root_path,
@@ -349,7 +315,7 @@ async def initialize_new_project(
         completion_message = completion_data["message"]
         print(f"[Phase 3] Master completed with: {completion_message}")
         approval = await human_interface_fn(
-            f"**Phase 3: Implementation Complete**\n\n{completion_message}\n\nType 'Approved' to finish the project, or provide additional implementation requests:"
+            "Type 'Approved' to finish the project, or provide additional implementation requests:"
         )
         if approval.strip().lower() == "approved":
             completion_data["response_holder"]["response"] = "approved"

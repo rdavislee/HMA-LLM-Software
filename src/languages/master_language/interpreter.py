@@ -11,7 +11,7 @@ import subprocess
 import time
 from typing import Dict, List, Any, Optional
 from pathlib import Path
-from .ast import DirectiveType, DelegateDirective, SpawnDirective, FinishDirective, ReadDirective, WaitDirective, RunDirective, UpdateDocumentationDirective, MessageDirective
+from .ast import DirectiveType, DelegateDirective, SpawnDirective, FinishDirective, ReadDirective, WaitDirective, RunDirective, UpdateDocumentationDirective
 from src.messages.protocol import TaskMessage, Task, MessageType, ResultMessage
 from src.config import ALLOWED_COMMANDS
 from .parser import parse_directive
@@ -57,8 +57,6 @@ class MasterLanguageInterpreter:
                 self._execute_run(directive)
             elif isinstance(directive, UpdateDocumentationDirective):
                 self._execute_update_documentation(directive)
-            elif isinstance(directive, MessageDirective):
-                self._execute_message(directive)
             else:
                 # Unknown directive type – queue a self prompt rather than invoking master_prompter directly
                 self._queue_self_prompt(f"Unknown directive type: {type(directive)}")
@@ -274,30 +272,6 @@ class MasterLanguageInterpreter:
         if self.agent:
             self._queue_self_prompt(f"Update documentation result:\n{result}")
 
-    def _execute_message(self, directive: MessageDirective) -> None:
-        """Execute a MESSAGE directive (sends message to human and waits for response)."""
-        if not self.agent:
-            return
-        
-        # Check if human interface function is available
-        if hasattr(self.agent, 'send_message_to_human'):
-            # Send message to human and get response asynchronously
-            message = directive.prompt.value
-            
-            # Create async task to send message and handle response
-            async def handle_message():
-                try:
-                    response = await self.agent.send_message_to_human(message)
-                    # Queue the human response as a prompt for the agent to process
-                    if response and response.strip():
-                        self.agent.prompt_queue.append(f"Human response: {response}")
-                except Exception as e:
-                    self.agent.prompt_queue.append(f"Error sending message to human: {str(e)}")
-            
-            # Schedule the async task
-            asyncio.create_task(handle_message())
-        else:
-            self._queue_self_prompt("MESSAGE failed: No human interface function available")
 
     def _read_target(self, target) -> str:
         """Read a file and add it to the agent's memory using the agent's read_file method (same as manager)."""
