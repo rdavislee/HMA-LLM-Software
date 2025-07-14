@@ -42,14 +42,18 @@ interface ChatPanelProps {
   onNewChat?: () => void;
   onProjectStart?: (language: Language, prompt: string, projectName?: string) => void;
   projectInitState?: ProjectInitializationState;
+  messages?: Message[];
+  onMessagesChange?: (messages: Message[]) => void;
 }
 
 const ChatPanel: React.FC<ChatPanelProps> = ({ 
   isConnected, 
   onNewChat,
-  projectInitState 
+  projectInitState,
+  messages: externalMessages = [],
+  onMessagesChange
 }) => {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<Message[]>(externalMessages);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -57,6 +61,18 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const hasWelcomedRef = useRef(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Sync external messages with internal state
+  useEffect(() => {
+    setMessages(externalMessages);
+  }, [externalMessages]);
+
+  // Notify parent of message changes
+  useEffect(() => {
+    if (onMessagesChange) {
+      onMessagesChange(messages);
+    }
+  }, [messages, onMessagesChange]);
 
   // Auto-scroll to bottom when new messages arrive
   const scrollToBottom = useCallback(() => {
@@ -310,46 +326,54 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   }, [isConnected, isLoading]);
 
   return (
-    <div className="h-full bg-gray-900 border-r border-yellow-400/20 flex flex-col">
+    <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="p-4 border-b border-yellow-400/20 bg-gradient-to-r from-gray-900 to-gray-800">
+      <div className="p-4 rounded-t-lg" style={{ backgroundColor: '#1F1F1F', fontFamily: '"Inter", system-ui, sans-serif' }}>
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <MessageSquare className="w-5 h-5 text-yellow-400" />
-            <h2 className="text-yellow-400 font-semibold text-lg">AI Assistant</h2>
+            <MessageSquare className="w-5 h-5 text-amber-400" />
+            <h2 className="text-amber-400 font-semibold text-lg">AI Assistant</h2>
           </div>
           <button
             onClick={handleNewChat}
-            className="flex items-center gap-2 px-3 py-1.5 bg-yellow-400 hover:bg-yellow-300 text-black rounded-lg transition-colors text-sm font-medium"
+            className="w-8 h-8 flex items-center justify-center rounded-lg transition-colors text-gray-400 hover:text-amber-400"
+            style={{ backgroundColor: '#1F1F1F' }}
           >
-            <Plus className="w-4 h-4" />
-            New Chat
+            <Plus className="w-5 h-5" />
           </button>
         </div>
-        <p className="text-gray-400 text-sm">
-          {activeAgents.size > 0 ? `${activeAgents.size} agent${activeAgents.size > 1 ? 's' : ''} working...` : 'Ready to help you build'}
-        </p>
+        {activeAgents.size > 0 && (
+          <p className="text-gray-400 text-sm">
+            {activeAgents.size} agent{activeAgents.size > 1 ? 's' : ''} working...
+          </p>
+        )}
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto pt-4 p-4 space-y-4">
         {messages.map(message => (
           <div
             key={message.id}
             className={`flex gap-3 ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             {message.type === 'assistant' && (
-              <div className="w-8 h-8 rounded-full bg-yellow-400 flex items-center justify-center flex-shrink-0">
-                <Bot className="w-4 h-4 text-black" />
+              <div className="w-8 h-8 rounded-full bg-amber-400/20 border border-amber-400/30 flex items-center justify-center flex-shrink-0">
+                <Bot className="w-4 h-4 text-amber-400" />
               </div>
             )}
             {message.type === 'system' && (
               <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center flex-shrink-0">
-                <AlertCircle className="w-4 h-4 text-yellow-400" />
+                <AlertCircle className="w-4 h-4 text-amber-400" />
               </div>
             )}
             <div
-              className={`max-w-[80%] rounded-lg p-3 ${message.type === 'user' ? 'bg-yellow-400 text-black ml-auto' : message.type === 'system' ? 'bg-gray-800/50 text-gray-400 border border-gray-700' : 'bg-gray-800 text-gray-100 border border-yellow-400/20'}`}
+              className={`max-w-[80%] rounded-lg p-3 ${
+                message.type === 'user' 
+                  ? 'bg-amber-400/10 border border-amber-400/30 text-gray-100 ml-auto' 
+                  : message.type === 'system' 
+                    ? 'bg-gray-800/50 text-gray-400 border border-gray-700' 
+                    : 'bg-gray-800/60 text-gray-100 border border-gray-600/50'
+              }`}
             >
               {message.metadata?.codeBlock ? (
                 <pre className="text-sm font-mono overflow-x-auto">
@@ -358,29 +382,29 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
               ) : (
                 <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
               )}
-              <p className={`text-xs mt-1 ${message.type === 'user' ? 'text-black/70' : 'text-gray-400'}`}>{message.timestamp.toLocaleTimeString()}</p>
+              <p className={`text-xs mt-1 ${message.type === 'user' ? 'text-gray-400' : 'text-gray-500'}`}>{message.timestamp.toLocaleTimeString()}</p>
               {message.agentId && activeAgents.has(message.agentId) && (
                 <div className="mt-2 flex items-center gap-2">
-                  <Loader2 className="w-3 h-3 animate-spin text-yellow-400" />
-                  <span className="text-xs text-yellow-400">{activeAgents.get(message.agentId)?.task || 'Working...'}</span>
+                  <Loader2 className="w-3 h-3 animate-spin text-amber-400" />
+                  <span className="text-xs text-amber-400">{activeAgents.get(message.agentId)?.task || 'Working...'}</span>
                 </div>
               )}
             </div>
             {message.type === 'user' && (
-              <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center flex-shrink-0">
-                <User className="w-4 h-4 text-yellow-400" />
+              <div className="w-8 h-8 rounded-full bg-gray-700/60 border border-gray-600 flex items-center justify-center flex-shrink-0">
+                <User className="w-4 h-4 text-amber-400" />
               </div>
             )}
           </div>
         ))}
         {isLoading && (
           <div className="flex gap-3 justify-start">
-            <div className="w-8 h-8 rounded-full bg-yellow-400 flex items-center justify-center flex-shrink-0">
-              <Bot className="w-4 h-4 text-black" />
+            <div className="w-8 h-8 rounded-full bg-amber-400/20 border border-amber-400/30 flex items-center justify-center flex-shrink-0">
+              <Bot className="w-4 h-4 text-amber-400" />
             </div>
-            <div className="bg-gray-800 text-gray-100 border border-yellow-400/20 rounded-lg p-3">
+            <div className="bg-gray-800/60 text-gray-100 border border-gray-600/50 rounded-lg p-3">
               <div className="flex items-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
                 <span className="text-sm">Thinking...</span>
               </div>
             </div>
@@ -390,15 +414,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       </div>
 
       {/* Input Section */}
-      <div className="p-4 bg-gray-900 border-t border-yellow-400/20">
-        {/* Error Message */}
-        {error && (
-          <div className="mb-3 p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-red-400" />
-            <span className="text-red-400 text-sm">{error}</span>
-          </div>
-        )}
-
+      <div className="p-4 rounded-b-lg" style={{ backgroundColor: '#1F1F1F', fontFamily: '"Inter", system-ui, sans-serif' }}>
         {/* Project Initialization Status */}
         {projectInitState?.isActive && (
           <div className="mb-4 p-3 bg-yellow-400/10 border border-yellow-400/20 rounded-lg">
@@ -431,8 +447,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               placeholder="Add feedback (optional) or approve to continue..."
-              className="w-full bg-gray-800 border border-gray-600 rounded-lg px-4 py-3 text-gray-100 placeholder-gray-500 focus:outline-none focus:border-yellow-400 resize-none"
+              className="w-full border border-gray-600 rounded-lg px-4 py-3 text-gray-100 placeholder-gray-500 focus:outline-none focus:border-yellow-400 resize-none"
               rows={2}
+              style={{ backgroundColor: '#1F1F1F' }}
             />
             <div className="flex items-center gap-3">
               <button
@@ -452,36 +469,30 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             </div>
           </div>
         ) : (
-          <div className="flex gap-3">
+          <div className="relative">
             <textarea
               ref={textareaRef}
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={inputPlaceholder}
-              className="flex-1 bg-gray-800 border border-gray-600 rounded-lg px-4 py-3 text-gray-100 placeholder-gray-500 focus:outline-none focus:border-yellow-400 resize-none"
-              rows={1}
-              style={{ minHeight: '44px', maxHeight: '120px' }}
+              className="w-full border border-gray-600 rounded-lg px-4 py-4 pr-14 text-gray-100 placeholder-gray-500 focus:outline-none focus:border-yellow-400 resize-none"
+              rows={4}
+              style={{ minHeight: '100px', maxHeight: '150px', backgroundColor: '#1F1F1F' }}
             />
             <button
               onClick={handleSendMessage}
               disabled={(!inputValue.trim() && !isLoading) || !isConnected}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
+              className={`absolute top-3 right-3 p-2 rounded-lg font-medium transition-colors flex items-center justify-center ${
                 isLoading
                   ? 'bg-red-600 hover:bg-red-700 text-white'
                   : 'bg-yellow-400 hover:bg-yellow-300 disabled:bg-gray-600 disabled:cursor-not-allowed text-black'
               }`}
             >
               {isLoading ? (
-                <>
-                  <Square className="w-4 h-4" />
-                  Stop
-                </>
+                <Square className="w-5 h-5" />
               ) : (
-                <>
-                  <Send className="w-4 h-4" />
-                  Send
-                </>
+                <Send className="w-5 h-5" />
               )}
             </button>
           </div>

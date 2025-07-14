@@ -110,7 +110,7 @@ const FileTree: React.FC<FileTreeProps> = ({ onFileSelect, importedFiles = [], p
       <div key={node.path}>
         <div
           className={`flex items-center gap-2 px-2 py-1 hover:bg-gray-800 cursor-pointer transition-colors ${
-            isSelected ? 'bg-gray-800 border-l-2 border-yellow-400' : ''
+            isSelected ? 'bg-gray-800 border-l-2 border-amber-400' : ''
           }`}
           style={{ paddingLeft: `${depth * 16 + 8}px` }}
           onClick={() => handleFileClick(node)}
@@ -123,20 +123,20 @@ const FileTree: React.FC<FileTreeProps> = ({ onFileSelect, importedFiles = [], p
           
           {node.type === 'directory' ? (
             isExpanded ? (
-              <FolderOpen className="w-4 h-4 text-yellow-400" />
+              <FolderOpen className="w-4 h-4 text-amber-400" />
             ) : (
-              <Folder className="w-4 h-4 text-yellow-400" />
+              <Folder className="w-4 h-4 text-amber-400" />
             )
           ) : (
             getFileIcon(node.name)
           )}
           
-          <span className={`text-sm flex-1 ${isSelected ? 'text-yellow-400' : 'text-gray-300'}`}>
+          <span className={`text-sm flex-1 ${isSelected ? 'text-amber-400' : 'text-gray-500'}`}>
             {node.name}
           </span>
           
           {isActive && (
-            <Loader2 className="w-3 h-3 animate-spin text-yellow-400" />
+            <Loader2 className="w-3 h-3 animate-spin text-amber-400" />
           )}
         </div>
         
@@ -186,19 +186,7 @@ const FileTree: React.FC<FileTreeProps> = ({ onFileSelect, importedFiles = [], p
   const filesToDisplay = projectFiles.length > 0 ? projectFiles : convertImportedFiles(importedFiles);
 
   return (
-    <div className="h-full bg-gray-900 border-r border-yellow-400/20 flex flex-col">
-      {/* Header */}
-      <div className="p-4 border-b border-yellow-400/20 bg-gradient-to-r from-gray-900 to-gray-800">
-        <div className="flex items-center justify-between">
-          <h2 className="text-yellow-400 font-semibold text-lg">Project Files</h2>
-        </div>
-        {activeAgents.size > 0 && (
-          <p className="text-xs text-gray-400 mt-1">
-            {activeAgents.size} agent{activeAgents.size > 1 ? 's' : ''} working
-          </p>
-        )}
-      </div>
-
+    <div className="h-full flex flex-col">
       {/* File Tree */}
       <div className="flex-1 overflow-y-auto p-2">
         {filesToDisplay.length === 0 ? (
@@ -210,16 +198,6 @@ const FileTree: React.FC<FileTreeProps> = ({ onFileSelect, importedFiles = [], p
         ) : (
           filesToDisplay.map(node => renderNode(node))
         )}
-      </div>
-
-      {/* Footer */}
-      <div className="p-2 border-t border-yellow-400/20 text-xs text-gray-400">
-        <div className="flex items-center justify-between">
-          <span>{filesToDisplay.length} items</span>
-          <span className="text-yellow-400">
-            {activeAgents.size > 0 ? 'Building...' : 'Ready'}
-          </span>
-        </div>
       </div>
     </div>
   );

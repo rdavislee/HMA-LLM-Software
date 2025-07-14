@@ -1,16 +1,18 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* CSS Custom Properties for dynamic accent color */
+/* CSS Custom Properties for theming */
 :root {
-  --accent-color: #facc15;
-  --accent-color-hover: #eab308;
-  --accent-color-light: #fef3c7;
-  --accent-color-dark: #a16207;
+  --accent-color: #f59e0b;
+  --accent-color-hover: #d97706;
 }
 
-/* Utility classes for accent color */
+body, * {
+  font-family: "Inter", system-ui, sans-serif;
+}
+
 .accent-color {
   color: var(--accent-color);
 }
@@ -31,17 +33,15 @@
   background-color: var(--accent-color-hover);
 }
 
-/* Performance mode classes */
+/* Performance mode optimizations */
 .performance-mode-performance {
-  /* Optimize for speed */
-  will-change: auto;
-  contain: layout style paint;
+  animation-duration: 0s !important;
+  transition-duration: 0s !important;
 }
 
 .performance-mode-quality {
-  /* Optimize for visual quality */
-  will-change: transform;
-  backface-visibility: hidden;
+  animation-duration: 0.5s !important;
+  transition-duration: 0.3s !important;
 }
 
 /* Font size utilities */
@@ -56,3 +56,25 @@
 .text-size-18 { font-size: 18px; }
 .text-size-19 { font-size: 19px; }
 .text-size-20 { font-size: 20px; }
+
+/* Monaco Editor Customizations */
+.monaco-editor .line-numbers {
+  font-size: 11px !important;
+  opacity: 0.4 !important;
+  color: #6b7280 !important;
+}
+
+.monaco-editor .margin-view-overlays .line-numbers {
+  font-size: 11px !important;
+  opacity: 0.4 !important;
+}
+
+/* Make indentation guides more subtle */
+.monaco-editor .lines-content .cigr,
+.monaco-editor .lines-content .cigra {
+  opacity: 0.15 !important;
+}
+
+.monaco-editor .view-overlays .current-line ~ .cigr {
+  opacity: 0.25 !important;
+}

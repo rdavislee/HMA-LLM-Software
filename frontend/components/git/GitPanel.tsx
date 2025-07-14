@@ -418,9 +418,9 @@ const GitPanel: React.FC<GitPanelProps> = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="w-80 h-full bg-gray-900 border-l border-yellow-400/20 flex flex-col">
+    <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="p-4 border-b border-yellow-400/20 bg-gradient-to-r from-gray-900 to-gray-800">
+      <div className="p-4 border-b border-yellow-400/20 rounded-t-lg" style={{ backgroundColor: '#1F1F1F', fontFamily: '"Inter", system-ui, sans-serif' }}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <GitBranch className="w-5 h-5 text-yellow-400" />

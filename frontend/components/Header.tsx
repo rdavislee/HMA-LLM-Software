@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Settings, User, Upload, Hexagon, Trash2, Rocket } from 'lucide-react';
+import { Settings, User, Upload, Hexagon, Trash2, Rocket, Plus, History } from 'lucide-react';
 import SettingsModal from './ui/SettingsModal';
 import ImportModal from './ui/ImportModal';
 import NewProjectModal from './ui/NewProjectModal';
-import { Language, Settings as AppSettings, ImportedFile } from '../src/types';
+import ChatHistoryModal from './ui/ChatHistoryModal';
+import { ImportedFile, Language, ChatSession, Settings as AppSettings } from '../src/types';
 
 interface HeaderProps {
   onSettingsClick?: () => void;
@@ -14,6 +15,7 @@ interface HeaderProps {
   onProjectImport?: (files: ImportedFile[]) => void;
   onProjectStart?: (language: Language, prompt: string, projectName?: string) => void;
   onClearProject?: () => void;
+  onChatHistorySelect?: (session: ChatSession) => void;
   hasProjectFiles?: boolean;
   connectionStatus?: 'connected' | 'connecting' | 'disconnected';
 }
@@ -27,12 +29,14 @@ const Header: React.FC<HeaderProps> = ({
   onProjectImport,
   onProjectStart,
   onClearProject,
+  onChatHistorySelect,
   hasProjectFiles = false,
   connectionStatus = 'connecting'
 }) => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isNewProjectOpen, setIsNewProjectOpen] = useState(false);
+  const [isChatHistoryOpen, setIsChatHistoryOpen] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [settings, setSettings] = useState<AppSettings>(() => {
     // Load settings from localStorage
@@ -77,6 +81,14 @@ const Header: React.FC<HeaderProps> = ({
     onNewProjectClick?.();
   };
 
+  const handleChatHistoryClick = () => {
+    setIsChatHistoryOpen(true);
+  };
+
+  const handleChatHistorySelect = (session: ChatSession) => {
+    onChatHistorySelect?.(session);
+  };
+
   const handleProjectImport = (files: ImportedFile[]) => {
     console.log('Importing project files:', files);
     onProjectImport?.(files);
@@ -113,80 +125,94 @@ const Header: React.FC<HeaderProps> = ({
 
   return (
     <>
-      <div className="h-14 bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 border-b border-yellow-400/20 flex items-center px-6">
-        {/* Left Section - Logo and Title */}
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-3">
-            <div className="relative">
-              <Hexagon className="w-8 h-8 text-yellow-400 fill-yellow-400/20" />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-3 h-3 bg-yellow-400 rounded-full animate-pulse"></div>
+      <header className="bg-gray-900 px-6 py-4 mt-2" style={{ backgroundColor: '#1F1F1F', fontFamily: '"Inter", system-ui, sans-serif' }}>
+        <div className="flex items-center justify-between">
+          {/* Left Section - Logo and Title */}
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4">
+              <div className="relative">
+                {/* Three hexagons in triangle formation */}
+                <div className="relative w-12 h-10">
+                  {/* Top hexagon */}
+                  <div className="absolute top-0 left-1/2 transform -translate-x-1/2">
+                    <Hexagon className="w-6 h-6 text-amber-400 fill-amber-400/20" />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="w-2 h-2 bg-amber-400 rounded-full animate-pulse"></div>
+                    </div>
+                  </div>
+                  
+                  {/* Bottom left hexagon */}
+                  <div className="absolute bottom-0 left-0">
+                    <Hexagon className="w-6 h-6 text-amber-400 fill-amber-400/20" />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="w-2 h-2 bg-amber-400 rounded-full animate-pulse" style={{ animationDelay: '0.33s' }}></div>
+                    </div>
+                  </div>
+                  
+                  {/* Bottom right hexagon */}
+                  <div className="absolute bottom-0 right-0">
+                    <Hexagon className="w-6 h-6 text-amber-400 fill-amber-400/20" />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="w-2 h-2 bg-amber-400 rounded-full animate-pulse" style={{ animationDelay: '0.66s' }}></div>
+                    </div>
+                  </div>
+                </div>
               </div>
+              <h1 className="text-amber-400 font-semibold text-3xl">Hive</h1>
             </div>
-            <h1 className="text-yellow-400 font-semibold text-lg">Hive</h1>
           </div>
-        </div>
 
-        {/* Right Section - Controls */}
-        <div className="flex items-center gap-4 ml-auto">
-          <button
-            onClick={handleImportClick}
-            className="flex items-center gap-2 px-3 py-2 bg-yellow-400 hover:bg-yellow-300 text-black rounded-lg transition-colors font-medium text-sm"
-          >
-            <Upload className="w-4 h-4" />
-            <span className="hidden sm:inline">Import</span>
-          </button>
-
-          {/* Clear Project Button - only show when there are project files */}
-          {hasProjectFiles && (
+          {/* Right Section - Controls */}
+          <div className="flex items-center gap-4 ml-auto">
             <button
-              onClick={handleClearProject}
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors font-medium text-sm ${
-                showClearConfirm
-                  ? 'bg-red-500 hover:bg-red-600 text-white'
-                  : 'bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white'
-              }`}
-              title={showClearConfirm ? 'Click again to confirm' : 'Clear current project'}
+              onClick={handleChatHistoryClick}
+              className="flex items-center justify-center w-10 h-10 bg-amber-400/10 hover:bg-amber-400/20 text-amber-400 rounded-lg transition-colors border border-amber-400/30"
+              title="Chat History"
             >
-              <Trash2 className="w-4 h-4" />
-              <span className="hidden sm:inline">
-                {showClearConfirm ? 'Confirm Clear' : 'Clear'}
-              </span>
+              <History className="w-4 h-4" />
             </button>
-          )}
 
-          <button
-            onClick={handleNewProjectClick}
-            className="flex items-center gap-2 px-3 py-2 bg-yellow-400 hover:bg-yellow-300 text-black rounded-lg transition-colors font-medium text-sm"
-          >
-            <Rocket className="w-4 h-4" />
-            <span className="hidden sm:inline">New Project</span>
-          </button>
+            <button
+              onClick={handleImportClick}
+              className="flex items-center justify-center w-10 h-10 bg-amber-400/10 hover:bg-amber-400/20 text-amber-400 rounded-lg transition-colors border border-amber-400/30"
+              title="Import Project"
+            >
+              <Upload className="w-4 h-4" />
+            </button>
 
-          <button
-            onClick={handleSettingsClick}
-            className="p-2 rounded-lg hover:bg-yellow-400/10 transition-colors group"
-          >
-            <Settings className="w-5 h-5 text-gray-400 group-hover:text-yellow-400" />
-          </button>
+            {/* Clear Project Button - only show when there are project files */}
+            {hasProjectFiles && (
+              <button
+                onClick={handleClearProject}
+                className={`flex items-center justify-center w-10 h-10 rounded-lg transition-colors border ${
+                  showClearConfirm
+                    ? 'bg-red-500/20 hover:bg-red-500/30 text-red-400 border-red-400/30'
+                    : 'bg-amber-400/10 hover:bg-amber-400/20 text-amber-400 border-amber-400/30'
+                }`}
+                title={showClearConfirm ? 'Click again to confirm' : 'Clear current project'}
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
 
-          <button
-            onClick={onProfileClick}
-            className="flex items-center gap-2 p-2 rounded-lg hover:bg-yellow-400/10 transition-colors group"
-          >
-            <div className="w-8 h-8 bg-gradient-to-br from-yellow-400 to-yellow-500 rounded-full flex items-center justify-center">
-              <User className="w-4 h-4 text-black" />
-            </div>
-            <span className="text-gray-300 group-hover:text-yellow-400 text-sm font-medium">Developer</span>
-          </button>
+            <button
+              onClick={handleNewProjectClick}
+              className="flex items-center justify-center w-10 h-10 bg-amber-400/10 hover:bg-amber-400/20 text-amber-400 rounded-lg transition-colors border border-amber-400/30"
+              title="New Project"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
 
-          {/* Connection Status */}
-          <div className="flex items-center gap-2 ml-2" title={getConnectionStatusText()}>
-            <div className={`w-2 h-2 rounded-full ${getConnectionStatusColor()} ${connectionStatus !== 'disconnected' ? 'animate-pulse' : ''}`}></div>
-            <span className="text-sm text-gray-400 hidden md:inline">{getConnectionStatusText()}</span>
+            <button
+              onClick={handleSettingsClick}
+              className="flex items-center justify-center w-10 h-10 bg-amber-400/10 hover:bg-amber-400/20 text-amber-400 rounded-lg transition-colors border border-amber-400/30"
+              title="Settings"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
           </div>
         </div>
-      </div>
+      </header>
 
       {/* Settings Modal */}
       <SettingsModal
@@ -208,6 +234,13 @@ const Header: React.FC<HeaderProps> = ({
         isOpen={isNewProjectOpen}
         onClose={() => setIsNewProjectOpen(false)}
         onStartProject={handleProjectStart}
+      />
+
+      {/* Chat History Modal */}
+      <ChatHistoryModal
+        isOpen={isChatHistoryOpen}
+        onClose={() => setIsChatHistoryOpen(false)}
+        onSelectChat={handleChatHistorySelect}
       />
     </>
   );

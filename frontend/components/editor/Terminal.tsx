@@ -23,8 +23,19 @@ const InteractiveTerminal: React.FC<TerminalProps> = ({ projectId }) => {
   const resizeTimeoutRef = useRef<number | null>(null);
 
   const handleResize = useCallback(() => {
-    if (fitAddonRef.current && !isMinimized) {
-      fitAddonRef.current.fit();
+    if (fitAddonRef.current && !isMinimized && xtermRef.current) {
+      // Ensure consistent font metrics before fitting
+      setTimeout(() => {
+        if (fitAddonRef.current && xtermRef.current) {
+          try {
+            // Force a refresh of the terminal before fitting
+            xtermRef.current.refresh(0, xtermRef.current.rows - 1);
+            fitAddonRef.current.fit();
+          } catch (error) {
+            console.warn('Terminal resize error:', error);
+          }
+        }
+      }, 100);
     }
   }, [isMinimized]);
 
@@ -47,28 +58,36 @@ const InteractiveTerminal: React.FC<TerminalProps> = ({ projectId }) => {
     const terminal = new Terminal({
       cursorBlink: true,
       fontSize: 14,
-      fontFamily: '"Fira Code", "Consolas", "Monaco", monospace',
+      fontFamily: '"Consolas", "Monaco", "Lucida Console", "Liberation Mono", "DejaVu Sans Mono", "Bitstream Vera Sans Mono", "Courier New", monospace',
+      fontWeight: 'normal',
+      fontWeightBold: 'bold',
+      lineHeight: 1.0,
+      letterSpacing: 0,
+      allowTransparency: false,
+      convertEol: true,
+      rows: 24,
+      cols: 80,
       theme: {
-        background: '#111827',
-        foreground: '#f9fafb',
-        cursor: '#facc15',
-        selectionBackground: '#374151',
-        black: '#1f2937',
-        red: '#ef4444',
-        green: '#10b981',
-        yellow: '#facc15',
-        blue: '#3b82f6',
-        magenta: '#a855f7',
-        cyan: '#06b6d4',
-        white: '#f9fafb',
-        brightBlack: '#6b7280',
-        brightRed: '#f87171',
-        brightGreen: '#34d399',
-        brightYellow: '#fbbf24',
-        brightBlue: '#60a5fa',
-        brightMagenta: '#c084fc',
-        brightCyan: '#22d3ee',
-        brightWhite: '#ffffff'
+        background: '#0C0C0C',
+        foreground: '#CCCCCC',
+        cursor: '#FFFFFF',
+        selectionBackground: '#264F78',
+        black: '#0C0C0C',
+        red: '#C50F1F',
+        green: '#13A10E',
+        yellow: '#C19C00',
+        blue: '#0037DA',
+        magenta: '#881798',
+        cyan: '#3A96DD',
+        white: '#CCCCCC',
+        brightBlack: '#767676',
+        brightRed: '#E74856',
+        brightGreen: '#16C60C',
+        brightYellow: '#F9F1A5',
+        brightBlue: '#3B78FF',
+        brightMagenta: '#B4009E',
+        brightCyan: '#61D6D6',
+        brightWhite: '#F2F2F2'
       },
       allowProposedApi: true,
     });
@@ -95,10 +114,9 @@ const InteractiveTerminal: React.FC<TerminalProps> = ({ projectId }) => {
 
     setTimeout(() => handleResize(), 100);
 
-    terminal.writeln('\x1b[1;33m╭─ Hive Interactive Terminal ─╮\x1b[0m');
-    terminal.writeln('\x1b[1;33m│ Container-backed workspace  │\x1b[0m');
-    terminal.writeln('\x1b[1;33m╰─────────────────────────────╯\x1b[0m');
-    terminal.writeln('');
+    if (xtermRef.current) {
+      xtermRef.current.writeln('\x1b[33mRequesting container workspace...\x1b[0m');
+    }
   }, [terminalSession, handleResize, debouncedResize]);
 
   // Create terminal session
@@ -193,11 +211,26 @@ const InteractiveTerminal: React.FC<TerminalProps> = ({ projectId }) => {
     }
   }, [isMinimized, handleResize]);
 
+  // Handle layout changes - add a resize observer for better responsiveness
+  useEffect(() => {
+    if (!terminalRef.current || isMinimized) return;
+
+    const resizeObserver = new ResizeObserver(() => {
+      handleResize();
+    });
+
+    resizeObserver.observe(terminalRef.current);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [handleResize, isMinimized]);
+
 
   if (isMinimized) {
     const statusClass = terminalSession?.status === 'running' ? 'bg-green-400' : 'bg-yellow-400';
     return (
-      <div className="bg-gray-900 border-t border-yellow-400/20 p-2 flex items-center justify-between">
+      <div className="p-2 flex items-center justify-between rounded-b-lg" style={{ backgroundColor: '#1F1F1F', fontFamily: '"Inter", system-ui, sans-serif' }}>
         <button
           onClick={() => setIsMinimized(false)}
           className="flex items-center gap-2 text-yellow-400 hover:text-yellow-300 transition-colors"
@@ -220,13 +253,13 @@ const InteractiveTerminal: React.FC<TerminalProps> = ({ projectId }) => {
   }
 
   return (
-    <div className="bg-gray-900 border-t border-yellow-400/20 flex flex-col h-64">
+    <div className="flex flex-col h-64 rounded-b-lg" style={{ backgroundColor: '#1F1F1F', fontFamily: '"Inter", system-ui, sans-serif' }}>
       {/* Header */}
-      <div className="flex items-center justify-between p-2 border-b border-yellow-400/20 bg-gradient-to-r from-gray-900 to-gray-800">
+      <div className="flex items-center justify-between p-2 border-b border-yellow-400/20" style={{ backgroundColor: '#1F1F1F' }}>
         <div className="flex items-center gap-2">
           <TerminalIcon className="w-4 h-4 text-yellow-400" />
           <span className="text-yellow-400 font-medium text-sm">
-            Interactive Terminal
+            Terminal
           </span>
           {terminalSession?.status === 'running' && (
             <span className="text-green-400 text-xs flex items-center gap-1">
@@ -288,7 +321,7 @@ const InteractiveTerminal: React.FC<TerminalProps> = ({ projectId }) => {
       )}
 
       {/* Terminal Container */}
-      <div className="flex-1 overflow-hidden p-2" style={{ backgroundColor: '#111827' }}>
+      <div className="flex-1 overflow-hidden p-2" style={{ backgroundColor: '#1F1F1F' }}>
         <div 
           ref={terminalRef}
           className="h-full w-full"

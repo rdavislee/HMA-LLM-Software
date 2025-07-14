@@ -59,4 +59,33 @@ export interface ProjectInitializationState {
   projectPath?: string;
   requiresApproval: boolean;
   selectedLanguage?: Language;
+}
+
+export interface ChatSession {
+  id: string;
+  title: string;
+  createdAt: Date;
+  lastModified: Date;
+  messages: ChatMessage[];
+  projectFiles: ImportedFile[];
+  currentFile?: {
+    name: string;
+    content: string;
+    language: string;
+  };
+  projectInitState?: ProjectInitializationState;
+}
+
+export interface ChatHistoryStorage {
+  sessions: ChatSession[];
+  currentSessionId?: string;
+}
+
+// Base interface for future web-based storage
+export interface StorageProvider {
+  saveChatSession(session: ChatSession): Promise<void>;
+  loadChatSessions(): Promise<ChatSession[]>;
+  deleteChatSession(sessionId: string): Promise<void>;
+  getCurrentSession(): Promise<ChatSession | null>;
+  setCurrentSession(sessionId: string): Promise<void>;
 } 

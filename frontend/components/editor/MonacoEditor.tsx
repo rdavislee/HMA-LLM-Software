@@ -73,15 +73,30 @@ const MonacoEditor: React.FC<MonacoEditorProps> = ({
       value: '',
       language: 'javascript',
       theme: settings?.theme === 'dark' ? 'vs-dark' : 'vs',
-      fontSize: settings?.fontSize || 14,
-      tabSize: settings?.tabSize || 2,
+      fontSize: 14,
+      fontFamily: '"JetBrains Mono", "Consolas", "Courier New", monospace',
+      tabSize: (settings?.tabSize || 2) * 2,
+      insertSpaces: true,
+      detectIndentation: false,
       lineNumbers: settings?.showLineNumbers ? 'on' : 'off',
+      lineNumbersMinChars: 3,
+      renderLineHighlight: 'line',
+      renderIndentGuides: true,
+      guides: {
+        indentation: true,
+        bracketPairs: false,
+        bracketPairsHorizontal: false,
+        highlightActiveIndentation: true
+      },
       minimap: { enabled: settings?.performanceMode !== 'performance' },
       automaticLayout: true,
       scrollBeyondLastLine: false,
       wordWrap: 'on',
       formatOnPaste: true,
       formatOnType: true,
+      padding: { top: 16, bottom: 16 },
+      lineHeight: 22,
+      letterSpacing: 0.5,
     });
     editorRef.current = editor;
 
@@ -106,12 +121,27 @@ const MonacoEditor: React.FC<MonacoEditorProps> = ({
     if (!editorRef.current) return;
     editorRef.current.updateOptions({
       theme: settings?.theme === 'dark' ? 'vs-dark' : 'vs',
-      fontSize: settings?.fontSize || 14,
-      tabSize: settings?.tabSize || 2,
+      fontSize: 14,
+      fontFamily: '"JetBrains Mono", "Consolas", "Courier New", monospace',
+      tabSize: (settings?.tabSize || 2) * 2,
+      insertSpaces: true,
+      detectIndentation: false,
       lineNumbers: settings?.showLineNumbers ? 'on' : 'off',
+      lineNumbersMinChars: 3,
+      renderLineHighlight: 'line',
+      renderIndentGuides: true,
+      guides: {
+        indentation: true,
+        bracketPairs: false,
+        bracketPairsHorizontal: false,
+        highlightActiveIndentation: true
+      },
       minimap: { enabled: settings?.performanceMode !== 'performance' },
+      padding: { top: 16, bottom: 16 },
+      lineHeight: 22,
+      letterSpacing: 0.5,
     });
-  }, [settings?.theme, settings?.fontSize, settings?.tabSize, settings?.showLineNumbers, settings?.performanceMode]);
+  }, [settings?.theme, settings?.tabSize, settings?.showLineNumbers, settings?.performanceMode]);
 
   // Handle file changes and initial content
   useEffect(() => {
@@ -276,64 +306,7 @@ const MonacoEditor: React.FC<MonacoEditorProps> = ({
   };
 
   return (
-    <div className="h-full bg-gray-900 flex flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-yellow-400/20 bg-gradient-to-r from-gray-900 to-gray-800">
-        <div className="flex items-center gap-4">
-          <h2 className="text-yellow-400 font-semibold text-lg">Code Editor</h2>
-          {currentFileName && (
-            <span className="text-gray-400 text-sm font-mono bg-gray-800 px-2 py-1 rounded flex items-center gap-2">
-              {currentFileName}
-            </span>
-          )}
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleSave}
-            disabled={saveStatus === 'saving' || !currentFileName}
-            className={`flex items-center gap-2 px-3 py-1 transition-colors rounded-md ${
-              !currentFileName || saveStatus === 'saving'
-                ? 'text-gray-600 cursor-not-allowed'
-                : 'text-gray-400 hover:text-yellow-400 hover:bg-yellow-400/10'
-            }`}
-            title="Save file (Ctrl+S)"
-          >
-            {getSaveButton()}
-          </button>
-          
-          <button 
-            onClick={handleCopy}
-            disabled={!currentModelRef.current?.getValue()?.trim()}
-            className={`flex items-center gap-2 px-3 py-1 transition-colors ${
-              copySuccess 
-                ? 'text-green-400' 
-                : !currentModelRef.current?.getValue()?.trim()
-                ? 'text-gray-600 cursor-not-allowed'
-                : 'text-gray-400 hover:text-yellow-400'
-            }`}
-            title={copySuccess ? 'Copied!' : 'Copy code to clipboard'}
-          >
-            <Copy className="w-4 h-4" />
-            <span className="text-sm">{copySuccess ? 'Copied!' : 'Copy'}</span>
-          </button>
-          
-          <button 
-            onClick={handleDownload}
-            disabled={!currentModelRef.current?.getValue()?.trim()}
-            className={`flex items-center gap-2 px-3 py-1 transition-colors ${
-              !currentModelRef.current?.getValue()?.trim()
-                ? 'text-gray-600 cursor-not-allowed'
-                : 'text-gray-400 hover:text-yellow-400'
-            }`}
-            title="Download code as file"
-          >
-            <Download className="w-4 h-4" />
-            <span className="text-sm">Download</span>
-          </button>
-        </div>
-      </div>
-
+    <div className="h-full flex flex-col">
       {/* Editor Container */}
       <div className="flex-1 overflow-hidden">
         <div ref={containerRef} className="h-full w-full" />

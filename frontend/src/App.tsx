@@ -5,7 +5,7 @@ import MonacoEditor from '../components/editor/MonacoEditor';
 import FileTree from '../components/filetree/FileStructure';
 import GitPanel from '../components/git/GitPanel';
 import InteractiveTerminal from '../components/editor/Terminal';
-import { PanelLeftClose, PanelLeftOpen, Folder, GitBranch } from 'lucide-react';
+import { Folder, GitBranch } from 'lucide-react';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import websocketService, { 
   CodeStream, 
@@ -14,12 +14,11 @@ import websocketService, {
   GitStatus,
   ProjectInitStatus
 } from './services/websocket';
-import { Settings, FileNode, ImportedFile, ProjectInitializationState, Language } from './types';
+import { Settings, FileNode, ImportedFile, ProjectInitializationState, Language, ChatSession, ChatMessage as Message } from './types';
 import { useSocketEvent } from './hooks/useSocketEvent';
+import { chatStorage } from './services/chatStorage';
 
 function App() {
-  const [isChatCollapsed, setIsChatCollapsed] = useState(false);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [activeSidebarTab, setActiveSidebarTab] = useState<'files' | 'git'>('files');
   const [currentFile, setCurrentFile] = useState<{ name: string; content: string; language: string } | null>(null);
   const [clearCodeEditor, setClearCodeEditor] = useState<(() => void) | null>(null);
@@ -37,6 +36,73 @@ function App() {
     status: null,
     requiresApproval: false
   });
+
+  // Chat session state
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [chatMessages, setChatMessages] = useState<Message[]>([]);
+
+  // Generate a unique session ID
+  const generateSessionId = () => `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+  // Save current session to history
+  const saveCurrentSession = useCallback(async () => {
+    if (!currentSessionId || chatMessages.length === 0) return;
+
+    const session: ChatSession = {
+      id: currentSessionId,
+      title: `Chat ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+      createdAt: new Date(),
+      lastModified: new Date(),
+      messages: chatMessages,
+      projectFiles: importedFiles,
+      currentFile: currentFile,
+      projectInitState: projectInitState.isActive ? projectInitState : undefined
+    };
+
+    try {
+      await chatStorage.saveChatSession(session);
+    } catch (error) {
+      console.error('Error saving chat session:', error);
+    }
+  }, [currentSessionId, chatMessages, importedFiles, currentFile, projectInitState]);
+
+  // Create a new chat session
+  const startNewSession = useCallback(() => {
+    const newSessionId = generateSessionId();
+    setCurrentSessionId(newSessionId);
+    setChatMessages([]);
+  }, []);
+
+  // Load a chat session from history
+  const loadChatSession = useCallback(async (session: ChatSession) => {
+    try {
+      // Save current session first if it has content
+      await saveCurrentSession();
+
+      // Load the selected session
+      setCurrentSessionId(session.id);
+      setChatMessages(session.messages);
+      setImportedFiles(session.projectFiles);
+      setCurrentFile(session.currentFile || null);
+      
+      if (session.projectInitState) {
+        setProjectInitState(session.projectInitState);
+      } else {
+        setProjectInitState({
+          isActive: false,
+          phase: null,
+          phaseTitle: null,
+          status: null,
+          requiresApproval: false
+        });
+      }
+
+      // Set as current session
+      await chatStorage.setCurrentSession(session.id);
+    } catch (error) {
+      console.error('Error loading chat session:', error);
+    }
+  }, [saveCurrentSession]);
 
   const [settings, setSettings] = useState<Settings>(() => {
     // Load settings from localStorage
@@ -232,6 +298,13 @@ function App() {
     };
   }, [createFile, createFolder, updateFileContent, deleteFileOrFolder]);
 
+  // Initialize chat session on app start
+  useEffect(() => {
+    if (!currentSessionId) {
+      startNewSession();
+    }
+  }, [currentSessionId, startNewSession]);
+
   // Apply accent color changes
   useEffect(() => {
     const root = document.documentElement;
@@ -310,15 +383,29 @@ function App() {
   };
 
   const handleNewChat = () => {
-    // Clear the code editor if the function is available
-    if (clearCodeEditor) {
-      clearCodeEditor();
+    // Save current session before starting new one
+    if (currentSessionId && chatMessages.length > 0) {
+      saveCurrentSession();
     }
     
-    // Clear project files
+    // Start new session
+    startNewSession();
+    
+    // Clear project state
+    setImportedFiles([]);
     setProjectFiles([]);
     setCurrentFile(null);
-    setProjectStatus(null);
+    clearCodeEditor?.();
+    setProjectInitState({
+      isActive: false,
+      phase: null,
+      phaseTitle: null,
+      status: null,
+      requiresApproval: false
+    });
+    
+    // Clear project on backend
+    websocketService.newChat();
   };
 
   const handleClearProject = () => {
@@ -345,19 +432,6 @@ function App() {
     // Here you would typically toggle the terminal visibility
   };
 
-  const handleToggleSidebar = () => {
-    setIsSidebarCollapsed(!isSidebarCollapsed);
-  };
-
-  const handleToggleGitPanel = () => {
-    // If sidebar is collapsed, expand it first
-    if (isSidebarCollapsed) {
-      setIsSidebarCollapsed(false);
-    }
-    // Switch to Git tab
-    setActiveSidebarTab('git');
-  };
-
   const handleOpenSettings = () => {
     // The settings modal is handled by the Header component
   };
@@ -371,8 +445,6 @@ function App() {
     onNewChat: handleNewChat,
     onSaveFile: handleSaveFile,
     onToggleTerminal: handleToggleTerminal,
-    onToggleSidebar: handleToggleSidebar,
-    onToggleGitPanel: handleToggleGitPanel,
     onOpenSettings: handleOpenSettings,
     onCommandPalette: handleCommandPalette
   });
@@ -394,32 +466,6 @@ function App() {
     }
   };
 
-  // Calculate dynamic status bar data
-  const getStatusBarData = () => {
-    if (!currentFile) {
-      return {
-        lines: 0,
-        characters: 0,
-        language: 'No file selected',
-        encoding: 'UTF-8',
-        lineEnding: 'LF'
-      };
-    }
-    
-    const lines = currentFile.content.split('\n').length;
-    const characters = currentFile.content.length;
-    
-    return {
-      lines,
-      characters,
-      language: currentFile.language,
-      encoding: 'UTF-8',
-      lineEnding: 'LF'
-    };
-  };
-
-  const statusData = getStatusBarData();
-
   // Handle project start
   const handleProjectStart = (language: Language, prompt: string, projectName?: string) => {
     // Start project initialization
@@ -437,168 +483,123 @@ function App() {
   };
 
   return (
-    <div className="h-screen bg-black text-white flex flex-col overflow-hidden">
+    <div className="h-screen text-white flex flex-col overflow-hidden" style={{ backgroundColor: '#1F1F1F', fontFamily: '"Inter", system-ui, sans-serif' }}>
       {/* Header */}
       <Header 
-        onSettingsClick={() => {}}
-        onProfileClick={() => {}}
         onImportClick={handleImportClick}
         onNewProjectClick={() => {}}
         onSettingsChange={handleSettingsChange}
         onProjectImport={handleProjectImport}
         onProjectStart={handleProjectStart}
         onClearProject={handleClearProject}
-        hasProjectFiles={projectFiles.length > 0 || importedFiles.length > 0}
+        onChatHistorySelect={loadChatSession}
+        hasProjectFiles={importedFiles.length > 0 || projectFiles.length > 0}
         connectionStatus={connectionStatus}
       />
 
-      {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Chat Panel */}
-        <div className={`transition-all duration-300 ${
-          isChatCollapsed ? 'w-0' : 'w-1/3'
-        } min-w-0 flex flex-col`}>
-          {!isChatCollapsed && (
-            <ChatPanel 
-              isConnected={connectionStatus === 'connected'}
-              onNewChat={handleNewChat}
-              onProjectStart={handleProjectStart}
-              projectInitState={projectInitState}
-            />
-          )}
+      {/* Main Content with Padding */}
+      <div className="flex-1 flex overflow-hidden p-4 gap-4">
+        {/* Chat Panel - Positioned at 7/20 screen width */}
+        <div className="flex flex-col rounded-lg border border-amber-400/20" style={{ width: '35%', backgroundColor: '#1F1F1F' }}>
+          <ChatPanel 
+            isConnected={connectionStatus === 'connected'}
+            onNewChat={handleNewChat}
+            onProjectStart={handleProjectStart}
+            projectInitState={projectInitState}
+            messages={chatMessages}
+            onMessagesChange={setChatMessages}
+          />
         </div>
 
-        {/* Chat Toggle Button */}
-        <button
-          onClick={() => setIsChatCollapsed(!isChatCollapsed)}
-          className="w-6 bg-gray-800 hover:bg-gray-700 border-r border-yellow-400/20 flex items-center justify-center transition-colors group"
-        >
-          {isChatCollapsed ? (
-            <PanelLeftOpen className="w-4 h-4 text-yellow-400 group-hover:text-yellow-300" />
-          ) : (
-            <PanelLeftClose className="w-4 h-4 text-yellow-400 group-hover:text-yellow-300" />
-          )}
-        </button>
+        {/* Right Section - Files, Code, and Terminal */}
+        <div className="flex-1 flex flex-col overflow-hidden gap-0">
+          {/* Top Section - File Tree and Code Panel */}
+          <div className="flex-1 flex overflow-hidden">
+            {/* Sidebar with Tabs */}
+            <div className="w-80 min-w-0 flex flex-col rounded-tl-lg border-l border-t border-b border-r border-amber-400/20" style={{ backgroundColor: '#1F1F1F' }}>
+              {/* Sidebar Tabs */}
+              <div className="flex border-b border-amber-400/20 rounded-tl-lg" style={{ backgroundColor: '#1F1F1F' }}>
+                <button
+                  onClick={() => setActiveSidebarTab('files')}
+                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors rounded-tl-lg ${
+                    activeSidebarTab === 'files'
+                      ? 'text-amber-400 border-b-2 border-amber-400 bg-amber-400/5'
+                      : 'text-gray-400 hover:text-amber-400 hover:bg-amber-400/5'
+                  }`}
+                >
+                  <Folder className="w-4 h-4" />
+                  Files
+                </button>
+                <button
+                  onClick={() => setActiveSidebarTab('git')}
+                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors ${
+                    activeSidebarTab === 'git'
+                      ? 'text-amber-400 border-b-2 border-amber-400 bg-amber-400/5'
+                      : 'text-gray-400 hover:text-amber-400 hover:bg-amber-400/5'
+                  }`}
+                >
+                  <GitBranch className="w-4 h-4" />
+                  Git
+                </button>
+              </div>
 
-        {/* Right Panel - Code/Preview and File Tree */}
-        <div className="flex-1 flex overflow-hidden">
-          {/* Sidebar with Tabs */}
-          <div className={`transition-all duration-300 ${
-            isSidebarCollapsed ? 'w-0' : 'w-80'
-          } min-w-0 flex flex-col`}>
-            {!isSidebarCollapsed && (
-              <>
-                {/* Sidebar Tabs */}
-                <div className="flex border-b border-yellow-400/20 bg-gray-900">
-                  <button
-                    onClick={() => setActiveSidebarTab('files')}
-                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors ${
-                      activeSidebarTab === 'files'
-                        ? 'text-yellow-400 border-b-2 border-yellow-400 bg-yellow-400/5'
-                        : 'text-gray-400 hover:text-yellow-400 hover:bg-yellow-400/5'
-                    }`}
-                  >
-                    <Folder className="w-4 h-4" />
-                    Files
-                  </button>
-                  <button
-                    onClick={() => setActiveSidebarTab('git')}
-                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors ${
-                      activeSidebarTab === 'git'
-                        ? 'text-yellow-400 border-b-2 border-yellow-400 bg-yellow-400/5'
-                        : 'text-gray-400 hover:text-yellow-400 hover:bg-yellow-400/5'
-                    }`}
-                  >
-                    <GitBranch className="w-4 h-4" />
-                    Git
-                  </button>
-                </div>
+              {/* Tab Content */}
+              <div className="flex-1 overflow-hidden">
+                {activeSidebarTab === 'files' && (
+                  <FileTree 
+                    onFileSelect={(filePath, content) => {
+                      if (content !== undefined) {
+                        const language = getLanguageFromExtension(filePath);
+                        
+                        setCurrentFile({
+                          name: filePath,
+                          content: content,
+                          language: language
+                        });
+                        
+                        // Notify backend of file selection
+                        websocketService.selectFile(filePath);
+                      }
+                    }}
+                    importedFiles={importedFiles}
+                    projectFiles={projectFiles}
+                  />
+                )}
 
-                {/* Tab Content */}
-                <div className="flex-1 overflow-hidden">
-                  {activeSidebarTab === 'files' && (
-                    <FileTree 
-                      onFileSelect={(filePath, content) => {
-                        if (content !== undefined) {
-                          const language = getLanguageFromExtension(filePath);
-                          
-                          setCurrentFile({
-                            name: filePath,
-                            content: content,
-                            language: language
-                          });
-                          
-                          // Notify backend of file selection
-                          websocketService.selectFile(filePath);
-                        }
-                      }}
-                      importedFiles={importedFiles}
-                      projectFiles={projectFiles}
-                    />
-                  )}
-
-                  {activeSidebarTab === 'git' && (
-                    <GitPanel 
-                      isOpen={true}
-                    />
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* Sidebar Toggle */}
-          <button
-            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-            className="w-6 bg-gray-800 hover:bg-gray-700 border-r border-yellow-400/20 flex items-center justify-center transition-colors group"
-          >
-            {isSidebarCollapsed ? (
-              <PanelLeftOpen className="w-4 h-4 text-yellow-400 group-hover:text-yellow-300" />
-            ) : (
-              <PanelLeftClose className="w-4 h-4 text-yellow-400 group-hover:text-yellow-300" />
-            )}
-          </button>
-
-          {/* Code/Preview Panel */}
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="flex-1 overflow-hidden">
-              <MonacoEditor 
-                onClearCode={(clearFn) => setClearCodeEditor(() => clearFn)} 
-                settings={settings}
-                importedContent={currentFile?.content}
-                currentFileName={currentFile?.name}
-                projectId={projectStatus?.projectId || 'default'}
-              />
+                {activeSidebarTab === 'git' && (
+                  <GitPanel 
+                    isOpen={true}
+                  />
+                )}
+              </div>
             </div>
+
+            {/* Code Panel */}
+            <div className="flex-1 flex flex-col overflow-hidden rounded-tr-lg border-t border-r border-amber-400/20" style={{ backgroundColor: '#1F1F1F' }}>
+              <div className="flex-1 overflow-hidden rounded-tr-lg">
+                <MonacoEditor 
+                  onClearCode={(clearFn) => setClearCodeEditor(() => clearFn)} 
+                  settings={settings}
+                  importedContent={currentFile?.content}
+                  currentFileName={currentFile?.name}
+                  projectId={projectStatus?.projectId || 'default'}
+                />
+              </div>
+            </div>
+          </div>
+          
+          {/* Terminal Section - Full Width with Divider */}
+          <div className="flex-shrink-0">
+            {/* Divider */}
+            <div className="border-t border-amber-400/20"></div>
             
             {/* Terminal */}
-            <div className="flex-shrink-0">
+            <div className="rounded-b-lg border-l border-r border-b border-amber-400/20 overflow-hidden" style={{ backgroundColor: '#1F1F1F' }}>
               <InteractiveTerminal 
                 projectId={projectStatus?.projectId || 'default'}
               />
             </div>
           </div>
-        </div>
-      </div>
-
-      {/* Status Bar */}
-      <div className="h-6 bg-gray-900 border-t border-yellow-400/20 flex items-center justify-between px-4 text-xs">
-        <div className="flex items-center gap-4">
-          <span className="text-yellow-400">● {projectStatus?.status || 'Ready'}</span>
-          {gitStatus && (
-            <span className="text-gray-400 flex items-center gap-1">
-              <GitBranch className="w-3 h-3" />
-              {gitStatus.branch}
-              {gitStatus.isDirty && <span className="text-yellow-400">*</span>}
-            </span>
-          )}
-          <span className="text-gray-400">Lines: {statusData.lines}</span>
-          <span className="text-gray-400">Characters: {statusData.characters.toLocaleString()}</span>
-        </div>
-        <div className="flex items-center gap-4">
-          <span className="text-gray-400">{statusData.language}</span>
-          <span className="text-gray-400">{statusData.encoding}</span>
-          <span className="text-gray-400">{statusData.lineEnding}</span>
         </div>
       </div>
     </div>

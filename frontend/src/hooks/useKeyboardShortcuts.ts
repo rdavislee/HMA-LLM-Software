@@ -4,8 +4,6 @@ interface KeyboardShortcutsProps {
   onNewChat?: () => void;
   onSaveFile?: () => void;
   onToggleTerminal?: () => void;
-  onToggleSidebar?: () => void;
-  onToggleGitPanel?: () => void;
   onOpenSettings?: () => void;
   onCommandPalette?: () => void;
 }
@@ -33,8 +31,6 @@ export const useKeyboardShortcuts = (props: KeyboardShortcutsProps) => {
         onNewChat,
         onSaveFile,
         onToggleTerminal,
-        onToggleSidebar,
-        onToggleGitPanel,
         onOpenSettings,
         onCommandPalette
       } = callbackRef.current;
@@ -63,18 +59,6 @@ export const useKeyboardShortcuts = (props: KeyboardShortcutsProps) => {
         onToggleTerminal?.();
       }
 
-      // Ctrl+B - Toggle sidebar
-      if (event.ctrlKey && event.key === 'b') {
-        event.preventDefault();
-        onToggleSidebar?.();
-      }
-
-      // Ctrl+Shift+G - Toggle git panel
-      if (event.ctrlKey && event.shiftKey && event.key === 'G') {
-        event.preventDefault();
-        onToggleGitPanel?.();
-      }
-
       // F1 - Open settings
       if (event.key === 'F1') {
         event.preventDefault();
@@ -87,5 +71,5 @@ export const useKeyboardShortcuts = (props: KeyboardShortcutsProps) => {
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, []); // Empty dependency array ensures this effect runs only once
+  }, []);
 }; 

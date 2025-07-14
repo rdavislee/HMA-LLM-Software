@@ -17,36 +17,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   currentSettings
 }) => {
   const [settings, setSettings] = useState<Settings>(currentSettings);
-  const [activeTab, setActiveTab] = useState<'appearance' | 'editor' | 'performance' | 'keyboard'>('appearance');
-
-  const themes = [
-    { key: 'light', icon: <Sun className="w-4 h-4" />, label: 'Light' },
-    { key: 'dark', icon: <Moon className="w-4 h-4" />, label: 'Dark' },
-    { key: 'system', icon: <Monitor className="w-4 h-4" />, label: 'System' }
-  ];
-
-  const accentColors = [
-    { name: 'Yellow', value: '#facc15', class: 'bg-yellow-400' },
-    { name: 'Blue', value: '#3b82f6', class: 'bg-blue-500' },
-    { name: 'Green', value: '#10b981', class: 'bg-green-500' },
-    { name: 'Purple', value: '#8b5cf6', class: 'bg-purple-500' },
-    { name: 'Pink', value: '#ec4899', class: 'bg-pink-500' },
-    { name: 'Orange', value: '#f97316', class: 'bg-orange-500' }
-  ];
-
-  const performanceModes = [
-    { key: 'performance', label: 'Performance', description: 'Optimized for speed' },
-    { key: 'balanced', label: 'Balanced', description: 'Good balance of speed and quality' },
-    { key: 'quality', label: 'Quality', description: 'Best visual quality' }
-  ];
+  const [activeTab, setActiveTab] = useState<'editor' | 'keyboard'>('editor');
 
   const keyboardShortcuts = [
     { key: 'Ctrl+N', description: 'New chat' },
     { key: 'Ctrl+S', description: 'Save file' },
     { key: 'Ctrl+Shift+P', description: 'Command palette' },
     { key: 'Ctrl+`', description: 'Toggle terminal' },
-    { key: 'Ctrl+B', description: 'Toggle sidebar' },
-    { key: 'Ctrl+Shift+G', description: 'Open Git panel' },
     { key: 'F1', description: 'Open settings' }
   ];
 
@@ -93,17 +70,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
           <div className="w-64 bg-gray-800/50 border-r border-yellow-400/20 p-4">
             <nav className="space-y-2">
               <button
-                onClick={() => setActiveTab('appearance')}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-                  activeTab === 'appearance'
-                    ? 'bg-yellow-400/10 text-yellow-400'
-                    : 'text-gray-400 hover:text-yellow-400 hover:bg-yellow-400/5'
-                }`}
-              >
-                <Palette className="w-4 h-4" />
-                <span>Appearance</span>
-              </button>
-              <button
                 onClick={() => setActiveTab('editor')}
                 className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
                   activeTab === 'editor'
@@ -113,17 +79,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
               >
                 <Monitor className="w-4 h-4" />
                 <span>Editor</span>
-              </button>
-              <button
-                onClick={() => setActiveTab('performance')}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-                  activeTab === 'performance'
-                    ? 'bg-yellow-400/10 text-yellow-400'
-                    : 'text-gray-400 hover:text-yellow-400 hover:bg-yellow-400/5'
-                }`}
-              >
-                <Zap className="w-4 h-4" />
-                <span>Performance</span>
               </button>
               <button
                 onClick={() => setActiveTab('keyboard')}
@@ -141,62 +96,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
           {/* Main Content */}
           <div className="flex-1 overflow-y-auto p-6">
-            {activeTab === 'appearance' && (
-              <div className="space-y-6">
-                <div>
-                  <h3 className="text-yellow-400 font-medium text-lg mb-4">Theme</h3>
-                  <div className="grid grid-cols-3 gap-3">
-                    {themes.map((theme) => (
-                      <button
-                        key={theme.key}
-                        onClick={() => updateSetting('theme', theme.key as Settings['theme'])}
-                        className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${
-                          settings.theme === theme.key
-                            ? 'border-yellow-400 bg-yellow-400/10 text-yellow-400'
-                            : 'border-gray-700 text-gray-400 hover:border-yellow-400/50 hover:text-yellow-400'
-                        }`}
-                      >
-                        {theme.icon}
-                        <span>{theme.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="text-yellow-400 font-medium text-lg mb-4">Accent Color</h3>
-                  <div className="grid grid-cols-6 gap-3">
-                    {accentColors.map((color) => (
-                      <button
-                        key={color.value}
-                        onClick={() => updateSetting('accentColor', color.value)}
-                        className={`w-12 h-12 rounded-lg border-2 transition-all ${
-                          settings.accentColor === color.value
-                            ? 'border-yellow-400 scale-110'
-                            : 'border-gray-700 hover:border-yellow-400/50'
-                        }`}
-                        style={{ backgroundColor: color.value }}
-                        title={color.name}
-                      />
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="text-yellow-400 font-medium text-lg mb-4">Font Size</h3>
-                  <Slider
-                    min={10}
-                    max={20}
-                    step={1}
-                    value={settings.fontSize}
-                    onChange={(value) => updateSetting('fontSize', value)}
-                    label="Font Size"
-                    showValue={true}
-                  />
-                </div>
-              </div>
-            )}
-
             {activeTab === 'editor' && (
               <div className="space-y-6">
                 <div>
@@ -234,23 +133,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
                     <div className="flex items-center justify-between">
                       <div>
-                        <label className="text-gray-300 text-sm">Show Timestamps</label>
-                        <p className="text-gray-500 text-xs">Display timestamps in chat messages</p>
-                      </div>
-                      <button
-                        onClick={() => updateSetting('showTimestamps', !settings.showTimestamps)}
-                        className={`w-12 h-6 rounded-full transition-colors ${
-                          settings.showTimestamps ? 'bg-yellow-400' : 'bg-gray-700'
-                        }`}
-                      >
-                        <div className={`w-4 h-4 bg-white rounded-full transition-transform ${
-                          settings.showTimestamps ? 'translate-x-6' : 'translate-x-1'
-                        }`} />
-                      </button>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <div>
                         <label className="text-gray-300 text-sm">Auto Save</label>
                         <p className="text-gray-500 text-xs">Automatically save changes</p>
                       </div>
@@ -265,32 +147,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                         }`} />
                       </button>
                     </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'performance' && (
-              <div className="space-y-6">
-                <div>
-                  <h3 className="text-yellow-400 font-medium text-lg mb-4">Performance Mode</h3>
-                  <div className="space-y-3">
-                    {performanceModes.map((mode) => (
-                      <button
-                        key={mode.key}
-                        onClick={() => updateSetting('performanceMode', mode.key as Settings['performanceMode'])}
-                        className={`w-full flex items-center justify-between p-4 rounded-lg border transition-colors ${
-                          settings.performanceMode === mode.key
-                            ? 'border-yellow-400 bg-yellow-400/10 text-yellow-400'
-                            : 'border-gray-700 text-gray-400 hover:border-yellow-400/50 hover:text-yellow-400'
-                        }`}
-                      >
-                        <div className="text-left">
-                          <div className="font-medium">{mode.label}</div>
-                          <div className="text-sm opacity-75">{mode.description}</div>
-                        </div>
-                      </button>
-                    ))}
                   </div>
                 </div>
               </div>
