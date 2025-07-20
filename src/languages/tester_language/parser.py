@@ -7,7 +7,7 @@ import os
 from typing import List, Union
 from lark import Lark, Transformer, v_args
 from .ast import (
-    Directive, ReadDirective, RunDirective, ChangeDirective, FinishDirective,
+    Directive, ReadDirective, RunDirective, ChangeDirective, ReplaceDirective, ReplaceItem, FinishDirective,
     Target, PromptField, DirectiveType
 )
 
@@ -36,6 +36,17 @@ class TesterLanguageTransformer(Transformer):
     def change(self, content):
         """Transform change directive."""
         return ChangeDirective(content=content)
+
+    @v_args(inline=True)
+    def replace(self, first_item, *other_items):
+        """Transform replace directive."""
+        items = [first_item] + list(other_items)
+        return ReplaceDirective(items=items)
+
+    @v_args(inline=True)
+    def replace_item(self, from_string, to_string):
+        """Transform replace item."""
+        return ReplaceItem(from_string=from_string, to_string=to_string)
     
     @v_args(inline=True)
     def finish(self, prompt_field):
@@ -61,11 +72,26 @@ class TesterLanguageTransformer(Transformer):
     def content_string(self, string):
         """Transform content string."""
         return string
+
+    @v_args(inline=True)
+    def from_string(self, string):
+        """Transform from string."""
+        return string
+
+    @v_args(inline=True)
+    def to_string(self, string):
+        """Transform to string."""
+        return string
     
     @v_args(inline=True)
     def string(self, token):
-        """Transform string literal from STRING terminal."""
+        """Transform string literals. Supports raw triple-quoted and escaped double-quoted strings."""
         raw_string = str(token)
+
+        # Triple-quoted literal – return verbatim content.
+        if raw_string.startswith('"""') and raw_string.endswith('"""'):
+            return raw_string[3:-3]
+
         if raw_string.startswith('"') and raw_string.endswith('"'):
             raw_string = raw_string[1:-1]
         return self._unescape_string(raw_string)

@@ -230,6 +230,7 @@ class WaitDirective(Directive):
 class RunDirective(Directive):
     """Represents a RUN directive for executing command prompt commands."""
     command: str
+    timeout: bool = True  # True means use timeout, False means no timeout
     
     def execute(self, context: dict) -> dict:
         """Execute run directive by adding command execution to context."""
@@ -238,13 +239,15 @@ class RunDirective(Directive):
         
         context['commands'].append({
             'command': self.command,
+            'timeout': self.timeout,
             'status': 'pending'
         })
         
         return context
     
     def __str__(self) -> str:
-        return f'RUN "{self.command}"'
+        timeout_flag = " NO_TIMEOUT" if not self.timeout else ""
+        return f'RUN{timeout_flag} "{self.command}"'
 
 
 @dataclass

@@ -6,8 +6,11 @@
 COMMENT: /\/\/.*/
 
 // Directives
-directive: read | run | change | finish
+directive: read | run | change | replace | finish
 
+// Replace directive - search & replace strings in scratch pad (multiple items supported)
+replace: "REPLACE" replace_item ("," replace_item)*
+replace_item: "FROM" "=" from_string "TO" "=" to_string
 // Read directive - read any file in the codebase
 read: "READ" filename
 
@@ -29,14 +32,24 @@ command: string
 // Prompt field
 prompt_field: "PROMPT" "=" string
 
-// Content string - uses regular quoted strings
+// Content string - may be triple-quoted or standard strings
 content_string: string
 
-// Regular string literals (for filenames, commands, prompts, content)
-string: STRING
-STRING: /"(\\.|[^\\"])*"/
+// From and to strings for replace directive
+from_string: string
+to_string: string
+
+// Regular string literals (triple-quoted raw or escaped double-quoted)
+string: TRIPLE_STRING | STRING
 
 // Ignore whitespace and comments
 %import common.WS
 %ignore WS
-%ignore COMMENT 
+%ignore COMMENT
+
+// Terminal definitions - ORDER MATTERS! More specific patterns first
+// Triple-quoted raw string (supports newlines and quotes verbatim) - MUST come before STRING
+TRIPLE_STRING.10: /""".*?"""/s
+
+// Escaped traditional double-quoted string - must not be empty quotes and must not start with triple quotes
+STRING: /"([^"\\]|\\.)*"/ 

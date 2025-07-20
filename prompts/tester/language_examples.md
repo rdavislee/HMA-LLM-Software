@@ -44,7 +44,19 @@ RUN "npm test -- --grep 'nested parentheses'"
 READ "src/parser.ts"
 READ "test/parser.test.ts"
 
-CHANGE CONTENT="// Debug nested parentheses - IMPORT ONLY\nimport { parseExpression } from '../src/parser';\n\nconst testCases = ['((2+3))', '((2+3)*4)', '(((1)))'];\nfor (const expr of testCases) {\n  console.log(`\\nParsing: ${expr}`);\n  try {\n    const result = parseExpression(expr);\n    console.log('Success:', JSON.stringify(result, null, 2));\n  } catch (e) {\n    console.log('Error:', e.message);\n    console.log('Stack:', e.stack);\n  }\n}"
+CHANGE CONTENT="""import jwt from 'jsonwebtoken';
+import { IAuthService } from './auth.interface';
+
+export class AuthService implements IAuthService {
+  async login(email: string, password: string): Promise<string> {
+    // Validate credentials
+    const user = await this.validateUser(email, password);
+    if (!user) throw new Error('Invalid credentials');
+    
+    // Generate token
+    return jwt.sign({ userId: user.id }, process.env.JWT_SECRET);
+  }
+}"""
 
 RUN "npx tsx scratch_pads/debug_script.ts"
 FINISH PROMPT="Deep analysis: parseExpression fails because parenthesis depth counter decrements before recursive call returns. Fix: Move depth-- to after recursive parseExpression call on line 67. Currently decrements at line 65 causing premature depth=0."
@@ -53,7 +65,24 @@ Python Deep Debug (Parent explicitly asked)
 RUN "python -m pytest test/test_auth.py::test_password_hash -v"
 READ "src/auth.py"
 
-CHANGE CONTENT="# Debug encoding - IMPORT ONLY\nimport sys\nsys.path.insert(0, '../src')\nfrom auth import hash_password\n\npassword = 'test123'\nhashed = hash_password(password)\nprint(f'Type: {type(hashed)}')\nprint(f'Value: {hashed}')\nprint(f'Repr: {repr(hashed)}')\n\n# Test different encodings\nfor encoding in ['utf-8', 'ascii', 'latin-1']:\n    try:\n        decoded = hashed.decode(encoding)\n        print(f'{encoding}: Success - {decoded[:20]}...')\n    except Exception as e:\n        print(f'{encoding}: Failed - {e}')"
+CHANGE CONTENT="""# Debug encoding - IMPORT ONLY
+import sys
+sys.path.insert(0, '../src')
+from auth import hash_password
+
+password = 'test123'
+hashed = hash_password(password)
+print(f'Type: {type(hashed)}')
+print(f'Value: {hashed}')
+print(f'Repr: {repr(hashed)}')
+
+# Test different encodings
+for encoding in ['utf-8', 'ascii', 'latin-1']:
+    try:
+        decoded = hashed.decode(encoding)
+        print(f'{encoding}: Success - {decoded[:20]}...')
+    except Exception as e:
+        print(f'{encoding}: Failed - {e}')"""
 
 RUN "python scratch_pads/debug_script.py"
 FINISH PROMPT="Encoding issue resolved: hash_password returns bytes but bcrypt already returns UTF-8 encoded bytes. Issue is test comparing bytes to string. Fix: Change test line 23 from assert result == '$2b$12$...' to assert result.startswith(b'$2b$12$'). No decode needed in implementation."
@@ -122,3 +151,35 @@ Never do:
 ❌ Copy implementations
 ❌ Write test suites in scratch pad
 ❌ Debug without explicit request
+
+Java Deep Debug (Parent explicitly asked)
+// Parent: "Debug ConcurrentModificationException in processUsers method"
+CHANGE CONTENT="""/* Debugging concurrent modification exception in UserService */
+import java.util.*;
+import com.example.UserService;
+
+public class UserServiceDebug {
+  public static void main(String[] args) {
+    UserService service = new UserService();
+    List<String> users = new ArrayList<>();
+    users.add("alice");
+    users.add("bob");
+    users.add("charlie");
+
+    try {
+      // Attempt to trigger concurrent modification
+      service.processUsers(users, user -> {
+        if ("bob".equals(user)) {
+          users.remove(user);
+        }
+      });
+    } catch (Exception e) {
+      e.printStackTrace();
+    }
+
+    System.out.println("Final users list:" + users);
+  }
+}"""
+
+RUN "javac scratch_pads/UserServiceDebug.java && java -cp scratch_pads UserServiceDebug"
+FINISH PROMPT="ConcurrentModificationException occurs when removing elements during iteration. Fix processUsers() by using Iterator.remove() or collecting removals in a separate list."

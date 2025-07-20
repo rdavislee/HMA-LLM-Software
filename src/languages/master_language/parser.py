@@ -136,9 +136,14 @@ class MasterLanguageTransformer(Transformer):
         return ''.join(result).replace(placeholder, '\\')
     
     @v_args(inline=True)
-    def run(self, run_token, command):
-        """Transform run directive."""
-        return RunDirective(command=command)
+    def run(self, *args):
+        """Transform run directive with optional NO_TIMEOUT flag."""
+        if len(args) == 3:  # RUN NO_TIMEOUT command
+            run_token, no_timeout_token, command = args
+            return RunDirective(command=command, timeout=False)
+        else:  # RUN command
+            run_token, command = args
+            return RunDirective(command=command, timeout=True)
     
     @v_args(inline=True)
     def update_documentation(self, content):

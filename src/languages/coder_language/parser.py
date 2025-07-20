@@ -116,8 +116,14 @@ class CoderLanguageTransformer(Transformer):
     
     @v_args(inline=True)
     def string(self, token):
-        """Transform string literal from STRING terminal."""
+        """Transform string literals. Supports both escaped double-quoted strings and raw triple-quoted strings."""
         raw_string = str(token)
+
+        # Triple-quoted string – return content verbatim with no unescaping/processing.
+        if raw_string.startswith('"""') and raw_string.endswith('"""'):
+            return raw_string[3:-3]
+
+        # Fallback to existing behaviour for ordinary double-quoted strings.
         if raw_string.startswith('"') and raw_string.endswith('"'):
             raw_string = raw_string[1:-1]
         return self._unescape_string(raw_string)

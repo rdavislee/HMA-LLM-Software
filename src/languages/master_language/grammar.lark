@@ -24,8 +24,8 @@ read: "READ" target ("," target)*
 // Update documentation directive
 update_documentation: "UPDATE_DOCUMENTATION" "CONTENT" "=" string
 
-// Run directive
-run: RUN command
+// Run directive with optional NO_TIMEOUT flag
+run: RUN NO_TIMEOUT? command
 
 // Wait directive
 wait: "WAIT"
@@ -53,6 +53,7 @@ STRING: /"([^"\\]|\\.)*"/
 // Action type tokens (no CREATE/DELETE for master)
 UPDATE_DOCUMENTATION: "UPDATE_DOCUMENTATION"
 RUN: "RUN"
+NO_TIMEOUT: "NO_TIMEOUT"
 
 // Ephemeral type tokens
 TESTER: "tester"

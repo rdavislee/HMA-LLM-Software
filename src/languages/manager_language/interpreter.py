@@ -324,7 +324,7 @@ class ManagerLanguageInterpreter:
                         stdout_output = _clip(stdout_output)
                         stderr_output = _clip(stderr_output)
                         prompt_msg = (
-                            "RUN failed: Timed-out after 120 s. Most likely an infinite loop in the code.\n"
+                            "RUN failed: Timed-out after 120 s. Most likely an infinite loop in the code. If this is test cases, try breaking up the test suite into multiple commands. If this is machine learning or data processing, ask the master agent to run this command as only the master agent can run commands without timeout.\n"
                             f"Output:\n{stdout_output}\nError:\n{stderr_output}"
                         )
                         self._queue_self_prompt(prompt_msg)

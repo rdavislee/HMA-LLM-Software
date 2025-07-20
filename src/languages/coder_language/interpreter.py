@@ -138,7 +138,7 @@ class CoderLanguageInterpreter:
                 stdout_output = _clip(stdout_output)
                 stderr_output = _clip(stderr_output)
                 prompt = (
-                    "RUN failed: Timed-out after 120 s. Most likely an infinite loop in the code.\n"
+                    "RUN failed: Timed-out after 120 s. Most likely an infinite loop in the code. If this is test cases, try breaking up the test suite into multiple commands. If this is machine learning or data processing, ask the master agent to run this command as only the master agent can run commands without timeout.\n"
                     f"Output:\n{stdout_output}\nError:\n{stderr_output}"
                 )
                 self._queue_self_prompt(prompt)
@@ -388,7 +388,9 @@ def execute_directive(directive_text: str, base_path: str = ".", agent=None, own
         directive = parse_directive(directive_text)
     except Exception as e:
         # Surface parsing errors back to the agent instead of crashing the pipeline.
-        error_msg = f"PARSING FAILED: {str(e)}\n\nMOST COMMON ISSUE: Multiple directives on same api call, use sequential API calls, aka only one line per API call"
+        error_msg = f"PARSING FAILED: {str(e)}\n\nMOST COMMON ISSUES: Multiple directives on same api call, use sequential API calls, aka only one line per API call. \
+            You cannot change other files. NEVER TRY TO CHANGE A FILE BESIDES YOUR OWN. You can only change {own_file}. FINISH AND RECOMMEND THIS ACTION.\
+                  Make sure to use single quotes for docstrings: '''docstring'''."
         # If we have an agent attached make sure to enqueue the error so the next
         # LLM turn can react accordingly. This avoids silent failures where the
         # stack-trace only ends up in the console.
