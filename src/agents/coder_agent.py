@@ -60,6 +60,32 @@ class CoderAgent(BaseAgent):
         Make an API call with current context and memory for coder agent.
         Concatenates all prompts in the queue, gets context, and calls the LLM client.
         '''
+        # ------------------------------------------------------------------
+        # Loop-detection guard – if this coder has accumulated too much context
+        # we assume it is stuck in an infinite loop. Instead of issuing another
+        # LLM call (which would further bloat the context) we immediately send a
+        # FINISH directive back to the parent, instructing it to spawn a tester
+        # agent to diagnose the problem and then re-delegate work to this file.
+        # ------------------------------------------------------------------
+        if len(self.context) > 20:
+            finish_directive = (
+                'FINISH PROMPT="Context exceeded 20 prompt/response entries. '
+                'This coder agent likely entered a loop. Please spawn a tester '
+                'agent to diagnose the issue with this file and then re-delegate '
+                'the task."'
+            )
+
+            # Execute the finish directive directly, which will deactivate this
+            # agent and propagate the result to the parent without calling the LLM.
+            from src.languages.coder_language.interpreter import execute_directive
+            execute_directive(
+                finish_directive,
+                base_path=str(self.path.parent),
+                agent=self,
+                own_file=str(self.path.name)
+            )
+            return  # Skip the rest of api_call – no LLM invocation
+
         # Set stall to true to prevent concurrent API calls
         self.stall = True
 

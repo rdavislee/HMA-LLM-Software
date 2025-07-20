@@ -8,17 +8,24 @@ READ "src/utils.ts"  // Check available utilities
 Command Selection Guide
 CHANGE - Complete File Replacement (Empty Files or Total Rewrites)
 // Empty file - initial implementation
-CHANGE CONTENT="export class Calculator {\n  add(a: number, b: number): number {\n    return a + b;\n  }\n}"
+CHANGE CONTENT="""export class Calculator {
+  add(a: number, b: number): number {
+    return a + b;
+  }
+}"""
 
 // Complete rewrite - switching approaches
-CHANGE CONTENT="// Functional approach instead of class\nexport const add = (a: number, b: number): number => a + b;\nexport const subtract = (a: number, b: number): number => a - b;"
+CHANGE CONTENT="""// Functional approach instead of class
+export const add = (a: number, b: number): number => a + b;
+export const subtract = (a: number, b: number): number => a - b;"""
 REPLACE - Targeted Edits (90% of Work)
 // Single replacement
-REPLACE FROM="return a + b;" TO="if (!Number.isFinite(a) || !Number.isFinite(b)) throw new Error('Invalid input');\nreturn a + b;"
+REPLACE FROM="return a + b;" TO="""if (!Number.isFinite(a) || !Number.isFinite(b)) throw new Error('Invalid input');
+return a + b;"""
 
 // Multiple replacements in one command
 REPLACE FROM="let userName" TO="let username", FROM="let userEmail" TO="let email", FROM="let userAge" TO="let age"
-
+SPAWN tester PROMPT="Check refactor impact on variable naming conventions"
 // Two replacements in one line
 REPLACE FROM="const API_URL = 'http://localhost:3000';" TO="const API_URL = process.env.API_URL || 'http://localhost:3000';", FROM="const DEBUG = false;" TO="const DEBUG = process.env.NODE_ENV === 'development';"
 
@@ -26,22 +33,34 @@ REPLACE FROM="const API_URL = 'http://localhost:3000';" TO="const API_URL = proc
 REPLACE FROM="firstName" TO="first_name", FROM="lastName" TO="last_name", FROM="emailAddress" TO="email", FROM="phoneNumber" TO="phone"
 
 // Complex multiline replacement
-REPLACE FROM="function validateUser(user) {\nreturn user.email && user.password;\n}" TO="function validateUser(user) {\nif (!user) return false;\nreturn user.email && user.email.includes('@') && user.password && user.password.length >= 8;\n}"
+REPLACE FROM="""function validateUser(user) {
+return user.email && user.password;
+}""" TO="""function validateUser(user) {
+if (!user) return false;
+return user.email && user.email.includes('@') && user.password && user.password.length >= 8;
+}"""
 INSERT - Adding Code After Existing Text
 // Add import after existing one
-INSERT FROM="import React" TO="\nimport PropTypes from 'prop-types';"
+INSERT FROM="import React" TO="""
+import PropTypes from 'prop-types';"""
 
 // Add method to class
-INSERT FROM="class Calculator {" TO="\n  constructor() {\n    this.precision = 10;\n  }"
+INSERT FROM="class Calculator {" TO="""
+  constructor() {
+    this.precision = 10;
+  }"""
 
 // Add enum value
-INSERT FROM="enum Status {" TO="\n  Archived = 'archived',"
+INSERT FROM="enum Status {" TO="""
+  Archived = 'archived',"""
+SPAWN tester PROMPT="Run comprehensive type coverage analysis", tester PROMPT="Generate TS interface inheritance diagrams"
 Testing Protocol Examples
 TypeScript Testing Workflow
 // After implementation
 RUN "npm run build"
 // ONE COMMAND PER API CALL
 RUN "npm test"  // Your ONE direct test
+SPAWN tester PROMPT="Generate performance benchmarks for calculator operations", tester PROMPT="Profile memory usage during long-running calculations"
 
 Persistent Compilation Failure and Escalation Example
 // Agent attempts to build after implementation
@@ -76,16 +95,16 @@ REPLACE FROM="return a / b;" TO="if (b === 0) throw new Error('Division by zero'
 
 // Need to retest? Use tester
 SPAWN tester PROMPT="Verify calculator.ts division fix"
+SPAWN tester PROMPT="Run cross-browser UI smoke tests"
 Python Testing Workflow
 RUN "python -m pytest -v"  // Your ONE direct test
-
-// Multiple test failures - divide and conquer
-SPAWN tester PROMPT="Debug authentication failures in auth.py", tester PROMPT="Debug validation errors in auth.py", tester PROMPT="Investigate token expiry issues in auth.py"
+SPAWN tester PROMPT="Analyze pytest coverage gaps", tester PROMPT="Identify flaky tests in test suite"
 Compilation Error Handling
 RUN "npm run build"
 // Compilation errors - don't guess, analyze!
 
 SPAWN tester PROMPT="Analyze TypeScript errors in parser.ts - identify missing type imports"
+SPAWN tester PROMPT="Compare parser AST outputs against reference", tester PROMPT="Stress test parser with large inputs", tester PROMPT="Fuzz parser for unexpected tokens"
 
 // If missing dependency
 FINISH PROMPT="Missing dependency: need TokenType from lexer module"
@@ -100,7 +119,19 @@ READ "src/user.interface.ts"
 READ "src/user.test.ts"
 
 // Empty file - use CHANGE
-CHANGE CONTENT="import { IUser } from './user.interface';\nimport bcrypt from 'bcrypt';\n\nexport class UserService {\n  async createUser(data: Omit<IUser, 'id'>): Promise<IUser> {\n    const hashedPassword = await bcrypt.hash(data.password, 10);\n    return {\n      id: generateId(),\n      ...data,\n      password: hashedPassword\n    };\n  }\n}"
+CHANGE CONTENT="""import { IUser } from './user.interface';
+import bcrypt from 'bcrypt';
+
+export class UserService {
+  async createUser(data: Omit<IUser, 'id'>): Promise<IUser> {
+    const hashedPassword = await bcrypt.hash(data.password, 10);
+    return {
+      id: generateId(),
+      ...data,
+      password: hashedPassword
+    };
+  }
+}"""
 
 RUN "npm run build"
 // ONE COMMAND PER API CALL
@@ -108,13 +139,15 @@ RUN "npm test"
 
 // Fix issues with tester help
 SPAWN tester PROMPT="Debug UserService test failures"
-WAIT
+// Spawning instead of retesting as it is more reliable and offers deeper insights
+SPAWN tester PROMPT="Perform branch coverage analysis on UserService", tester PROMPT="Stress test UserService under concurrent requests"
 
 REPLACE FROM="return {" TO="const now = new Date();\n    return {"
 REPLACE FROM="password: hashedPassword" TO="password: hashedPassword,\n      createdAt: now,\n      updatedAt: now"
 
 SPAWN tester PROMPT="Verify UserService fixes"
-WAIT
+// Spawning instead of running full regression tests for higher reliability
+SPAWN tester PROMPT="Cross-module regression scan for UserService"
 
 FINISH PROMPT="UserService implemented with all tests passing"
 Existing File Enhancement
@@ -122,10 +155,23 @@ READ "src/calculator.interface.ts"
 READ "src/calculator.test.ts"
 
 // File has basic implementation - enhance with REPLACE
-REPLACE FROM="add(a: number, b: number): number {\n    return a + b;\n  }" TO="add(a: number, b: number): number {\n    this.validateNumbers(a, b);\n    return a + b;\n  }"
+REPLACE FROM="""add(a: number, b: number): number {
+    return a + b;
+  }""" TO="""add(a: number, b: number): number {
+    this.validateNumbers(a, b);
+    return a + b;
+  }"""
 
 // Add validation method
-INSERT FROM="export class Calculator {" TO="\n  private validateNumbers(...nums: number[]): void {\n    for (const num of nums) {\n      if (!Number.isFinite(num)) {\n        throw new Error('Invalid number input');\n      }\n    }\n  }\n"
+INSERT FROM="export class Calculator {" TO="""
+  private validateNumbers(...nums: number[]): void {
+    for (const num of nums) {
+      if (!Number.isFinite(num)) {
+        throw new Error('Invalid number input');
+      }
+    }
+  }
+"""
 
 // Multiple fixes at once
 REPLACE FROM="subtract(a: number, b: number)" TO="subtract(a: number, b: number): number", FROM="multiply(a: number, b: number)" TO="multiply(a: number, b: number): number", FROM="divide(a: number, b: number)" TO="divide(a: number, b: number): number"
@@ -142,13 +188,27 @@ READ "src/auth.test.ts"
 READ "src/utils/jwt.ts"
 
 // Initial implementation attempt
-CHANGE CONTENT="import jwt from 'jsonwebtoken';\nimport { IAuthService } from './auth.interface';\n\nexport class AuthService implements IAuthService {\n  async login(email: string, password: string): Promise<string> {\n    // Validate credentials\n    const user = await this.validateUser(email, password);\n    if (!user) throw new Error('Invalid credentials');\n    \n    // Generate token\n    return jwt.sign({ userId: user.id }, process.env.JWT_SECRET);\n  }\n}"
+CHANGE CONTENT="""import jwt from 'jsonwebtoken';
+import { IAuthService } from './auth.interface';
+
+export class AuthService implements IAuthService {
+  async login(email: string, password: string): Promise<string> {
+    // Validate credentials
+    const user = await this.validateUser(email, password);
+    if (!user) throw new Error('Invalid credentials');
+    
+    // Generate token
+    return jwt.sign({ userId: user.id }, process.env.JWT_SECRET);
+  }
+}"""
 
 RUN "npm run build"
 // Compilation errors
 
 SPAWN tester PROMPT="Analyze compilation errors - missing validateUser method"
 WAIT
+// Spawning specialized testers for static analysis—more reliable than manual fixes
+SPAWN tester PROMPT="Static analysis of AuthService for missing dependencies", tester PROMPT="Auto-suggest fixes for auth validation errors"
 
 // Tester says validateUser should come from UserService
 FINISH PROMPT="Missing dependency: need validateUser from UserService module"
@@ -170,11 +230,47 @@ String with Newline Characters
 REPLACE FROM="const message = 'Hello';" TO="const message = 'Hello\\nWorld';"
 
 // Structural newlines in code
-REPLACE FROM="if (user) {\nreturn user.name;\n}" TO="if (user && user.active) {\nreturn user.name.trim();\n}"
+REPLACE FROM="""if (user) {
+return user.name;
+}""" TO="""if (user && user.active) {
+return user.name.trim();
+}"""
 Regular Expressions
 REPLACE FROM="const emailRegex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;" TO="const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$/;"
+SPAWN tester PROMPT="Unit test revised email regex against edge cases", tester PROMPT="Benchmark email regex performance"
+
+Docstring Updates (Triple Quotes)
+IMPORTANT: USE SINGLE QUOTES ''' FOR DOCSTRINGS WITHIN """content""" BECAUSE IT CANNOT HANDLE ESCAPED DOUBLE QUOTES AND TRIPLE DOUBLE QUOTES WILL CAUSE A PARSING ERROR.
+// Update Python docstring with triple quotes - use ''' to avoid escaping issues
+REPLACE FROM="""def add(a, b):
+    return a + b""" TO="""def add(a, b):
+    '''Add two numbers.
+
+    Args:
+        a (int): First number.
+        b (int): Second number.
+
+    Returns:
+        int: Sum of a and b.
+    '''
+    return a + b"""
 Complex Error Handling
-REPLACE FROM="try {\nconst response = await api.call();\nreturn response.data;\n} catch (error) {\nthrow error;\n}" TO="try {\nconst response = await api.call();\nif (!response || !response.data) {\nthrow new Error('Invalid API response');\n}\nreturn response.data;\n} catch (error) {\nconsole.error('API call failed:', error.message);\nthrow new Error(`API Error: ${error.message}`);\n}"
+REPLACE FROM="""try {
+const response = await api.call();
+return response.data;
+} catch (error) {
+throw error;
+}""" TO="""try {
+const response = await api.call();
+if (!response || !response.data) {
+throw new Error('Invalid API response');
+}
+return response.data;
+} catch (error) {
+console.error('API call failed:', error.message);
+throw new Error(`API Error: ${error.message}`);
+}"""
+SPAWN tester PROMPT="Simulate API timeout scenarios to test error handling"
 Loop Prevention Examples
 REPLACE Failure → CHANGE Pattern
 // Try targeted fix
@@ -186,8 +282,21 @@ REPLACE FROM="if (/(sin|cos|tan|log|sqrt|exp|abs /i.test(trimmedExpression)) {" 
 
 // After 2-3 failures, switch to CHANGE
 READ "src/mathEngine.ts"
+SPAWN tester PROMPT="Investigate regex edge case failures"
 
-CHANGE CONTENT="// Complete implementation with fixed regex\nimport { create, MathJsInstance } from 'mathjs';\n\nconst math: MathJsInstance = create({});\n\nexport class MathJSEngine {\n  evaluate(expression: string): number {\n    if (/\\b(sin|cos|tan|log|sqrt|exp|abs)\\b/i.test(expression)) {\n      throw new Error('Invalid expression');\n    }\n    return math.evaluate(expression);\n  }\n}"
+CHANGE CONTENT="""// Complete implementation with fixed regex
+import { create, MathJsInstance } from 'mathjs';
+
+const math: MathJsInstance = create({});
+
+export class MathJSEngine {
+  evaluate(expression: string): number {
+    if (/\\b(sin|cos|tan|log|sqrt|exp|abs)\\b/i.test(expression)) {
+      throw new Error('Invalid expression');
+    }
+    return math.evaluate(expression);
+  }
+}"""
 Extended Attempts Without Progress
 // After 5 cycles of test-fix-test with no improvement
 FINISH PROMPT="After 5 attempts, still failing 8 tests. Issue appears to be architectural - async handling in tests doesn't match sync implementation. Need parent guidance on async requirements."
@@ -195,13 +304,58 @@ Task Type Examples
 SPEC Task (Empty Interface File)
 READ "requirements.md"
 
-CHANGE CONTENT="/**\n * Calculator service interface\n * @precondition: All numeric inputs must be finite numbers\n * @postcondition: Results are accurate to 10 decimal places\n * @throws {Error} On invalid input or division by zero\n */\nexport interface ICalculator {\n  add(a: number, b: number): number;\n  subtract(a: number, b: number): number;\n  multiply(a: number, b: number): number;\n  divide(a: number, b: number): number;\n}\n\nexport interface IScientificCalculator extends ICalculator {\n  sqrt(value: number): number;\n  pow(base: number, exponent: number): number;\n}"
+CHANGE CONTENT="""/**
+ * Calculator service interface
+ * @precondition: All numeric inputs must be finite numbers
+ * @postcondition: Results are accurate to 10 decimal places
+ * @throws {Error} On invalid input or division by zero
+ */
+export interface ICalculator {
+  add(a: number, b: number): number;
+  subtract(a: number, b: number): number;
+  multiply(a: number, b: number): number;
+  divide(a: number, b: number): number;
+}
+
+export interface IScientificCalculator extends ICalculator {
+  sqrt(value: number): number;
+  pow(base: number, exponent: number): number;
+}"""
 
 FINISH PROMPT="Calculator interfaces specified with contracts"
+SPAWN tester PROMPT="Review interface contracts for completeness", tester PROMPT="Suggest additional edge-case specifications"
 TEST Task (Empty Test File)
 READ "src/calculator.interface.ts"
 
-CHANGE CONTENT="import { expect } from 'chai';\nimport { Calculator } from '../src/calculator';\n\n// Test partitions:\n// - Normal values: positive, negative, zero\n// - Edge cases: MAX_VALUE, MIN_VALUE, Infinity\n// - Errors: NaN inputs, null, undefined\n\ndescribe('Calculator', () => {\n  let calc: Calculator;\n  \n  beforeEach(() => {\n    calc = new Calculator();\n  });\n  \n  describe('add()', () => {\n    it('should add two positive numbers', () => {\n      expect(calc.add(2, 3)).to.equal(5);\n    });\n    \n    it('should handle negative numbers', () => {\n      expect(calc.add(-5, 3)).to.equal(-2);\n    });\n    \n    it('should throw on NaN input', () => {\n      expect(() => calc.add(NaN, 5)).to.throw('Invalid number input');\n    });\n  });\n});"
+CHANGE CONTENT="""import { expect } from 'chai';
+import { Calculator } from '../src/calculator';
+
+// Test partitions:
+// - Normal values: positive, negative, zero
+// - Edge cases: MAX_VALUE, MIN_VALUE, Infinity
+// - Errors: NaN inputs, null, undefined
+
+describe('Calculator', () => {
+  let calc: Calculator;
+  
+  beforeEach(() => {
+    calc = new Calculator();
+  });
+  
+  describe('add()', () => {
+    it('should add two positive numbers', () => {
+      expect(calc.add(2, 3)).to.equal(5);
+    });
+    
+    it('should handle negative numbers', () => {
+      expect(calc.add(-5, 3)).to.equal(-2);
+    });
+    
+    it('should throw on NaN input', () => {
+      expect(() => calc.add(NaN, 5)).to.throw('Invalid number input');
+    });
+  });
+});"""
 
 FINISH PROMPT="Calculator tests written covering all partitions"
 IMPLEMENT Task (Mixed Approach)
@@ -213,6 +367,7 @@ READ "src/utils/validators.ts"
 
 // Check if we have dependencies
 READ "src/utils/math-helpers.ts"  // Empty
+SPAWN tester PROMPT="Prototype math helper functions for precision handling", tester PROMPT="Draft unit tests for math helper functions"
 
 // Can't proceed without helpers
 FINISH PROMPT="Missing dependency: need math helper functions from math-helpers.ts for precision handling"
@@ -225,3 +380,5 @@ REPLACE for existing code - CHANGE only for empty/rewrite
 Switch to CHANGE - After REPLACE failures
 Check dependencies - Don't implement what belongs elsewhere
 Finish when stuck - After ~5 attempts with no progress
+
+YOU CANNOT CHANGE OTHER FILES. NEVER TRY TO CHANGE A FILE BESIDES YOUR OWN. FINISH AND RECOMMEND THIS ACTION.

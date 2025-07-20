@@ -10,7 +10,7 @@ import time
 import uuid
 from typing import Dict, Any, Optional
 from pathlib import Path
-from .ast import DirectiveType, ReadDirective, RunDirective, ChangeDirective, FinishDirective
+from .ast import DirectiveType, ReadDirective, RunDirective, ChangeDirective, ReplaceDirective, FinishDirective, ReplaceItem
 import src
 from src.config import ALLOWED_COMMANDS
 from .parser import parse_directive
@@ -61,6 +61,8 @@ class TesterLanguageInterpreter:
                 self._execute_run(directive)
             elif isinstance(directive, ChangeDirective):
                 self._execute_change(directive)
+            elif isinstance(directive, ReplaceDirective):
+                self._execute_replace(directive)
             elif isinstance(directive, FinishDirective):
                 self._execute_finish(directive)
             else:
@@ -134,7 +136,7 @@ class TesterLanguageInterpreter:
                     stdout_output = _clip(stdout_output)
                     stderr_output = _clip(stderr_output)
                     prompt_msg = (
-                        "RUN failed: Timed-out after 120 s. Most likely an infinite loop in the code.\n"
+                        "RUN failed: Timed-out after 120 s. Most likely an infinite loop in the code. If this is test cases, try breaking up the test suite into multiple commands. If this is machine learning or data processing, ask the master agent to run this command as only the master agent can run commands without timeout.\n"
                         f"Output:\n{stdout_output}\nError:\n{stderr_output}"
                     )
                     self._queue_self_prompt(prompt_msg)
@@ -175,6 +177,51 @@ class TesterLanguageInterpreter:
         except Exception as e:
             self._queue_self_prompt(f"CHANGE failed: Could not write to scratch pad: {str(e)}")
             return
+        self._queue_self_prompt(prompt)
+
+    def _execute_replace(self, directive: ReplaceDirective) -> None:
+        """Execute a REPLACE directive on the tester's scratch pad."""
+        prompt = None
+        try:
+            if self.agent and hasattr(self.agent, 'personal_file') and self.agent.personal_file is not None:
+                scratch_pad_path = self.agent.personal_file
+                if not scratch_pad_path.exists():
+                    prompt = f"REPLACE failed: File not found: {scratch_pad_path.name}"
+                    self._queue_self_prompt(prompt)
+                    return
+
+                current_content = scratch_pad_path.read_text(encoding='utf-8')
+
+                ambiguous_items = []
+                missing_items = []
+                for item in directive.items:
+                    count = current_content.count(item.from_string)
+                    if count == 0:
+                        missing_items.append(item.from_string)
+                    elif count > 1:
+                        ambiguous_items.append((item.from_string, count))
+
+                if missing_items:
+                    missing_str = "', '".join(missing_items)
+                    prompt = f"REPLACE failed: String(s) '{missing_str}' not found in {scratch_pad_path.name}"
+                elif ambiguous_items:
+                    ambiguous_str = ", ".join([f"'{s}' ({c} occurrences)" for s, c in ambiguous_items])
+                    prompt = f"REPLACE failed: Ambiguous from strings in {scratch_pad_path.name}: {ambiguous_str}. Please be more specific to target unique strings."
+                else:
+                    new_content = current_content
+                    replaced_items_summary = []
+                    for item in directive.items:
+                        new_content = new_content.replace(item.from_string, item.to_string)
+                        replaced_items_summary.append(f"'{item.from_string}' → '{item.to_string}'")
+
+                    scratch_pad_path.write_text(new_content, encoding='utf-8')
+                    prompt = f"REPLACE succeeded: Replaced {len(directive.items)} item(s) in {scratch_pad_path.name}: {', '.join(replaced_items_summary)}"
+            else:
+                prompt = "REPLACE failed: This agent has no scratch pad file."
+        except Exception as e:
+            self._queue_self_prompt(f"REPLACE failed: Could not replace in scratch pad: {str(e)}")
+            return
+
         self._queue_self_prompt(prompt)
 
     def _execute_finish(self, directive: FinishDirective) -> None:
@@ -263,7 +310,8 @@ def execute_directive(directive_text: str, agent=None) -> None:
         directive = parse_directive(directive_text)
     except Exception as e:
         # Surface parsing errors back to the agent instead of crashing the pipeline.
-        error_msg = f"PARSING FAILED: {str(e)}\n\nMOST COMMON ISSUE: Multiple directives on same api call, use sequential API calls, aka only one line per API call"
+        error_msg = f"PARSING FAILED: {str(e)}\n\nMOST COMMON ISSUES: Multiple directives on same api call, use sequential API calls, aka only one line per API call. \
+            You cannot change other files. NEVER TRY TO CHANGE A FILE BESIDES YOUR OWN. You can only change {agent.personal_file}. FINISH AND RECOMMEND THIS ACTION."
         # If we have an agent attached make sure to enqueue the error so the next
         # LLM turn can react accordingly. This avoids silent failures where the
         # stack-trace only ends up in the console.

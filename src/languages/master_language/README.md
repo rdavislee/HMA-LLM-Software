@@ -52,10 +52,13 @@ Update the master agent's high-level documentation.
 **Example:** `UPDATE_DOCUMENTATION CONTENT="System now supports microservices architecture"`
 
 ### RUN
-Execute system-level commands for monitoring and analysis.
+Execute system-level commands for monitoring and analysis. Optionally disable timeout with NO_TIMEOUT flag.
 
-**Syntax:** `RUN "command"`
+**Syntax:** `RUN "command"` or `RUN NO_TIMEOUT "command"`
 **Example:** `RUN "find . -name '*.py' | wc -l"`
+**Example with no timeout:** `RUN NO_TIMEOUT "long-running-deployment-script.sh"`
+
+By default, RUN commands have a 120-second timeout. Use the NO_TIMEOUT flag after RUN to execute commands that may take longer than 120 seconds without timing out.
 
 ### WAIT
 Wait for the root agent or ephemeral agents to complete their tasks.
