@@ -61,13 +61,22 @@ HMA-LLM is a sophisticated system that uses multiple AI agents working in a hier
    cd ..
    ```
 
-4. **Configure environment:**
+4. **Configure backend environment:**
    ```bash
    # Copy the example environment file
-   cp config/env_example .env
+   cp config/env.example .env
    
    # Edit .env and add your API keys
    # You need at least one of: OPENAI_API_KEY, ANTHROPIC_API_KEY, GOOGLE_GEMINI_API_KEY, or DEEPSEEK_API_KEY
+   ```
+
+5. **Configure frontend environment (optional):**
+   ```bash
+   # Copy the example frontend environment file
+   cp frontend/config/env.example frontend/.env.development
+   
+   # Edit frontend/.env.development to customize backend connection settings if needed
+   # Default values work for local development
    ```
 
 ### Running the System

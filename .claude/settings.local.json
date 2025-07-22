@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(npm run dev:*)",
+      "Bash(npm run build:*)",
+      "Bash(npx tsc:*)",
+      "Bash(node:*)",
+      "Bash(rm:*)",
+      "Bash(npm test)",
+      "Bash(npm test:*)",
+      "Bash(grep:*)",
+      "Bash(npm run preview:*)",
+      "Bash(npm ls:*)"
+    ],
+    "deny": [],
+    "defaultMode": "acceptEdits"
+  }
+}
