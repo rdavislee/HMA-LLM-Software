@@ -33,7 +33,7 @@ from src.config import Language, set_global_language, get_global_language
 from src.messages.protocol import Task, TaskMessage, MessageType
 from src.orchestrator.master_prompter import master_prompter
 
-__all__ = ["initialize_new_project"]
+__all__ = ["initialize_new_project", "initialize_ongoing_project"]
 
 # ---------------------------------------------------------------------------
 # Constants & helper functions
@@ -142,6 +142,10 @@ async def initialize_new_project(
     scratch_pads_dir = root_path / "scratch_pads"
     scratch_pads_dir.mkdir(exist_ok=True)
 
+    # Documents folder for important project documentation.
+    documents_dir = root_path / "documents"
+    documents_dir.mkdir(exist_ok=True)
+
     # Master agent orchestrates the process; manager/coder agents are created later.
     master_agent = MasterAgent(
         llm_client=master_llm_client,
@@ -178,7 +182,10 @@ async def initialize_new_project(
         task_string=(
             f"[LANGUAGE: {language_name}] "
             "Phase 1: Product Understanding – Learn as much as possible about the human's "
-            f"requirements. Initial idea: {initial_prompt}"
+            f"requirements. Initial idea: {initial_prompt}\n\n"
+            "NOTE: A 'documents' folder has been created in the project root. Please encourage the human "
+            "to add any important documentation files (specifications, requirements, design docs, etc.) "
+            "to this folder during the planning phase."
         ),
     )
     phase1_task_msg = TaskMessage(
@@ -220,7 +227,10 @@ async def initialize_new_project(
             "Phase 2: Structure Stage – Create optimal project structure using RUN commands. "
             "CONSTRAINTS: No folder should have more than 8 items (files + subdirectories); "
             "Design the structure so each file remains under 1000 lines; Provide placeholder files for all major components; "
-            "Follow best practices for the chosen tech stack; Separate interfaces, implementations, tests, and configs appropriately."
+            "Follow best practices for the chosen tech stack; Separate interfaces, implementations, tests, and configs appropriately.\n\n"
+            "IMPORTANT: Add any necessary information that may only be applicable to specific tasks to separate "
+            ".md files in the documents folder. Create well-organized documentation files (e.g., api-guidelines.md, "
+            "testing-requirements.md, deployment-notes.md) to help future agents understand task-specific requirements."
         ),
     )
     phase2_msg = TaskMessage(
@@ -291,7 +301,11 @@ async def initialize_new_project(
         task_string=(
             f"[LANGUAGE: {language_name}] "
             "Phase 3: Implementation – Coordinate development via delegation to the root manager. "
-            "Delegate work in logical phases and use FINISH to report progress."
+            "Delegate work in logical phases and use FINISH to report progress.\n\n"
+            "IMPORTANT: Always check the documents folder for any files that have been added. Read all "
+            "documentation files thoroughly and ensure you understand their contents. When delegating tasks "
+            "to child agents, be sure to inform them about any documents in the documents folder that are "
+            "relevant to their specific tasks and encourage them to read those files before proceeding."
         ),
     )
     phase3_msg = TaskMessage(
@@ -334,4 +348,216 @@ async def initialize_new_project(
                 readme_path.unlink()
 
     print("[Complete] New project initialization finished successfully!")
+    return master_agent, root_manager, agent_lookup 
+
+# ----------------------------
+# Public API – *initialize_ongoing_project*
+# ----------------------------
+
+
+async def initialize_ongoing_project(
+    root_directory: str | Path,
+    project_goal: str,
+    human_interface_fn: Callable[[str], Awaitable[str]],
+    *,
+    language: Language = Language.TYPESCRIPT,
+    master_llm_client: Optional[BaseLLMClient] = None,
+    base_llm_client: Optional[BaseLLMClient] = None,
+    max_context_size: int = 80000,
+) -> Tuple["MasterAgent", ManagerAgent, Dict[Path, "BaseAgent"]]:
+    """Bootstraps agents for an *existing* project and coordinates change requests.
+
+    The coroutine follows a two-phase workflow:
+
+    1. *Understanding & Documentation* – The master agent (a) clarifies the human's
+       overall goal for the project, (b) recursively asks every agent in the
+       hierarchy to summarise its scope so README files and `documentation.md`
+       reflect the current state of the codebase, and (c) installs any missing
+       environment prerequisites via RUN commands.
+    2. *Change Phase* – Once the human approves the documentation, the master
+       agent coordinates implementation of the requested changes via
+       delegation to the root manager agent.
+    """
+
+    root_path = Path(root_directory).resolve()
+    if not root_path.exists():
+        raise ValueError(f"Directory {root_directory} does not exist – cannot initialise ongoing project.")
+
+    # Ensure the directory is not empty (otherwise `initialize_new_project` should be used)
+    existing_items = [item for item in root_path.iterdir() if not item.name.startswith(".")]
+    if not existing_items:
+        raise ValueError(
+            f"Directory {root_directory} appears to be empty – use `initialize_new_project` instead."
+        )
+
+    # Global configuration & language toolchain.
+    set_root_dir(str(root_path))
+    set_global_language(language)
+
+    # Scratch pads directory for tester agents (create if missing).
+    scratch_pads_dir = root_path / "scratch_pads"
+    scratch_pads_dir.mkdir(exist_ok=True)
+
+    # Documents folder for important project documentation.
+    documents_dir = root_path / "documents"
+    documents_dir.mkdir(exist_ok=True)
+
+    # ---------------------------------------------------------------------
+    # Create master agent upfront so we can build the child hierarchy.
+    # ---------------------------------------------------------------------
+    master_agent = MasterAgent(
+        llm_client=master_llm_client,
+        max_context_size=max_context_size,
+    )
+
+    # Bidirectional handshake for FINISH messages, identical to the helper in
+    # `initialize_new_project`.
+    completion_event: asyncio.Event = asyncio.Event()
+    completion_data: Dict[str, Optional[str | asyncio.Event | Dict[str, str]]] = {"message": None}
+
+    async def phase_communication_fn(completion_message: str) -> str:  # noqa: D401
+        completion_data["message"] = completion_message
+        completion_event.set()
+        response_event: asyncio.Event = asyncio.Event()
+        response_holder: Dict[str, str] = {"response": ""}
+        completion_data["response_event"] = response_event
+        completion_data["response_holder"] = response_holder
+
+        await response_event.wait()
+        return response_holder["response"]
+
+    master_agent.set_human_interface_fn(phase_communication_fn)
+
+    # ---------------------------------------------------------------------
+    # Build full agent hierarchy for the existing project.
+    # ---------------------------------------------------------------------
+    print("[Init] Scanning existing project and creating agent hierarchy…")
+    agent_lookup: Dict[Path, "BaseAgent"] = {}
+    root_manager = _build_manager(
+        root_path,
+        parent=None,  # will be set after creation
+        llm_client=base_llm_client,
+        max_context_size=max_context_size,
+        agent_lookup=agent_lookup,
+    )
+    master_agent.set_root_agent(root_manager)
+    root_manager.parent = master_agent
+
+    print(f"[Init] Created {len(agent_lookup)} agents for existing project.")
+
+    # Ensure each manager has a README (already handled in `_build_manager`).
+    # Persistent high-level documentation.
+    documentation_path = root_path / "documentation.md"
+    if not documentation_path.exists():
+        documentation_path.write_text("# Project Documentation\n\n")
+    documentation_path.write_text(
+        documentation_path.read_text(encoding="utf-8", errors="ignore")
+        + f"\n## Ongoing Initialisation\n\nHuman goal: {project_goal}\n\n",
+        encoding="utf-8",
+    )
+
+    # ---------------------- Phase 1 – Understanding & Docs ----------------------
+    print("[Phase 1&2] Starting understanding & documentation phase…")
+    language_name = str(get_global_language().name) if hasattr(get_global_language(), "name") else str(get_global_language())
+    phase1_task = Task(
+        task_id=f"ongoing_phase1_{int(time.time())}",
+        task_string=(
+            f"[LANGUAGE: {language_name}] "
+            "Phase 1&2: Documentation & Project Understanding – Clarify the human's goal using finish, recursively summarise each agent's scope to populate README files, "
+            "and install any missing environment dependencies using RUN commands. DO NOT TRY TO FIX EVERYTHING YOURSELF, THIS STAGE IS FOR UNDERSTANDING ONLY. "
+            f"Human goal: {project_goal}\n\n"
+            "NOTE: A 'documents' folder has been created in the project root. Please encourage the human "
+            "to add any important documentation files (specifications, requirements, design docs, etc.) "
+            "to this folder during the planning phase."
+        ),
+    )
+    phase1_msg = TaskMessage(
+        message_type=MessageType.DELEGATION,
+        sender="HUMAN",
+        recipient=master_agent,
+        message_id=f"ongoing_phase1_init_{int(time.time())}",
+        task=phase1_task,
+    )
+
+    # Kick-off Phase 1.
+    phase1_prompt = (
+        "Proceed with documentation & understanding. Recursively delegate to build README summaries for every directory and file. "
+        "Install any required environment dependencies using RUN commands. Use FINISH to prompt the human for approval."
+    )
+
+    await master_prompter(master_agent, phase1_prompt, phase1_msg)
+
+    # Wait for approval / feedback loop.
+    while True:
+        await completion_event.wait()
+        completion_event.clear()
+        completion_message = completion_data["message"]
+        print(f"[Phase 1&2] Master completed with: {completion_message}")
+        approval = await human_interface_fn(
+            "Type 'Approved' to move to Phase 3 (Implementation), or provide additional feedback:"
+        )
+        if approval.strip().lower() == "approved":
+            completion_data["response_holder"]["response"] = "approved"
+            completion_data["response_event"].set()
+            break
+        # Otherwise send feedback and continue Phase 1.
+        completion_data["response_holder"]["response"] = (
+            f"Human feedback: {approval}. Please refine documentation and use FINISH when ready."
+        )
+        completion_data["response_event"].set()
+
+    # ----------------------------- Phase 2 – Change -----------------------------
+    print("[Phase 2] Starting change phase…")
+
+    # Collect change request from human.
+    change_request = await human_interface_fn(
+        "Describe the changes you would like to implement across the project:"
+    )
+
+    language_name = str(get_global_language().name) if hasattr(get_global_language(), "name") else str(get_global_language())
+    phase2_task = Task(
+        task_id=f"ongoing_phase3_{int(time.time())}",
+        task_string=(
+            f"[LANGUAGE: {language_name}] "
+            "Phase 3: Change Phase – Implement the requested modifications across the project. "
+            f"Change request: {change_request}\n\n"
+            "IMPORTANT: Always check the documents folder for any files that have been added. Read all "
+            "documentation files thoroughly and ensure you understand their contents. When delegating tasks "
+            "to child agents, be sure to inform them about any documents in the documents folder that are "
+            "relevant to their specific tasks and encourage them to read those files before proceeding."
+        ),
+    )
+    phase2_msg = TaskMessage(
+        message_type=MessageType.DELEGATION,
+        sender="HUMAN",
+        recipient=master_agent,
+        message_id=f"ongoing_phase3_init_{int(time.time())}",
+        task=phase2_task,
+    )
+
+    change_prompt = (
+        "Proceed to implement the requested changes. Delegate work to the root manager in logical phases and use FINISH to report progress."
+    )
+
+    await master_prompter(master_agent, change_prompt, phase2_msg)
+
+    while True:
+        await completion_event.wait()
+        completion_event.clear()
+        completion_message = completion_data["message"]
+        print(f"[Phase 3] Master completed with: {completion_message}")
+        approval = await human_interface_fn(
+            "Type 'Approved' to finish the change phase, or provide additional change requests:"
+        )
+        if approval.strip().lower() == "approved":
+            completion_data["response_holder"]["response"] = "approved"
+            completion_data["response_event"].set()
+            break
+        completion_data["response_holder"]["response"] = (
+            f"Additional change request from human: {approval}. Please address and use FINISH when ready."
+        )
+        completion_data["response_event"].set()
+
+    # Final cleanup (e.g. remove temporary README stubs if desired – we keep them for ongoing projects).
+    print("[Complete] Ongoing project initialisation finished successfully!")
     return master_agent, root_manager, agent_lookup 

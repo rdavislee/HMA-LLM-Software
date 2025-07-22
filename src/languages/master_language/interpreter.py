@@ -192,6 +192,7 @@ class MasterLanguageInterpreter:
     def _execute_run(self, directive: RunDirective) -> None:
         """Execute a RUN directive – simplified version that captures full output without blocking the event-loop."""
         command = directive.command
+        use_timeout = directive.timeout
 
         try:
             if os.name == "nt":
@@ -206,7 +207,9 @@ class MasterLanguageInterpreter:
                         cwd=self.root_dir,
                         creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
                     )
-                    stdout_output, stderr_output = proc.communicate(timeout=120)
+                    # Use timeout only if directive.timeout is True
+                    timeout_value = 120 if use_timeout else None
+                    stdout_output, stderr_output = proc.communicate(timeout=timeout_value)
                     # Clip oversized outputs
                     MAX_RUN_OUTPUT_CHARS = 100000
                     def _clip(s: str, limit: int = MAX_RUN_OUTPUT_CHARS):
@@ -223,8 +226,11 @@ class MasterLanguageInterpreter:
                         return s if len(s) <= limit else s[:limit] + f"\n... [truncated {len(s) - limit} chars]"
                     stdout_output = _clip(stdout_output)
                     stderr_output = _clip(stderr_output)
+                    timeout_msg = "RUN failed: Timed-out after 120 s. Most likely an infinite loop in the code. If this is test cases, try breaking up the test suite into multiple commands. If this is machine learning model training, use the NO_TIMEOUT flag (e.g., RUN NO_TIMEOUT \"python train_model.py\")."
+                    if not use_timeout:
+                        timeout_msg = "RUN failed: Process was interrupted (this should not happen with NO_TIMEOUT)."
                     prompt_msg = (
-                        "RUN failed: Timed-out after 120 s. Most likely an infinite loop in the code.\n"
+                        f"{timeout_msg}\n"
                         f"Output:\n{stdout_output}\nError:\n{stderr_output}"
                     )
                     self._queue_self_prompt(prompt_msg)
