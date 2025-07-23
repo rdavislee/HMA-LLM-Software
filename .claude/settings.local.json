@@ -11,7 +11,11 @@
       "Bash(npm test:*)",
       "Bash(grep:*)",
       "Bash(npm run preview:*)",
-      "Bash(npm ls:*)"
+      "Bash(npm ls:*)",
+      "Bash(npm run lint)",
+      "Bash(python test:*)",
+      "Bash(pip install:*)",
+      "Bash(python:*)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"

@@ -84,7 +84,7 @@ export function UserInput({
   };
 
   return (
-    <div className="relative h-full flex flex-col">
+    <div className="relative flex flex-col min-h-[120px] max-h-[200px]">
       {/* Attached files display */}
       {attachedFiles.length > 0 && (
         <div className="flex flex-wrap gap-2 p-2 border-b border-border">

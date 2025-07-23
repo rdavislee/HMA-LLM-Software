@@ -67,19 +67,6 @@ export function WaveProgress({ currentPhase: externalPhase, progress: externalPr
 
   return (
     <div className="relative">
-      {/* Phase labels */}
-      <div className="absolute -top-6 left-0 right-0 flex justify-between text-xs text-muted-foreground px-4">
-        <span className={`transition-colors ${currentPhase === 'spec' ? 'text-blue-400 font-medium' : ''}`}>
-          Spec
-        </span>
-        <span className={`transition-colors ${currentPhase === 'test' ? 'text-amber-400 font-medium' : ''}`}>
-          Test
-        </span>
-        <span className={`transition-colors ${currentPhase === 'impl' ? 'text-violet-400 font-medium' : ''}`}>
-          Impl
-        </span>
-      </div>
-      
       {/* Progress bar */}
       <div className="absolute bottom-0 left-0 right-0 h-1 bg-border/30 overflow-hidden">
         <div 

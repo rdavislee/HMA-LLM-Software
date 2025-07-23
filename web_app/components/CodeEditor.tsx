@@ -1,10 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from './ui/button';
 import { SyntaxHighlightedEditor } from './SyntaxHighlightedEditor';
 import { 
   Copy, 
   Download, 
-  Play,
   MoreHorizontal,
   X,
   Code
@@ -13,6 +12,7 @@ import {
 interface CodeFile {
   id: string;
   name: string;
+  path: string;
   language: string;
   code: string;
   isActive: boolean;
@@ -31,17 +31,24 @@ export function CodeEditor({ currentPhase = 'spec', selectedFile }: CodeEditorPr
   const [activeTab, setActiveTab] = useState('');
   const [codeFiles, setCodeFiles] = useState<CodeFile[]>([]);
 
-  const handleCloseTab = (fileId: string) => {
-    const updatedFiles = codeFiles.filter(file => file.id !== fileId);
-    setCodeFiles(updatedFiles);
-    
-    // If we closed the active tab, activate the first remaining tab
-    if (activeTab === fileId && updatedFiles.length > 0) {
-      setActiveTab(updatedFiles[0]?.id || '');
-    } else if (updatedFiles.length === 0) {
-      setActiveTab('');
-    }
-  };
+  const handleCloseTab = useCallback((fileId: string) => {
+    setCodeFiles(prev => {
+      const updatedFiles = prev.filter(file => file.id !== fileId);
+      
+      // Update active tab if necessary
+      if (activeTab === fileId) {
+        // If we closed the active tab, activate the first remaining tab
+        if (updatedFiles.length > 0 && updatedFiles[0]) {
+          setActiveTab(updatedFiles[0].id);
+        } else {
+          // No tabs left, clear the active tab
+          setActiveTab('');
+        }
+      }
+      
+      return updatedFiles;
+    });
+  }, [activeTab]);
 
   // Handle keyboard shortcuts
   useEffect(() => {
@@ -57,7 +64,7 @@ export function CodeEditor({ currentPhase = 'spec', selectedFile }: CodeEditorPr
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeTab, codeFiles]);
+  }, [activeTab, handleCloseTab]);
 
   // Handle selected file from FileTree
   useEffect(() => {
@@ -72,6 +79,7 @@ export function CodeEditor({ currentPhase = 'spec', selectedFile }: CodeEditorPr
         setCodeFiles(prev => [...prev, {
           id: fileId,
           name: fileName,
+          path: selectedFile.path,
           language: selectedFile.language || 'plaintext',
           code: selectedFile.content,
           isActive: true
@@ -143,8 +151,8 @@ export function CodeEditor({ currentPhase = 'spec', selectedFile }: CodeEditorPr
   return (
     <div className="h-full flex flex-col bg-[#1e1e1e]">
       {/* Header with cleaner file tabs and action buttons */}
-      <div className="p-4 border-b border-border bg-card">
-        <div className="flex items-center justify-between">
+      <div className="p-4 border-b border-border bg-card min-h-[73px] flex items-center">
+        <div className="flex items-center justify-between w-full">
           {/* Cleaner File Tabs */}
           <div className="flex gap-0.5">
             {codeFiles.map((file) => (
@@ -185,7 +193,12 @@ export function CodeEditor({ currentPhase = 'spec', selectedFile }: CodeEditorPr
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
+                      e.preventDefault();
                       handleCloseTab(file.id);
+                    }}
+                    onMouseDown={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
                     }}
                     className="p-1.5 mr-1 rounded hover:bg-destructive/20 hover:text-destructive transition-all duration-150 opacity-50 hover:opacity-100 focus:opacity-100"
                     title="Close file (Ctrl/Cmd + W)"
@@ -205,6 +218,7 @@ export function CodeEditor({ currentPhase = 'spec', selectedFile }: CodeEditorPr
               size="sm" 
               className="minimalist-button p-1.5"
               onClick={handleCopyCode}
+              title="Copy code"
             >
               <Copy className="h-4 w-4" />
             </Button>
@@ -213,15 +227,9 @@ export function CodeEditor({ currentPhase = 'spec', selectedFile }: CodeEditorPr
               size="sm" 
               className="minimalist-button p-1.5"
               onClick={handleDownload}
+              title="Download file"
             >
               <Download className="h-4 w-4" />
-            </Button>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              className="minimalist-button p-1.5"
-            >
-              <Play className="h-4 w-4" />
             </Button>
             <Button 
               variant="ghost" 

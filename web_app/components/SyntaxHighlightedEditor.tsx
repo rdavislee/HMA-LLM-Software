@@ -165,6 +165,37 @@ const highlightCode = (code: string, language: string): string => {
   return highlighted;
 };
 
+// Add indentation guides to a line
+const addIndentationGuides = (line: string): string => {
+  const indentLevel = Math.floor((line.length - line.trimStart().length) / 4);
+  let guidedLine = line;
+  
+  if (indentLevel > 0) {
+    let processedLine = '';
+    let currentIndent = 0;
+    
+    for (let i = 0; i < line.length; i++) {
+      if (line[i] === ' ' && currentIndent < indentLevel * 4) {
+        if ((currentIndent + 1) % 4 === 0) {
+          processedLine += `<span class="indent-guide">│</span>   `;
+          i += 3; // Skip the next 3 spaces
+          currentIndent += 4;
+        } else {
+          processedLine += line[i];
+          currentIndent++;
+        }
+      } else {
+        processedLine += line.substring(i);
+        break;
+      }
+    }
+    
+    guidedLine = processedLine;
+  }
+  
+  return guidedLine;
+};
+
 export function SyntaxHighlightedEditor({
   value,
   onChange,
@@ -174,19 +205,26 @@ export function SyntaxHighlightedEditor({
   const [highlightedCode, setHighlightedCode] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const highlightedRef = useRef<HTMLDivElement>(null);
+  const lineNumbersRef = useRef<HTMLDivElement>(null);
   
   useEffect(() => {
     if (value) {
-      setHighlightedCode(highlightCode(value, language));
+      const lines = value.split('\n');
+      const highlightedLines = lines.map((line) => {
+        const withIndentGuides = addIndentationGuides(line);
+        return highlightCode(withIndentGuides, language);
+      });
+      setHighlightedCode(highlightedLines.join('\n'));
     } else {
       setHighlightedCode('');
     }
   }, [value, language]);
 
   const handleScroll = () => {
-    if (textareaRef.current && highlightedRef.current) {
+    if (textareaRef.current && highlightedRef.current && lineNumbersRef.current) {
       highlightedRef.current.scrollTop = textareaRef.current.scrollTop;
       highlightedRef.current.scrollLeft = textareaRef.current.scrollLeft;
+      lineNumbersRef.current.scrollTop = textareaRef.current.scrollTop;
     }
   };
 
@@ -212,79 +250,134 @@ export function SyntaxHighlightedEditor({
     }
   };
 
+  const lineCount = value ? value.split('\n').length : 1;
+
   return (
-    <div className="relative h-full w-full overflow-hidden bg-[#1e1e1e]">
-      {/* Syntax highlighted background */}
+    <div className="relative h-full w-full overflow-hidden bg-[#1e1e1e] flex">
+      {/* Line numbers */}
       <div 
-        ref={highlightedRef}
-        className="absolute inset-0 overflow-auto pointer-events-none syntax-highlighted-content"
+        ref={lineNumbersRef}
+        className="line-numbers overflow-hidden"
         style={{
           fontFamily: '"JetBrains Mono", monospace',
-          fontSize: '12px',
-          lineHeight: '1.6',
-          padding: '1rem',
-          color: '#d4d4d4',
+          fontSize: '13px',
+          lineHeight: '1.5',
+          padding: '1rem 0.5rem',
+          paddingRight: '0.75rem',
+          color: '#6e6e6e',
+          backgroundColor: '#1a1a1a',
+          borderRight: '1px solid #2d2d2d',
+          userSelect: 'none',
+          minWidth: '3.5rem',
+          textAlign: 'right'
         }}
       >
-        <pre 
-          style={{ 
-            margin: 0, 
-            padding: 0, 
-            background: 'transparent',
-            fontFamily: 'inherit',
-            fontSize: 'inherit',
-            lineHeight: 'inherit',
+        {Array.from({ length: lineCount }, (_, i) => (
+          <div key={i} style={{ height: '19.5px' }}>{i + 1}</div>
+        ))}
+      </div>
+
+      <div className="relative flex-1">
+        {/* Syntax highlighted background */}
+        <div 
+          ref={highlightedRef}
+          className="absolute inset-0 overflow-auto pointer-events-none syntax-highlighted-content"
+          style={{
+            fontFamily: '"JetBrains Mono", monospace',
+            fontSize: '13px',
+            lineHeight: '1.5',
+            padding: '1rem',
+            paddingLeft: '1rem',
+            color: '#d4d4d4',
+          }}
+        >
+          <pre 
+            style={{ 
+              margin: 0, 
+              padding: 0, 
+              background: 'transparent',
+              fontFamily: 'inherit',
+              fontSize: 'inherit',
+              lineHeight: 'inherit',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+              overflowWrap: 'break-word'
+            }}
+            dangerouslySetInnerHTML={{ __html: highlightedCode || '&nbsp;' }}
+          />
+        </div>
+        
+        {/* Transparent textarea for input */}
+        <textarea
+          ref={textareaRef}
+          value={value}
+          onChange={handleInput}
+          onScroll={handleScroll}
+          onKeyDown={handleKeyDown}
+          placeholder={placeholder}
+          className="absolute inset-0 w-full h-full resize-none bg-transparent border-0 outline-none code-editor-textarea"
+          style={{
+            fontFamily: '"JetBrains Mono", monospace',
+            fontSize: '13px',
+            lineHeight: '1.5',
+            padding: '1rem',
+            paddingLeft: '1rem',
+            color: 'transparent',
+            caretColor: '#d4d4d4',
+            WebkitTextFillColor: 'transparent',
             whiteSpace: 'pre-wrap',
             wordBreak: 'break-word',
             overflowWrap: 'break-word'
           }}
-          dangerouslySetInnerHTML={{ __html: highlightedCode || '&nbsp;' }}
+          spellCheck={false}
+          autoCapitalize="off"
+          autoComplete="off"
+          autoCorrect="off"
         />
+        
+        {/* Placeholder text when empty */}
+        {!value && (
+          <div 
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              fontFamily: '"JetBrains Mono", monospace',
+              fontSize: '13px',
+              lineHeight: '1.5',
+              padding: '1rem',
+              paddingLeft: '1rem',
+              color: '#6e6e6e',
+            }}
+          >
+            {placeholder}
+          </div>
+        )}
       </div>
       
-      {/* Transparent textarea for input */}
-      <textarea
-        ref={textareaRef}
-        value={value}
-        onChange={handleInput}
-        onScroll={handleScroll}
-        onKeyDown={handleKeyDown}
-        placeholder={placeholder}
-        className="absolute inset-0 w-full h-full resize-none bg-transparent border-0 outline-none code-editor-textarea"
-        style={{
-          fontFamily: '"JetBrains Mono", monospace',
-          fontSize: '12px',
-          lineHeight: '1.6',
-          padding: '1rem',
-          color: 'transparent',
-          caretColor: '#d4d4d4',
-          WebkitTextFillColor: 'transparent',
-          whiteSpace: 'pre-wrap',
-          wordBreak: 'break-word',
-          overflowWrap: 'break-word'
-        }}
-        spellCheck={false}
-        autoCapitalize="off"
-        autoComplete="off"
-        autoCorrect="off"
-      />
-      
-      {/* Placeholder text when empty */}
-      {!value && (
-        <div 
-          className="absolute inset-0 pointer-events-none"
-          style={{
-            fontFamily: '"JetBrains Mono", monospace',
-            fontSize: '12px',
-            lineHeight: '1.6',
-            padding: '1rem',
-            color: '#6e6e6e',
-          }}
-        >
-          {placeholder}
-        </div>
-      )}
-      
+      <style>{`
+        .indent-guide {
+          color: #3a3a3a;
+          font-weight: 300;
+          display: inline-block;
+          width: 1ch;
+          text-align: center;
+        }
+        
+        .syntax-comment { color: #6A9955; }
+        .syntax-string { color: #CE9178; }
+        .syntax-number { color: #B5CEA8; }
+        .syntax-keyword { color: #569CD6; }
+        .syntax-function { color: #DCDCAA; }
+        .syntax-type { color: #4EC9B0; }
+        
+        /* Hide scrollbar for line numbers */
+        .line-numbers::-webkit-scrollbar {
+          display: none;
+        }
+        .line-numbers {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+      `}</style>
     </div>
   );
 }
