@@ -16,7 +16,7 @@ import shutil
 import base64
 from typing import Dict, Set, Optional, Any, List, Callable, Awaitable
 from pathlib import Path
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from datetime import datetime
 
 # Add the project root to Python path to enable src imports
@@ -69,6 +69,8 @@ class ClientSession:
     sid: str
     client_id: str
     project_path: Optional[Path] = None
+    llm_model: str = "gpt-4o"  # Default model
+    llm_config: Dict[str, Any] = field(default_factory=dict)
 
 @dataclass
 class AgentStatus:
@@ -339,6 +341,13 @@ class HMAServer:
             # Project download handler
             elif message_type == "download_project":
                 await self.handle_download_project(client_id, payload)
+            # LLM configuration handlers
+            elif message_type == "llm_config":
+                await self.handle_llm_config(client_id, payload)
+            elif message_type == "set_model":
+                await self.handle_set_model(client_id, payload)
+            elif message_type == "set_api_key":
+                await self.handle_set_api_key(client_id, payload)
             else:
                 logger.warning(f"Unknown message type: {message_type}")
                 
@@ -413,7 +422,8 @@ class HMAServer:
         # Create root manager agent if it doesn't exist
         root_agent_id = f"{client_id}_root"
         if root_agent_id not in self.agents:
-            llm_client = get_llm_client('gpt-4o')  # or your preferred model
+            # Use client's preferred model instead of hardcoded value
+            llm_client = get_llm_client(session.llm_model)
             root_agent = ManagerAgent(
                 path=str(session.project_path),
                 llm_client=llm_client
@@ -2158,9 +2168,9 @@ temp/
                     # For other phases or situations, return empty string
                     return ""
             
-            # Get LLM clients
-            master_llm_client = get_llm_client('gpt-4o')
-            base_llm_client = get_llm_client('gpt-4o')
+            # Get LLM clients using client's preferred model
+            master_llm_client = get_llm_client(session.llm_model)
+            base_llm_client = get_llm_client(session.llm_model)
             
             # Run the project initialization
             logger.info(f"Calling initialize_new_project for {init_manager.project_path}")
@@ -2949,6 +2959,105 @@ temp/
             await self.send_to_client(client_id, {
                 "type": "download_error",
                 "payload": {"error": str(e)}
+            })
+    
+    async def handle_llm_config(self, client_id: str, payload: Dict[str, Any]):
+        """Handle LLM configuration update from client."""
+        try:
+            session = self.clients.get(client_id)
+            if not session:
+                logger.error(f"Client {client_id} not found")
+                return
+            
+            # Update session's LLM configuration
+            session.llm_config = payload
+            if "model" in payload:
+                session.llm_model = payload["model"]
+            
+            # Send confirmation back to client
+            await self.send_to_client(client_id, {
+                "type": "llm_config_update",
+                "payload": {"config": session.llm_config}
+            })
+            
+            logger.info(f"Updated LLM config for client {client_id}: model={session.llm_model}")
+            
+        except Exception as e:
+            logger.error(f"Error handling LLM config for client {client_id}: {e}")
+            await self.send_to_client(client_id, {
+                "type": "error",
+                "payload": {"message": f"Failed to update LLM configuration: {str(e)}"}
+            })
+    
+    async def handle_set_model(self, client_id: str, payload: Dict[str, Any]):
+        """Handle model selection from client."""
+        try:
+            session = self.clients.get(client_id)
+            if not session:
+                logger.error(f"Client {client_id} not found")
+                return
+            
+            model = payload.get("model")
+            if not model:
+                raise ValueError("No model specified")
+            
+            # Update session's model preference
+            session.llm_model = model
+            
+            # Send confirmation
+            await self.send_to_client(client_id, {
+                "type": "model_update",
+                "payload": {"model": model, "success": True}
+            })
+            
+            logger.info(f"Set model for client {client_id}: {model}")
+            
+        except Exception as e:
+            logger.error(f"Error setting model for client {client_id}: {e}")
+            await self.send_to_client(client_id, {
+                "type": "error",
+                "payload": {"message": f"Failed to set model: {str(e)}"}
+            })
+    
+    async def handle_set_api_key(self, client_id: str, payload: Dict[str, Any]):
+        """Handle API key update from client."""
+        try:
+            provider = payload.get("provider")
+            api_key = payload.get("apiKey")
+            
+            if not provider or not api_key:
+                raise ValueError("Provider and API key are required")
+            
+            # Map provider names to environment variable names
+            env_var_map = {
+                "openai": "OPENAI_API_KEY",
+                "anthropic": "ANTHROPIC_API_KEY",
+                "google": "GOOGLE_GEMINI_API_KEY",
+                "deepseek": "DEEPSEEK_API_KEY",
+                "xai": "XAI_API_KEY"
+            }
+            
+            env_var = env_var_map.get(provider.lower())
+            if not env_var:
+                raise ValueError(f"Unknown provider: {provider}")
+            
+            # Set the environment variable for this session
+            # Note: This only affects the current process, not system-wide
+            os.environ[env_var] = api_key
+            
+            # Send confirmation
+            await self.send_to_client(client_id, {
+                "type": "api_key_update",
+                "payload": {"provider": provider, "success": True}
+            })
+            
+            logger.info(f"Updated API key for provider {provider} (client {client_id})")
+            
+        except Exception as e:
+            logger.error(f"Error setting API key for client {client_id}: {e}")
+            await self.send_to_client(client_id, {
+                "type": "error",
+                "payload": {"message": f"Failed to set API key: {str(e)}"}
             })
     
     def should_include_in_zip(self, file_path: Path, project_root: Path) -> bool:

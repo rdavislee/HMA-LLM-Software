@@ -15,7 +15,8 @@
       "Bash(npm run lint)",
       "Bash(python test:*)",
       "Bash(pip install:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"
