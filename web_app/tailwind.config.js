@@ -2,10 +2,19 @@
 export default {
   darkMode: ["class"],
   content: [
+    './src/**/*.{ts,tsx}',
     './components/**/*.{ts,tsx}',
     './App.tsx',
     './index.html'
   ],
+
+  safelist: [
+    'scrollbar-thin',
+    'scrollbar-track-transparent',
+    'scrollbar-thumb-muted/30',
+    'hover:scrollbar-thumb-muted/50'
+  ],
+
   prefix: "",
   theme: {
     container: {

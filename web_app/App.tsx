@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import { ResizableLayout } from "./components/ResizableLayout";
 import { ChatHistorySidebar } from "./components/ChatHistorySidebar";
-import { ModelSelector } from "./components/ModelSelector";
 import { ImportDialog } from "./components/ImportDialog";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { EditableProjectTitle } from "./components/EditableProjectTitle";
 import { Button } from "./components/ui/button";
 import { Menu, Zap, Upload } from "lucide-react";
 import websocketService from "./services/websocket";
@@ -30,6 +30,10 @@ function AppContent() {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [importedProject, setImportedProject] = useState<ImportedNode[]>([]);
+  const [projectTitle, setProjectTitle] = useState(() => {
+    const saved = localStorage.getItem('projectTitle');
+    return saved || 'Untitled Project';
+  });
 
   // Initialize WebSocket connection
   useEffect(() => {
@@ -152,12 +156,18 @@ function AppContent() {
     setImportedProject(prev => [...prev, ...nodes]);
   };
 
+  const handleProjectTitleChange = (newTitle: string) => {
+    setProjectTitle(newTitle);
+    localStorage.setItem('projectTitle', newTitle);
+  };
+
   return (
     <div className="h-screen bg-background flex flex-col">
-      {/* Header with expanded height (64px) and repositioned elements */}
+      {/* Header with three sections for true center alignment */}
       <header className="sticky top-0 z-50 w-full bg-background border-b border-border">
         <div className="h-16 flex items-center px-4">
-          <div className="flex items-center gap-3">
+          {/* Left section - Menu button and company name */}
+          <div className="flex-1 flex items-center gap-3">
             <Button
               variant="ghost"
               size="lg"
@@ -166,10 +176,10 @@ function AppContent() {
             >
               <Menu className="h-6 w-6" />
             </Button>
-
-            {/* Title moved closer to menu button */}
+            
+            {/* Company name */}
             <h1
-              className="text-foreground ml-2"
+              className="text-foreground"
               style={{
                 fontFamily: "Quicksand, sans-serif",
                 fontSize: "28px",
@@ -181,9 +191,16 @@ function AppContent() {
             </h1>
           </div>
 
-          {/* Right side - Model Selector, Import and Upgrade buttons */}
+          {/* Center section - Editable project title */}
+          <div className="flex items-center justify-center">
+            <EditableProjectTitle
+              value={projectTitle}
+              onChange={handleProjectTitleChange}
+            />
+          </div>
+
+          {/* Right section - Import and Upgrade buttons */}
           <div className="flex-1 flex justify-end items-center gap-4">
-            <ModelSelector />
             <Button
               size="sm"
               onClick={() => setIsImportDialogOpen(true)}
