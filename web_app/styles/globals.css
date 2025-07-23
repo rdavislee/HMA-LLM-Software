@@ -318,17 +318,7 @@ body {
   border: none !important;
 }
 
-/* Ghost chip styling */
-.ghost-chip {
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--muted-foreground);
-  font-size: 13px;
-  font-weight: var(--font-weight-medium);
-  padding: 0.375rem 0.75rem;
-  border-radius: 8px;
-  transition: all 0.15s ease;
-}
+/* Removed ghost-chip styling - now using Button component */
 
 /* Minimalist button styling */
 .minimalist-button {
@@ -370,15 +360,6 @@ body {
   animation: fade-in 0.3s ease-out;
 }
 
-.ghost-chip:hover {
-  border-color: rgba(96, 165, 250, 0.3);
-  color: var(--foreground);
-}
-
-.ghost-chip.active {
-  border-color: var(--primary);
-  color: var(--primary);
-}
 
 /* Icon stroke weight adjustment */
 svg {
@@ -542,17 +523,19 @@ svg {
 
 /* Input styling */
 .minimalist-input {
-  background: var(--input-background);
-  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 8px;
   padding: 1rem;
   color: var(--foreground);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .minimalist-input:focus {
   outline: 2px solid rgba(96, 165, 250, 0.6);
   outline-offset: 2px;
   border-color: var(--primary);
+  background: rgba(0, 0, 0, 0.7);
 }
 
 /* Remove old animations and effects for clean look */

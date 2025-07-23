@@ -5,14 +5,14 @@ import {
   ChevronRight, 
   ChevronDown,
   Plus,
-  Settings,
   File,
   FileText,
   Image,
   Code,
   Database,
   Folder,
-  FolderOpen
+  FolderOpen,
+  Download
 } from 'lucide-react';
 import websocketService, { FileTreeUpdate } from '../services/websocket';
 import { useSocketEvent } from '../hooks/useSocketEvent';
@@ -163,6 +163,47 @@ export function FileTree({ onFileSelect, importedProject = [] }: FileTreeProps) 
     }
   };
 
+  const downloadProject = () => {
+    // Create a zip-like structure for the project
+    const projectData = {
+      name: 'project-export',
+      timestamp: new Date().toISOString(),
+      files: [] as Array<{ path: string; content: string; language?: string }>
+    };
+
+    // Recursive function to extract all files
+    const extractFiles = (nodes: FileNode[]) => {
+      nodes.forEach(node => {
+        if (node.type === 'file' && node.content) {
+          projectData.files.push({
+            path: node.path,
+            content: node.content,
+            language: node.language
+          });
+        } else if (node.type === 'folder' && node.children) {
+          extractFiles(node.children);
+        }
+      });
+    };
+
+    extractFiles(fileTree);
+
+    // Convert to JSON and download
+    const blob = new Blob([JSON.stringify(projectData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `project-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const clearFileTree = () => {
+    // Clear all contents from the file tree
+    setFileTree([]);
+    setSelectedFile(null);
+  };
+
   const renderNode = (node: FileNode, depth: number = 0) => {
     const isSelected = selectedFile === node.id;
     
@@ -222,23 +263,29 @@ export function FileTree({ onFileSelect, importedProject = [] }: FileTreeProps) 
   return (
     <div className="h-full flex flex-col">
       {/* Header aligned with code editor header */}
-      <div className="p-4 border-b border-border">
-        <div className="flex items-center justify-between">
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="minimalist-button p-1.5 text-[13px]"
-          >
-            <Plus className="h-4 w-4" />
-          </Button>
-          
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="minimalist-button p-1.5"
-          >
-            <Settings className="h-4 w-4" />
-          </Button>
+      <div className="p-4 border-b border-border min-h-[73px] flex items-center">
+        <div className="flex items-center justify-between w-full">
+          <div className="flex items-center gap-1">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="minimalist-button p-1.5 text-[13px]"
+              onClick={clearFileTree}
+              title="Clear all files"
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
+            
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="minimalist-button p-1.5"
+              onClick={downloadProject}
+              title="Download project"
+            >
+              <Download className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </div>
 

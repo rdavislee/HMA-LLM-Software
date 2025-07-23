@@ -73,32 +73,32 @@ export function Terminal({ projectId = 'default' }: TerminalProps) {
       fontSize: 13,
       fontFamily: "'JetBrains Mono', 'Consolas', 'Monaco', monospace",
       fontWeight: 500,
-      lineHeight: 1.6,
+      lineHeight: 1.4,
       allowTransparency: false,
       convertEol: true,
       rows: 24,
       cols: 80,
       theme: {
-        background: 'hsl(var(--card))',
-        foreground: 'hsl(var(--foreground))',
+        background: '#000000',
+        foreground: '#ffffff',
         cursor: 'hsl(var(--primary))',
         selectionBackground: 'hsl(var(--primary) / 0.3)',
         black: '#000000',
-        red: 'hsl(var(--destructive))',
-        green: '#13A10E',
-        yellow: '#C19C00',
-        blue: 'hsl(var(--primary))',
-        magenta: 'hsl(var(--accent))',
-        cyan: '#3A96DD',
-        white: 'hsl(var(--foreground))',
-        brightBlack: 'hsl(var(--muted-foreground))',
-        brightRed: 'hsl(var(--destructive))',
-        brightGreen: '#16C60C',
-        brightYellow: '#F9F1A5',
-        brightBlue: 'hsl(var(--primary))',
-        brightMagenta: 'hsl(var(--accent))',
-        brightCyan: '#61D6D6',
-        brightWhite: 'hsl(var(--foreground))'
+        red: '#ff5555',
+        green: '#50fa7b',
+        yellow: '#f1fa8c',
+        blue: '#6272a4',
+        magenta: '#ff79c6',
+        cyan: '#8be9fd',
+        white: '#f8f8f2',
+        brightBlack: '#6272a4',
+        brightRed: '#ff6e6e',
+        brightGreen: '#69ff94',
+        brightYellow: '#ffffa5',
+        brightBlue: '#8be9fd',
+        brightMagenta: '#ff92df',
+        brightCyan: '#a4ffff',
+        brightWhite: '#ffffff'
       },
       allowProposedApi: true,
     });
@@ -208,9 +208,10 @@ export function Terminal({ projectId = 'default' }: TerminalProps) {
         {/* Terminal Content */}
         <div 
           ref={terminalRef}
-          className="flex-1 p-2"
+          className="flex-1"
           style={{
-            backgroundColor: 'hsl(var(--card))'
+            backgroundColor: '#000000',
+            padding: '8px'
           }}
         />
       </div>

@@ -5,6 +5,7 @@ import { UserInput } from './UserInput';
 import { FileTree } from './FileTree';
 import { CodeEditor } from './CodeEditor';
 import { Terminal } from './Terminal';
+import { PhaseIndicator } from './PhaseIndicator';
 import { Button } from './ui/button';
 import { 
   PanelLeftOpen,
@@ -65,9 +66,9 @@ export function ResizableLayout({
   };
 
   return (
-    <div className="flex-1 flex flex-col">
+    <div className="h-full flex flex-col">
       {/* Main horizontal layout */}
-      <ResizablePanelGroup direction="horizontal" className="flex-1">
+      <ResizablePanelGroup direction="horizontal" className="h-full">
         {/* Chat Panel - Borderless, Full Space */}
         <ResizablePanel 
           defaultSize={chatSize}
@@ -79,7 +80,7 @@ export function ResizableLayout({
         >
           <div className="h-full flex flex-col bg-card">
             {/* Chat content area - fills available space above UserInput */}
-            <div className="flex-1 min-h-0 mb-6 mr-3">
+            <div className="flex-1 min-h-0 overflow-hidden">
               {chatCollapsed ? (
                 <div className="h-full flex items-center justify-center">
                   <Button
@@ -103,9 +104,12 @@ export function ResizableLayout({
               )}
             </div>
             
-            {/* Centered User Input - fixed height at bottom with equal padding */}
+            {/* User Input - fixed at bottom */}
             {!chatCollapsed && (
-              <div className="flex-shrink-0 px-6 pb-6" style={{ height: '16.67vh' }}>
+              <div className="flex-shrink-0 px-4 py-4 border-t border-border bg-card">
+                <PhaseIndicator 
+                  currentPhase={currentPhase}
+                />
                 <UserInput 
                   onSendMessage={onSendMessage}
                   isLoading={isLoading}

@@ -68,55 +68,55 @@ export function TabbedChatPanel({
   return (
     <div className="h-full flex flex-col">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
-        {/* Tab Headers - borderless with padding */}
-        <div className="flex-shrink-0 px-4 pt-4 pb-2">
+        {/* Tab Headers - with bottom border */}
+        <div className="flex-shrink-0 px-4 pt-4 pb-2 border-b border-border min-h-[60px]">
           <div className="flex items-center justify-between">
-            {/* Ghost-style tab chips */}
+            {/* Tab buttons */}
             <div className="flex gap-2">
-              <button
+              <Button
+                variant={activeTab === 'chat' ? 'secondary' : 'ghost'}
+                size="sm"
                 onClick={() => setActiveTab('chat')}
-                className={`ghost-chip flex items-center gap-2 ${
-                  activeTab === 'chat' ? 'active' : ''
-                }`}
+                className="h-8 px-3"
               >
-                <MessageSquare className="h-3 w-3" />
+                <MessageSquare className="h-3 w-3 mr-2" />
                 Chat
                 {chatMessageCount > 0 && (
-                  <span className="bg-muted text-muted-foreground text-xs px-1.5 py-0.5 rounded ml-1">
+                  <span className="bg-muted text-muted-foreground text-xs px-1.5 py-0.5 rounded ml-2">
                     {chatMessageCount}
                   </span>
                 )}
-              </button>
+              </Button>
               
-              <button
+              <Button
+                variant={activeTab === 'tasks' ? 'secondary' : 'ghost'}
+                size="sm"
                 onClick={() => setActiveTab('tasks')}
-                className={`ghost-chip flex items-center gap-2 ${
-                  activeTab === 'tasks' ? 'active' : ''
-                }`}
+                className="h-8 px-3"
               >
-                <FileText className="h-3 w-3" />
+                <FileText className="h-3 w-3 mr-2" />
                 Tasks
                 {activeTaskCount > 0 && (
-                  <span className="bg-muted text-muted-foreground text-xs px-1.5 py-0.5 rounded ml-1">
+                  <span className="bg-muted text-muted-foreground text-xs px-1.5 py-0.5 rounded ml-2">
                     {activeTaskCount}
                   </span>
                 )}
-              </button>
+              </Button>
               
-              <button
+              <Button
+                variant={activeTab === 'logs' ? 'secondary' : 'ghost'}
+                size="sm"
                 onClick={() => setActiveTab('logs')}
-                className={`ghost-chip flex items-center gap-2 ${
-                  activeTab === 'logs' ? 'active' : ''
-                }`}
+                className="h-8 px-3"
               >
-                <AlertCircle className="h-3 w-3" />
+                <AlertCircle className="h-3 w-3 mr-2" />
                 Logs
                 {errorCount > 0 && (
-                  <span className="bg-destructive/20 text-destructive text-xs px-1.5 py-0.5 rounded ml-1">
+                  <span className="bg-destructive/20 text-destructive text-xs px-1.5 py-0.5 rounded ml-2">
                     {errorCount}
                   </span>
                 )}
-              </button>
+              </Button>
             </div>
             
             <Button 
@@ -134,7 +134,7 @@ export function TabbedChatPanel({
         <div className="flex-1 min-h-0">
           {/* Chat Tab - Borderless Messages */}
           {activeTab === 'chat' && (
-            <div className="h-full">
+            <div className="h-full overflow-hidden">
               <ScrollArea className="h-full">
                 <div className="px-4 py-2">
                   {messages.length === 0 ? (
@@ -188,7 +188,7 @@ export function TabbedChatPanel({
 
           {/* Tasks Tab - Full Height */}
           {activeTab === 'tasks' && (
-            <div className="h-full">
+            <div className="h-full overflow-hidden">
               <ThreadedChat 
                 onNewChat={onNewChat}
                 messages={messages}
@@ -202,7 +202,7 @@ export function TabbedChatPanel({
 
           {/* Logs Tab - Full Height */}
           {activeTab === 'logs' && (
-            <div className="h-full">
+            <div className="h-full overflow-hidden">
               <ScrollArea className="h-full">
                 <div className="px-4 py-2 space-y-3">
                   {/* Mock log entries with borderless styling */}

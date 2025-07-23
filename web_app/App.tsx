@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { ResizableLayout } from "./components/ResizableLayout";
 import { ChatHistorySidebar } from "./components/ChatHistorySidebar";
-import { WaveProgress } from "./components/WaveProgress";
 import { ModelSelector } from "./components/ModelSelector";
 import { ImportDialog } from "./components/ImportDialog";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -25,7 +24,6 @@ interface ChatMessage {
 function AppContent() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [currentPhase, setCurrentPhase] = useState<"spec" | "test" | "impl">("spec");
-  const [waveProgress, setWaveProgress] = useState(0);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -139,15 +137,11 @@ function AppContent() {
 
     // Simulate phase progression
     setTimeout(() => {
-      setWaveProgress(65);
       setTimeout(() => {
         setCurrentPhase("test");
-        setWaveProgress(30);
         setTimeout(() => {
-          setWaveProgress(80);
           setTimeout(() => {
             setCurrentPhase("impl");
-            setWaveProgress(15);
           }, 2000);
         }, 1500);
       }, 2000);
@@ -207,16 +201,10 @@ function AppContent() {
             </Button>
           </div>
         </div>
-
-        {/* Wave Progress Bar */}
-        <WaveProgress
-          currentPhase={currentPhase}
-          progress={waveProgress}
-        />
       </header>
 
-      {/* Main Content Area - adjusted for larger header */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      {/* Main Content Area - fixed height calculation */}
+      <div className="flex flex-col overflow-hidden" style={{ height: 'calc(100vh - 4rem)' }}>
         <ResizableLayout
           messages={messages}
           onSendMessage={handleSendMessage}
