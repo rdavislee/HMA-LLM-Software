@@ -117,6 +117,8 @@ class CoderLanguageInterpreter:
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     text=True,
+                    encoding='utf-8',
+                    errors='replace',
                     cwd=self.project_root,
                     creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
                 )
@@ -192,7 +194,7 @@ class CoderLanguageInterpreter:
                     self._queue_self_prompt(prompt)
                     return
                 else:
-                    with open(file_path, 'r', encoding='utf-8') as f:
+                    with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
                         current_content = f.read()
                 # Check for ambiguous from_strings (multiple occurrences)
                 ambiguous_items = []
@@ -243,7 +245,7 @@ class CoderLanguageInterpreter:
                     self._queue_self_prompt(prompt)
                     return
                 else:
-                    with open(file_path, 'r', encoding='utf-8') as f:
+                    with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
                         current_content = f.read()
                 # Check for from_string existence and ambiguity
                 count = current_content.count(directive.from_string)

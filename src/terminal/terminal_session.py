@@ -76,6 +76,8 @@ class TerminalSession:
                         stderr=subprocess.STDOUT,
                         cwd=cwd,
                         text=True,
+                        encoding='utf-8',
+                        errors='replace',
                         bufsize=0,
                         universal_newlines=True
                     )
@@ -91,6 +93,8 @@ class TerminalSession:
                         stderr=subprocess.STDOUT,
                         cwd=cwd,
                         text=True,
+                        encoding='utf-8',
+                        errors='replace',
                         bufsize=0,
                         universal_newlines=True
                     )
