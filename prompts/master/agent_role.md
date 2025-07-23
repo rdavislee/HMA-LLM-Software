@@ -123,6 +123,12 @@ When implementing ML components:
 
 **Remember**: Child agents build the ML pipeline, you execute the training.
 
+**Note on system memory. When you delegate, it is essentially an entirely new prompt to the system. The sub-agents cannot remember any previous conversation that you've had with them and their memories were wipes. This means that on every delegation, you MUST specify the important documents that the agents need to read, and the phase of development that we are in.**
+Delegation prompt example:
+Phase: Say what phase the system is in by referring to the devlopment plan youve made in the documentation
+Documents to read: Tell the agent what documents and files are important to read for each task that is a part of this development phase
+Any extraneous information goes here, so if there is specifically a import error that needs to get fixed or something specific, put it here. Make sure to provide a little context about what just happened to lead to this point. BE SPECIFC!
+
 This phase loops with implementation cycles until human approves the final product
 For front end development, keep the human in the loop as much as possible by providing the command to start and test the current frontend and then allowing them to give feedback. Delegations during UI development should be short in order to keep the human in the loop, as UI is a very human thing.
 PHASE EXIT: FINISH PROMPT="Implementation complete! [Summary of built product]. Does this meet your requirements?"

@@ -13,8 +13,8 @@ interactive, three-phase workflow controlled by a master agent:
 3. **Implementation**: the master agent spawns the full agent hierarchy and
    delegates work to implement, test, and verify the project.
 
-The helper utilities in this file (_ensure_readme, _build_manager, and
-_bootstrap_language_environment) exist solely to support the new-project flow.
+Since agents automatically create their children when they don't exist, we only
+need to create the root manager agent and let the hierarchy build itself dynamically.
 """
 
 from pathlib import Path
@@ -34,72 +34,6 @@ from src.messages.protocol import Task, TaskMessage, MessageType
 from src.orchestrator.master_prompter import master_prompter
 
 __all__ = ["initialize_new_project", "initialize_ongoing_project"]
-
-# ---------------------------------------------------------------------------
-# Constants & helper functions
-# ---------------------------------------------------------------------------
-
-IGNORED_DIR_NAMES = {".git", "__pycache__", ".mypy_cache", ".pytest_cache"}
-IGNORED_FILE_NAMES = {"__init__.py"}
-
-
-def _ensure_readme(dir_path: Path) -> Path:
-    """Ensure a README exists for *dir_path* and return its path."""
-    readme_name = f"{dir_path.name}_README.md"
-    readme_path = dir_path / readme_name
-    if not readme_path.exists():
-        readme_path.touch()
-    return readme_path
-
-
-def _build_manager(
-    dir_path: Path,
-    parent: Optional[Union["ManagerAgent", "MasterAgent"]],
-    llm_client: Optional[BaseLLMClient],
-    max_context_size: int,
-    agent_lookup: Dict[Path, "BaseAgent"],
-) -> ManagerAgent:
-    """Recursively construct agents starting at *dir_path*."""
-    _ensure_readme(dir_path)
-
-    manager = ManagerAgent(
-        path=str(dir_path),
-        parent=parent,
-        llm_client=llm_client,
-        max_content_size=max_context_size,
-    )
-    agent_lookup[dir_path] = manager
-
-    # First, process sub-directories.
-    for child_dir in sorted(
-        p for p in dir_path.iterdir() if p.is_dir() and p.name not in IGNORED_DIR_NAMES
-    ):
-        child_manager = _build_manager(
-            child_dir,
-            parent=manager,
-            llm_client=llm_client,
-            max_context_size=max_context_size,
-            agent_lookup=agent_lookup,
-        )
-        manager.children.append(child_manager)
-
-    # Then, process regular files.
-    for file_path in sorted(p for p in dir_path.iterdir() if p.is_file()):
-        if file_path.name == f"{dir_path.name}_README.md":
-            continue  # Personal file for the directory manager
-        if file_path.name in IGNORED_FILE_NAMES:
-            continue
-        coder = CoderAgent(
-            path=str(file_path),
-            parent=manager,
-            llm_client=llm_client,
-            max_context_size=max_context_size,
-        )
-        agent_lookup[file_path] = coder
-        manager.children.append(coder)
-
-    return manager
-
 
 # ---------------------------------------------------------------------------
 # Public API – *initialize_new_project*
@@ -272,28 +206,22 @@ async def initialize_new_project(
         completion_data["response_event"].set()
 
     # ---------------------------- Phase 3 – Implementation ----------------------------
-    print("[Phase 3] Creating agent hierarchy…")
-    agent_lookup: Dict[Path, "BaseAgent"] = {}
-    root_manager = _build_manager(
-        root_path,
-        parent=None,  # Will be assigned to master_agent below.
+    print("[Phase 3] Creating root manager agent…")
+    
+    # Create only the root manager agent - it will create its children dynamically as needed
+    root_manager = ManagerAgent(
+        path=str(root_path),
+        parent=None,  # Will be assigned to master_agent below
         llm_client=base_llm_client,
-        max_context_size=max_context_size,
-        agent_lookup=agent_lookup,
+        max_content_size=max_context_size,
     )
     master_agent.set_root_agent(root_manager)
     root_manager.parent = master_agent
 
-    print(f"[Phase 3] Created {len(agent_lookup)} agents.")
+    # Initialize agent lookup with just the root manager
+    agent_lookup: Dict[Path, "BaseAgent"] = {root_path: root_manager}
 
-    # Create README stubs for all manager agents.
-    for agent in agent_lookup.values():
-        if getattr(agent, "is_manager", False):
-            readme_path = agent.personal_file
-            if not readme_path.exists():
-                readme_path.write_text(
-                    f"# {readme_path.parent.name}\n\nFolder managed by agent.\n"
-                )
+    print(f"[Phase 3] Created root manager agent - children will be created dynamically as needed.")
 
     language_name = str(get_global_language().name) if hasattr(get_global_language(), 'name') else str(get_global_language())
     phase3_task = Task(
@@ -339,13 +267,6 @@ async def initialize_new_project(
             f"Additional human request: {approval}. Please delegate tasks and use FINISH when ready."
         )
         completion_data["response_event"].set()
-
-    # Optional: remove manager README stubs (clean-up step).
-    for agent in agent_lookup.values():
-        if getattr(agent, "is_manager", False):
-            readme_path = agent.personal_file
-            if readme_path.exists():
-                readme_path.unlink()
 
     print("[Complete] New project initialization finished successfully!")
     return master_agent, root_manager, agent_lookup 
@@ -429,23 +350,24 @@ async def initialize_ongoing_project(
     master_agent.set_human_interface_fn(phase_communication_fn)
 
     # ---------------------------------------------------------------------
-    # Build full agent hierarchy for the existing project.
+    # Create only the root manager agent - children will be created dynamically
     # ---------------------------------------------------------------------
-    print("[Init] Scanning existing project and creating agent hierarchy…")
-    agent_lookup: Dict[Path, "BaseAgent"] = {}
-    root_manager = _build_manager(
-        root_path,
+    print("[Init] Creating root manager agent for existing project…")
+    
+    root_manager = ManagerAgent(
+        path=str(root_path),
         parent=None,  # will be set after creation
         llm_client=base_llm_client,
-        max_context_size=max_context_size,
-        agent_lookup=agent_lookup,
+        max_content_size=max_context_size,
     )
     master_agent.set_root_agent(root_manager)
     root_manager.parent = master_agent
 
-    print(f"[Init] Created {len(agent_lookup)} agents for existing project.")
+    # Initialize agent lookup with just the root manager
+    agent_lookup: Dict[Path, "BaseAgent"] = {root_path: root_manager}
 
-    # Ensure each manager has a README (already handled in `_build_manager`).
+    print(f"[Init] Created root manager agent - children will be created dynamically as needed.")
+
     # Persistent high-level documentation.
     documentation_path = root_path / "documentation.md"
     if not documentation_path.exists():

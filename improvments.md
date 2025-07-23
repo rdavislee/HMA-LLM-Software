@@ -14,3 +14,4 @@
 13. Prompts NEED to be reduced in size - IN PROGRESS
 14. Improve human in the loop for frontend design - NOT STARTED
 15. Add a timeout on terminal commands of 5 minutes with a message that it timed out after 300 seconds, don't do it again - NOT STARTED
+15. master needs forced thinking when user gives feedback about ui. Master should read all ui files for instruction, bc frontend usually isnt that big. When there is a backend problem, master should reason to create a test for that problem.

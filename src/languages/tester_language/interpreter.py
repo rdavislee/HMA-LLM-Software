@@ -108,6 +108,8 @@ class TesterLanguageInterpreter:
                         stdout=subprocess.PIPE,
                         stderr=subprocess.PIPE,
                         text=True,
+                        encoding='utf-8',
+                        errors='replace',
                         cwd=self.project_root,
                         creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
                     )

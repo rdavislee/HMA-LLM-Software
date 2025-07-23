@@ -26,7 +26,7 @@ def main():
     # Run the typescript initializer for this folder
     result = subprocess.run([
         sys.executable, "scripts/typescript/initializer.py", str(TEST_FOLDER)
-    ], capture_output=True, text=True)
+    ], capture_output=True, text=True, encoding='utf-8', errors='replace')
     print(result.stdout)
     if result.returncode != 0:
         print(result.stderr)

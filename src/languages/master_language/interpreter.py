@@ -204,6 +204,8 @@ class MasterLanguageInterpreter:
                         stdout=subprocess.PIPE,
                         stderr=subprocess.PIPE,
                         text=True,
+                        encoding='utf-8',
+                        errors='replace',
                         cwd=self.root_dir,
                         creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
                     )

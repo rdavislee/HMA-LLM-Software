@@ -321,7 +321,7 @@ class MasterAgent:
         for filename, file_path in self.memory.items():
             try:
                 if file_path.exists():
-                    with open(file_path, 'r', encoding='utf-8') as f:
+                    with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
                         contents[filename] = f.read()
                 else:
                     contents[filename] = f"[File does not exist: {file_path}]"
