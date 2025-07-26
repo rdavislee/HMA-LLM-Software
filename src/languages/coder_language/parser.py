@@ -7,7 +7,7 @@ import os
 from typing import List, Union
 from lark import Lark, Transformer, v_args
 from .ast import (
-    Directive, ReadDirective, RunDirective, ChangeDirective, ReplaceDirective, ReplaceItem, InsertDirective, SpawnDirective, WaitDirective, FinishDirective,
+    Directive, ReadDirective, RunDirective, ChangeDirective, ReplaceDirective, ReplaceItem, InsertDirective, ScratchDirective, SpawnDirective, WaitDirective, FinishDirective,
     Target, PromptField, EphemeralType, SpawnItem, DirectiveType
 )
 
@@ -52,6 +52,11 @@ class CoderLanguageTransformer(Transformer):
     def insert(self, from_string, to_string):
         """Transform insert directive."""
         return InsertDirective(from_string=from_string, to_string=to_string)
+
+    @v_args(inline=True)
+    def scratch(self, content):
+        """Transform scratch directive."""
+        return ScratchDirective(content=content)
     
     @v_args(inline=True)
     def spawn(self, first_item, *other_items):

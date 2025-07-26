@@ -5,6 +5,7 @@ READ "src/calculator.interface.ts"
 READ "src/calculator.test.ts"
 READ "src/utils.ts"  // Check available utilities
 // NOW you understand what to build
+// IMPORTANT: Each function MUST include documentation for parameters, return values, preconditions, and postconditions to make testing easier.
 Command Selection Guide
 CHANGE - Complete File Replacement (Empty Files or Total Rewrites)
 // Empty file - initial implementation
@@ -53,14 +54,14 @@ INSERT FROM="class Calculator {" TO="""
 // Add enum value
 INSERT FROM="enum Status {" TO="""
   Archived = 'archived',"""
-SPAWN tester PROMPT="Run comprehensive type coverage analysis", tester PROMPT="Generate TS interface inheritance diagrams"
+SPAWN tester PROMPT="Run comprehensive type coverage analysis"
 Testing Protocol Examples
 TypeScript Testing Workflow
 // After implementation
 RUN "npm run build"
 // ONE COMMAND PER API CALL
 RUN "npm test"  // Your ONE direct test
-SPAWN tester PROMPT="Generate performance benchmarks for calculator operations", tester PROMPT="Profile memory usage during long-running calculations"
+SPAWN tester PROMPT="Generate performance benchmarks for calculator operations"
 
 Persistent Compilation Failure and Escalation Example
 // Agent attempts to build after implementation
@@ -98,13 +99,12 @@ SPAWN tester PROMPT="Verify calculator.ts division fix"
 SPAWN tester PROMPT="Run cross-browser UI smoke tests"
 Python Testing Workflow
 RUN "python -m pytest -v"  // Your ONE direct test
-SPAWN tester PROMPT="Analyze pytest coverage gaps", tester PROMPT="Identify flaky tests in test suite"
-Compilation Error Handling
+SPAWN tester PROMPT="Analyze pytest coverage gaps"
 RUN "npm run build"
 // Compilation errors - don't guess, analyze!
 
 SPAWN tester PROMPT="Analyze TypeScript errors in parser.ts - identify missing type imports"
-SPAWN tester PROMPT="Compare parser AST outputs against reference", tester PROMPT="Stress test parser with large inputs", tester PROMPT="Fuzz parser for unexpected tokens"
+SPAWN tester PROMPT="Compare parser AST outputs against reference"
 
 // If missing dependency
 FINISH PROMPT="Missing dependency: need TokenType from lexer module"
@@ -140,7 +140,7 @@ RUN "npm test"
 // Fix issues with tester help
 SPAWN tester PROMPT="Debug UserService test failures"
 // Spawning instead of retesting as it is more reliable and offers deeper insights
-SPAWN tester PROMPT="Perform branch coverage analysis on UserService", tester PROMPT="Stress test UserService under concurrent requests"
+SPAWN tester PROMPT="Perform branch coverage analysis on UserService"
 
 REPLACE FROM="return {" TO="const now = new Date();\n    return {"
 REPLACE FROM="password: hashedPassword" TO="password: hashedPassword,\n      createdAt: now,\n      updatedAt: now"
@@ -208,7 +208,7 @@ RUN "npm run build"
 SPAWN tester PROMPT="Analyze compilation errors - missing validateUser method"
 WAIT
 // Spawning specialized testers for static analysis—more reliable than manual fixes
-SPAWN tester PROMPT="Static analysis of AuthService for missing dependencies", tester PROMPT="Auto-suggest fixes for auth validation errors"
+SPAWN tester PROMPT="Static analysis of AuthService for missing dependencies"
 
 // Tester says validateUser should come from UserService
 FINISH PROMPT="Missing dependency: need validateUser from UserService module"
@@ -217,7 +217,7 @@ Multiple Tester Strategy
 RUN "npm test"
 
 // Spawn specialized testers
-SPAWN tester PROMPT="Debug parser syntax errors", tester PROMPT="Debug parser precedence issues", tester PROMPT="Debug parser error recovery"
+SPAWN tester PROMPT="Debug parser syntax errors"
 
 // Each tester provides focused feedback
 // Fix based on specific recommendations
@@ -237,7 +237,7 @@ return user.name.trim();
 }"""
 Regular Expressions
 REPLACE FROM="const emailRegex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;" TO="const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$/;"
-SPAWN tester PROMPT="Unit test revised email regex against edge cases", tester PROMPT="Benchmark email regex performance"
+SPAWN tester PROMPT="Unit test revised email regex against edge cases"
 
 Docstring Updates (Triple Quotes)
 IMPORTANT: USE SINGLE QUOTES ''' FOR DOCSTRINGS WITHIN """content""" BECAUSE IT CANNOT HANDLE ESCAPED DOUBLE QUOTES AND TRIPLE DOUBLE QUOTES WILL CAUSE A PARSING ERROR.
@@ -254,6 +254,66 @@ REPLACE FROM="""def add(a, b):
         int: Sum of a and b.
     '''
     return a + b"""
+
+// --------------------------------------------------------------------
+// Function Documentation Examples (TypeScript, Python, Java)
+// These snippets show how a coder should include clear parameter & return
+// descriptions as well as explicit pre-conditions and post-conditions.
+// --------------------------------------------------------------------
+
+// TypeScript example – CHANGE directive creating a documented utility fn
+CHANGE CONTENT="""/**
+ * Add two finite numbers.
+ * @param a - first number (finite)
+ * @param b - second number (finite)
+ * @precondition Both a and b must be finite numbers.
+ * @postcondition The result equals a + b.
+ * @returns The arithmetic sum of a and b.
+ */
+export function add(a: number, b: number): number {
+  if (!Number.isFinite(a) || !Number.isFinite(b)) {
+    throw new Error('Invalid number input');
+  }
+  return a + b;
+}"""
+
+// Python example – CHANGE directive with rich docstring using single quotes
+CHANGE CONTENT="""def multiply(a: float, b: float) -> float:
+    '''Multiply two finite numbers.
+
+    Args:
+        a (float): First factor. Must be finite.
+        b (float): Second factor. Must be finite.
+
+    Returns:
+        float: Product of a and b.
+
+    Precondition:
+        * a and b are finite numbers.
+    Postcondition:
+        * The return value equals a * b.
+    '''
+    if not (isinstance(a, (int, float)) and isinstance(b, (int, float))):
+        raise TypeError('Inputs must be numeric')
+    return a * b"""
+
+// Java example – CHANGE directive demonstrating Javadoc with pre/post
+CHANGE CONTENT="""/**
+ * Divide two integers.
+ *
+ * @param dividend the numerator (must be divisible)
+ * @param divisor  the denominator (must be non-zero)
+ * @return the integer quotient
+ * @precondition divisor != 0
+ * @postcondition result * divisor + remainder == dividend
+ */
+public int divide(int dividend, int divisor) {
+    if (divisor == 0) {
+        throw new IllegalArgumentException("Division by zero");
+    }
+    return dividend / divisor;
+}"""
+// --------------------------------------------------------------------
 Complex Error Handling
 REPLACE FROM="""try {
 const response = await api.call();
@@ -323,7 +383,7 @@ export interface IScientificCalculator extends ICalculator {
 }"""
 
 FINISH PROMPT="Calculator interfaces specified with contracts"
-SPAWN tester PROMPT="Review interface contracts for completeness", tester PROMPT="Suggest additional edge-case specifications"
+SPAWN tester PROMPT="Review interface contracts for completeness"
 TEST Task (Empty Test File)
 READ "src/calculator.interface.ts"
 
@@ -367,7 +427,7 @@ READ "src/utils/validators.ts"
 
 // Check if we have dependencies
 READ "src/utils/math-helpers.ts"  // Empty
-SPAWN tester PROMPT="Prototype math helper functions for precision handling", tester PROMPT="Draft unit tests for math helper functions"
+SPAWN tester PROMPT="Prototype math helper functions for precision handling"
 
 // Can't proceed without helpers
 FINISH PROMPT="Missing dependency: need math helper functions from math-helpers.ts for precision handling"
@@ -375,7 +435,6 @@ Key Patterns
 
 Always read context first - Never start without understanding requirements
 One test only - After that, use tester agents
-Spawn multiple testers - Divide complex problems
 REPLACE for existing code - CHANGE only for empty/rewrite
 Switch to CHANGE - After REPLACE failures
 Check dependencies - Don't implement what belongs elsewhere

@@ -5,7 +5,7 @@
 COMMENT: /\/\/.*/
 
 // Directives
-directive: read | run | change | replace | insert | spawn | wait | finish
+directive: read | run | change | replace | insert | scratch | spawn | wait | finish
 
 // Read directive - read any file in the codebase
 read: "READ" filename
@@ -22,6 +22,9 @@ replace_item: "FROM" "=" from_string "TO" "=" to_string
 
 // Insert directive - insert a string at the end of another string in the file
 insert: "INSERT" "FROM" "=" from_string "TO" "=" to_string
+
+// Scratch directive - write to scratch pad file
+scratch: "SCRATCH" "CONTENT" "=" content_string
 
 // Spawn directive - spawn ephemeral agents
 spawn: "SPAWN" spawn_item ("," spawn_item)*

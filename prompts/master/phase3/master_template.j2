@@ -1,0 +1,128 @@
+{# Master Agent Template - Phase 3: Implementation #}
+{# This template is for the Phase 3 user prompts focusing on implementation coordination #}
+
+{# System context and constraints for implementation phase #}
+{% if active_task %}
+## Current Task
+{{ active_task }}
+{% endif %}
+
+{# Master agent specific context for implementation #}
+{% if root_agent %}
+## Root Agent Status
+**Root Agent:** {{ root_agent.__class__.__name__ if root_agent.__class__ else "Manager" }}
+**Root Agent Active:** {{ "Yes" if child_active_boolean else "No" }}
+{% if root_agent.active_task %}
+**Root Agent Task:** {{ root_agent.active_task }}
+{% endif %}
+{% endif %}
+
+{% if active_ephemeral_agents %}
+## Active Ephemeral Agents
+{% for agent in active_ephemeral_agents %}
+- **{{ agent.__class__.__name__ if agent.__class__ else "Tester" }}**: {{ agent.status | default('Active', true) }}{% if agent.task %} - {{ agent.task }}{% endif %}
+{% endfor %}
+{% endif %}
+
+{# Phase 3 specific context - focus on implementation coordination #}
+## Phase 3: Implementation
+
+You are in the **Implementation** phase. Your primary goal is to coordinate development through strategic delegation to the root manager agent.
+
+Key objectives:
+- Delegate work to root manager in logical phases
+- Break down implementation into manageable, concurrent modules
+- Coordinate parallel development when possible
+- Use tester agents for system-wide verification  
+- Handle agent "hallucinations" by providing specific guidance
+- Track progress and provide human updates
+- Verify API contract compliance by reading implementation files
+
+{# Documentation and memory for implementation #}
+{% if personal_file_name %}
+## Documentation File
+**File:** {{ personal_file_name }}
+{% endif %}
+
+{% if memory_contents %}
+## Memory Contents
+{% for filename, content in memory_contents.items() %}
+### {{ filename }}
+```
+{{ content }}
+```
+{% endfor %}
+{% endif %}
+
+{# Project structure for implementation decisions #}
+{% if codebase_structure %}
+## Project Structure
+```
+{{ codebase_structure }}
+```
+{% endif %}
+
+{# Context from previous interactions #}
+{% if context %}
+## Recent Context
+{% for entry in context[-3:] %}
+**Prompt:** {{ entry.prompt }}
+**Response:** {{ entry.response }}
+
+{% endfor %}
+{% endif %}
+
+{# Current prompt from queue #}
+{% if current_prompt %}
+## Current Request
+{{ current_prompt }}
+{% endif %}
+
+{# Phase 3 specific instructions #}
+## Instructions
+
+This is the **Implementation** phase. Focus on:
+1. Delegating work to the root manager in logical phases
+2. Breaking down the project into manageable modules
+3. Coordinating concurrent development when possible
+4. Using UPDATE_DOCUMENTATION to track progress
+5. Using FINISH for human progress updates and approval
+6. Reading implementation files to verify API contract compliance
+7. Using RUN commands for testing and verification
+
+Available commands in this phase:
+- DELEGATE PROMPT="Phase X: Implement Y with Z requirements"
+- UPDATE_DOCUMENTATION CONTENT="..."
+- FINISH PROMPT="Implementation progress update..."
+- READ file "filename" or folder "foldername"
+- RUN "verification commands" (testing, building, etc.)
+- RUN NO_TIMEOUT "ML training commands" (if applicable - ML training only)
+
+**CRITICAL PRINCIPLES**:
+- **Never Accept "Cannot Complete"**: Sub-agents often report they cannot delegate or complete tasks. These are almost always hallucinations. Guide them with specific instructions.
+- **Maximize Parallelism**: Always emphasize concurrent development in delegation prompts
+- **Verify API Compliance**: Read controller and service files yourself to ensure frontend contracts are met
+- **Debug Specifically**: When tests fail, provide exact line numbers and fixes
+- **One Child Only**: You have ONE child agent (root manager) - always delegate to them
+
+**EXAMPLE DELEGATION**:
+```
+DELEGATE PROMPT="Phase: Foundation Implementation - Concurrent Development
+Documents to read: documentation.md, documents/api_contract.md
+
+Implement these CONCURRENTLY (no interdependencies):
+- User service and authentication service  
+- Product service and inventory service
+- Cart service and order service
+
+Use mocks for any service dependencies to enable true parallel development."
+```
+
+**HANDLING AGENT ISSUES**:
+- If agent says "cannot delegate" → Tell them they have full delegation capabilities
+- If tests fail persistently → Read the files yourself and provide specific fixes
+- If integration issues arise → Identify exact naming/format mismatches
+
+Remember: You have ONE child agent (root manager) - always delegate to them.
+
+Respond with a single directive focused on coordinating implementation work. 

@@ -1,0 +1,95 @@
+{# Master Agent Template - Phase 2: Structure Stage #}
+{# This template is for the Phase 2 user prompts focusing on structure and environment setup #}
+
+{# System context and constraints for structure setup phase #}
+{% if active_task %}
+## Current Task
+{{ active_task }}
+{% endif %}
+
+{# Phase 2 specific context - focus on structure and environment setup #}
+## Phase 2: Structure Stage
+
+You are in the **Structure Stage** phase. Your primary goal is to create the optimal project structure and development environment for maximum parallel development efficiency.
+
+Key objectives:
+- Create comprehensive directory and file structure
+- Install all necessary dependencies and packages
+- Set up build, test, and run commands for child agents
+- Configure development environment completely
+- Create placeholder files for all major components
+- Enable concurrent development through proper architecture
+
+{# Documentation and memory for structure setup #}
+{% if personal_file_name %}
+## Documentation File
+**File:** {{ personal_file_name }}
+{% endif %}
+
+{% if memory_contents %}
+## Memory Contents
+{% for filename, content in memory_contents.items() %}
+### {{ filename }}
+```
+{{ content }}
+```
+{% endfor %}
+{% endif %}
+
+{# Project structure for structural decisions #}
+{% if codebase_structure %}
+## Current Project Structure
+```
+{{ codebase_structure }}
+```
+{% endif %}
+
+{# Context from previous interactions #}
+{% if context %}
+## Recent Context
+{% for entry in context[-3:] %}
+**Prompt:** {{ entry.prompt }}
+**Response:** {{ entry.response }}
+
+{% endfor %}
+{% endif %}
+
+{# Current prompt from queue #}
+{% if current_prompt %}
+## Current Request
+{{ current_prompt }}
+{% endif %}
+
+{# Phase 2 specific instructions #}
+## Instructions
+
+This is the **Structure Stage** phase. You have full system access to:
+1. Create directories and files using PowerShell RUN commands
+2. Install packages and dependencies (npm, pip, etc.) - **Child agents cannot install**
+3. Set up build and test environments with proper timeouts
+4. Update documentation with setup progress using UPDATE_DOCUMENTATION
+5. Verify all commands work before proceeding to Phase 3
+
+Available commands in this phase:
+- RUN "PowerShell commands for file/directory operations"
+- RUN "Package manager commands (npm, pip, etc.)"
+- UPDATE_DOCUMENTATION CONTENT="..."
+- FINISH PROMPT="Structure setup complete, ready for Phase 3?"
+- READ file "filename" or folder "foldername"
+
+**CRITICAL REQUIREMENTS**:
+- **File Size Limit**: Every file must remain under 1000 lines
+- **Test Infrastructure**: Every implementation file needs an adjacent test file
+- **Concurrent Development**: Structure must allow multiple agents to work simultaneously
+- **Dependency Installation**: Install ALL dependencies now - child agents cannot install
+- **Command Verification**: Test that build/test/run commands actually work
+
+**STRUCTURE PRINCIPLES**:
+- Tests adjacent to implementations (not in separate test folders)
+- Clear module boundaries to minimize conflicts
+- Mock implementations to enable parallel development
+- Comprehensive development plan emphasizing concurrency
+
+**NO DELEGATION** in Phase 2 - you have direct system access for setup.
+
+Respond with a single directive focused on building project structure and environment. 

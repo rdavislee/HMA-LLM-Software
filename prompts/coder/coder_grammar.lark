@@ -24,7 +24,7 @@ replace_item: "FROM" "=" from_string "TO" "=" to_string
 insert: "INSERT" "FROM" "=" from_string "TO" "=" to_string
 
 // Spawn directive - spawn ephemeral agents
-spawn: "SPAWN" spawn_item ("," spawn_item)*
+spawn: "SPAWN" spawn_item
 spawn_item: ephemeral_type prompt_field
 
 // Wait directive - wait for ephemeral agents to complete

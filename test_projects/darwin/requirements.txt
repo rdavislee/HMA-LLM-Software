@@ -1,0 +1,6 @@
+fastapi
+uvicorn[standard]
+pytest
+numpy
+pytest-asyncio
+pymunk

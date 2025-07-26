@@ -1,0 +1,86 @@
+{# Master Agent Template - Phase 1: Product Understanding #}
+{# This template is for the Phase 1 user prompts focusing on requirements gathering #}
+
+{# System context and constraints for product understanding phase #}
+{% if active_task %}
+## Current Task
+{{ active_task }}
+{% endif %}
+
+{# Phase 1 specific context - focus on understanding requirements #}
+## Phase 1: Product Understanding
+
+You are in the **Product Understanding** phase. Your primary goal is to deeply understand the human's requirements through iterative questioning and comprehensive documentation.
+
+Key objectives:
+- Ask clarifying questions to understand the full scope
+- Document all requirements in detail  
+- Identify any ambiguities or missing information
+- Build comprehensive product specifications
+- Analyze any provided frontend for integration requirements
+
+{# Documentation and memory for understanding #}
+{% if personal_file_name %}
+## Documentation File
+**File:** {{ personal_file_name }}
+{% endif %}
+
+{% if memory_contents %}
+## Memory Contents
+{% for filename, content in memory_contents.items() %}
+### {{ filename }}
+```
+{{ content }}
+```
+{% endfor %}
+{% endif %}
+
+{# Project structure for understanding current state #}
+{% if codebase_structure %}
+## Current Project Structure
+```
+{{ codebase_structure }}
+```
+{% endif %}
+
+{# Context from previous interactions #}
+{% if context %}
+## Recent Context
+{% for entry in context[-3:] %}
+**Prompt:** {{ entry.prompt }}
+**Response:** {{ entry.response }}
+
+{% endfor %}
+{% endif %}
+
+{# Current prompt from queue #}
+{% if current_prompt %}
+## Current Request
+{{ current_prompt }}
+{% endif %}
+
+{# Phase 1 specific instructions #}
+## Instructions
+
+This is the **Product Understanding** phase. Focus on:
+1. Understanding user requirements through FINISH commands for clarification
+2. Documenting all understanding in documentation.md using UPDATE_DOCUMENTATION
+3. Reading any existing files (especially frontend) with READ commands
+4. Creating comprehensive documentation files using RUN commands
+5. Building detailed specifications before moving to Phase 2
+
+Available commands in this phase:
+- UPDATE_DOCUMENTATION CONTENT="..." 
+- FINISH PROMPT="Need clarification on..."
+- READ file "filename" or folder "foldername"
+- RUN "PowerShell commands for creating documentation files"
+
+**CRITICAL**: If frontend code is provided, you must:
+1. Read ALL frontend files that make API calls
+2. Document EVERY expected API endpoint
+3. Create detailed API contract documentation
+4. Understand the exact request/response formats expected
+
+**NO DELEGATION** is available in Phase 1 - focus purely on understanding and documenting.
+
+Respond with a single directive focused on understanding and documenting requirements. 

@@ -72,10 +72,6 @@ async def initialize_new_project(
     set_root_dir(str(root_path))
     set_global_language(language)
 
-    # Workspace scratch dir for tester agents.
-    scratch_pads_dir = root_path / "scratch_pads"
-    scratch_pads_dir.mkdir(exist_ok=True)
-
     # Documents folder for important project documentation.
     documents_dir = root_path / "documents"
     documents_dir.mkdir(exist_ok=True)
@@ -110,6 +106,9 @@ async def initialize_new_project(
 
     # ---------------------------- Phase 1 – Product understanding ----------------------------
     print("[Phase 1] Starting product understanding phase…")
+    # Set master agent to phase 1
+    master_agent.set_phase("phase1")
+    
     language_name = str(get_global_language().name) if hasattr(get_global_language(), 'name') else str(get_global_language())
     phase1_task = Task(
         task_id=f"phase1_{int(time.time())}",
@@ -153,6 +152,9 @@ async def initialize_new_project(
 
     # ---------------------------- Phase 2 – Structure stage ----------------------------
     print("[Phase 2] Starting structure stage…")
+    # Set master agent to phase 2
+    master_agent.set_phase("phase2")
+    
     language_name = str(get_global_language().name) if hasattr(get_global_language(), 'name') else str(get_global_language())
     phase2_task = Task(
         task_id=f"phase2_{int(time.time())}",
@@ -207,6 +209,8 @@ async def initialize_new_project(
 
     # ---------------------------- Phase 3 – Implementation ----------------------------
     print("[Phase 3] Creating root manager agent…")
+    # Set master agent to phase 3
+    master_agent.set_phase("phase3")
     
     # Create only the root manager agent - it will create its children dynamically as needed
     root_manager = ManagerAgent(
@@ -315,10 +319,6 @@ async def initialize_ongoing_project(
     set_root_dir(str(root_path))
     set_global_language(language)
 
-    # Scratch pads directory for tester agents (create if missing).
-    scratch_pads_dir = root_path / "scratch_pads"
-    scratch_pads_dir.mkdir(exist_ok=True)
-
     # Documents folder for important project documentation.
     documents_dir = root_path / "documents"
     documents_dir.mkdir(exist_ok=True)
@@ -380,6 +380,9 @@ async def initialize_ongoing_project(
 
     # ---------------------- Phase 1 – Understanding & Docs ----------------------
     print("[Phase 1&2] Starting understanding & documentation phase…")
+    # Set master agent to phase 2 (structure/docs phase for ongoing projects)
+    master_agent.set_phase("phase2")
+    
     language_name = str(get_global_language().name) if hasattr(get_global_language(), "name") else str(get_global_language())
     phase1_task = Task(
         task_id=f"ongoing_phase1_{int(time.time())}",
@@ -430,6 +433,8 @@ async def initialize_ongoing_project(
 
     # ----------------------------- Phase 2 – Change -----------------------------
     print("[Phase 2] Starting change phase…")
+    # Set master agent to phase 3 (implementation phase for ongoing projects)
+    master_agent.set_phase("phase3")
 
     # Collect change request from human.
     change_request = await human_interface_fn(

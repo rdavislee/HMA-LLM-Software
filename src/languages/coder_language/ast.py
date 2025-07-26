@@ -14,6 +14,7 @@ class TokenType(Enum):
     RUN = "RUN"
     CHANGE = "CHANGE"
     INSERT = "INSERT"
+    SCRATCH = "SCRATCH"
     SPAWN = "SPAWN"
     WAIT = "WAIT"
     FINISH = "FINISH"
@@ -247,6 +248,28 @@ class InsertDirective(Directive):
 
 
 @dataclass
+class ScratchDirective(Directive):
+    """Represents a SCRATCH directive to write to the coder's scratch pad file."""
+    content: str
+
+    def execute(self, context: dict) -> dict:
+        """Execute scratch directive by adding scratch pad update to context."""
+        if 'scratch_updates' not in context:
+            context['scratch_updates'] = []
+        context['scratch_updates'].append({
+            'content': self.content,
+            'status': 'pending'
+        })
+        return context
+
+    def __str__(self) -> str:
+        if len(self.content) <= 50:
+            return f'SCRATCH CONTENT="{self.content}"'
+        else:
+            return f'SCRATCH CONTENT="{self.content[:50]}..."'
+
+
+@dataclass
 class SpawnDirective(Directive):
     """Represents a SPAWN directive for ephemeral agents."""
     items: List[SpawnItem]
@@ -298,7 +321,7 @@ class FinishDirective(Directive):
 
 
 # Type alias for all directive types
-DirectiveType = Union[ReadDirective, RunDirective, ChangeDirective, ReplaceDirective, InsertDirective, SpawnDirective, WaitDirective, FinishDirective]
+DirectiveType = Union[ReadDirective, RunDirective, ChangeDirective, ReplaceDirective, InsertDirective, ScratchDirective, SpawnDirective, WaitDirective, FinishDirective]
 
 
 @dataclass
