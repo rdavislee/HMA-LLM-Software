@@ -134,8 +134,27 @@ class BaseAgent(ABC):
         else:
             # Manager agent - personal file is README in their own directory
             self.personal_file = self.path / f"{self.path.name}_README.md"
+
+        # Always add the personal file to memory
         if self.personal_file:
             self.memory[self.personal_file.name] = self.personal_file
+
+        # ---- Scratch-pad handling ----
+        # Coder agents get an adjacent scratch pad file named
+        #   <stem>_scratch<suffix> (e.g. my_module.py -> my_module_scratch.py).
+        # We only track the path here; actual creation/deletion happens on
+        # activate/deactivate so that idle coder agents do not litter the FS.
+        if self.is_coder and self.personal_file is not None:
+            scratch_path = self.personal_file.with_name(f"{self.personal_file.stem}_scratch{self.personal_file.suffix}")
+
+            # Store for later use (convenient attribute)
+            self.scratch_file: Path = scratch_path
+
+            # Add to memory so the coder can READ it immediately after activation
+            self.memory[scratch_path.name] = scratch_path
+        else:
+            # Managers or unexpected cases – no scratch file
+            self.scratch_file: Path = None
 
     @property
     def scope_path(self) -> Path:
@@ -175,6 +194,18 @@ class BaseAgent(ABC):
             )
         # Set personal file and add to memory
         self._set_personal_file()
+
+        # Create the scratch pad file for coder agents (if not already present)
+        if self.is_coder and getattr(self, "scratch_file", None):
+            try:
+                scratch_path: Path = self.scratch_file
+                # Ensure parent directory exists
+                scratch_path.parent.mkdir(parents=True, exist_ok=True)
+                # Touch the file without clobbering existing content
+                scratch_path.touch(exist_ok=True)
+            except Exception:
+                # Non-fatal – we still continue activation even if scratch pad cannot be created
+                pass
         # Automatically add documentation.md from project root to memory if it exists
         doc_path = getattr(src, 'ROOT_DIR', None)
         if doc_path is not None:
@@ -217,6 +248,15 @@ class BaseAgent(ABC):
         self.context.clear()
         self.prompt_queue.clear()
         self.stall = False
+
+        # Remove coder scratch pad when deactivating
+        if self.is_coder and getattr(self, "scratch_file", None):
+            try:
+                if self.scratch_file.exists():
+                    self.scratch_file.unlink()
+            except Exception:
+                # Ignore file deletion errors – they shouldn't block deactivation
+                pass
         self.update_activity()
 
     def start_watchdog(self):

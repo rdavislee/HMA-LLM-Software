@@ -52,6 +52,9 @@ class MasterAgent:
         self.llm_client = llm_client
         self.max_context_size = max_context_size
         
+        # Phase tracking - represents current development phase
+        self.phase: str = "phase1"  # Default to phase1 (Product Understanding)
+        
         # Agent state
         self.prompt_queue: List[str] = []
         self.stall = False
@@ -97,6 +100,30 @@ class MasterAgent:
         
         # Set personal file (documentation.md in root)
         self.set_personal_file()
+    
+    def set_phase(self, phase: str) -> None:
+        """Set the current development phase.
+        
+        Args:
+            phase: The phase to set ('phase1', 'phase2', or 'phase3')
+        """
+        valid_phases = ['phase1', 'phase2', 'phase3']
+        if phase not in valid_phases:
+            raise ValueError(f"Invalid phase '{phase}'. Must be one of: {valid_phases}")
+        
+        self.phase = phase
+        self.update_activity()
+    
+    def get_phase_prompt_path(self, filename: str) -> str:
+        """Get the path to a phase-specific prompt file.
+        
+        Args:
+            filename: The name of the prompt file to load
+            
+        Returns:
+            str: The path to the phase-specific prompt file
+        """
+        return f"master/{self.phase}/{filename}"
     
     def set_personal_file(self) -> None:
         """Set the personal file for this master agent.
@@ -169,28 +196,31 @@ class MasterAgent:
         # Get codebase structure
         codebase_structure = self.get_codebase_structure_string()
         
-        # Load Lark grammar (act like prompts/master/ exists)
+        # Load phase-specific Lark grammar
         lark_grammar = ""
         try:
-            with open('prompts/master/master_grammar.lark', 'r', encoding='utf-8') as f:
+            grammar_path = self.get_phase_prompt_path('master_grammar.lark')
+            with open(f'prompts/{grammar_path}', 'r', encoding='utf-8') as f:
                 lark_grammar = f.read()
         except Exception as e:
-            lark_grammar = f"[Error reading Lark grammar: {str(e)}]"
+            lark_grammar = f"[Error reading Lark grammar from {self.phase}: {str(e)}]"
         
-        # Load language examples
+        # Load phase-specific language examples
         language_examples = ""
         try:
-            with open('prompts/master/language_examples.md', 'r', encoding='utf-8') as f:
+            examples_path = self.get_phase_prompt_path('language_examples.md')
+            with open(f'prompts/{examples_path}', 'r', encoding='utf-8') as f:
                 language_examples = f.read()
         except Exception as e:
-            language_examples = f"[Error reading language examples: {str(e)}]"
+            language_examples = f"[Error reading language examples from {self.phase}: {str(e)}]"
         
-        # Load agent role description from markdown file
+        # Load phase-specific agent role description
         try:
-            with open('prompts/master/agent_role.md', 'r', encoding='utf-8') as f:
+            role_path = self.get_phase_prompt_path('agent_role.md')
+            with open(f'prompts/{role_path}', 'r', encoding='utf-8') as f:
                 agent_role = f.read()
         except Exception as e:
-            agent_role = f"[Error reading agent role: {str(e)}]"
+            agent_role = f"[Error reading agent role from {self.phase}: {str(e)}]"
 
         # Master agent doesn't have a personal path - it operates at system level
         if src.ROOT_DIR is None:
@@ -198,19 +228,22 @@ class MasterAgent:
 
         # Master agent tracks root agent directly via self.root and self.child_active_boolean
 
-        # Define available terminal commands and utilities
+        # Load phase-specific available terminal commands and utilities
         try:
-            with open('prompts/master/available_commands.md', 'r', encoding='utf-8') as f:
+            commands_path = self.get_phase_prompt_path('available_commands.md')
+            with open(f'prompts/{commands_path}', 'r', encoding='utf-8') as f:
                 available_commands = f.read()
         except Exception as e:
-            available_commands = f"[Error reading available commands: {str(e)}]"
+            available_commands = f"[Error reading available commands from {self.phase}: {str(e)}]"
 
         # Make API call using message list
         if self.llm_client:
             if self.llm_client.supports_system_role:
                 # Render split templates
                 system_template = self.jinja_env.get_template('system_template.j2')
-                user_template = self.jinja_env.get_template('master_template.j2')  # Act like this exists
+                # Use phase-specific master template
+                master_template_path = self.get_phase_prompt_path('master_template.j2')
+                user_template = self.jinja_env.get_template(master_template_path)
 
                 system_prompt = system_template.render(
                     agent_role=agent_role,
@@ -375,6 +408,7 @@ class MasterAgent:
         Returns:
             Dict[str, Any]: Status information including:
                 - Agent type and configuration
+                - Current development phase
                 - Active state and current task
                 - Memory and context usage
                 - Child and ephemeral agent counts
@@ -383,6 +417,7 @@ class MasterAgent:
         self.update_activity()
         return {
             'agent_type': 'master',
+            'phase': self.phase,
             'llm_client': str(self.llm_client) if self.llm_client else None,
             'max_context_size': self.max_context_size,
             'personal_file': str(self.personal_file) if self.personal_file else None,
@@ -402,10 +437,10 @@ class MasterAgent:
         """String representation of the master agent.
         
         Returns:
-            str: Agent representation including type and active state
+            str: Agent representation including type, phase, and active state
         """
         root_status = "present" if self.root else "none"
-        return f"MasterAgent(root={root_status}, ephemeral={len(self.active_ephemeral_agents)}, stall={self.stall})"
+        return f"MasterAgent(phase={self.phase}, root={root_status}, ephemeral={len(self.active_ephemeral_agents)}, stall={self.stall})"
     
     def update_activity(self):
         """Update the last activity timestamp."""

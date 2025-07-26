@@ -10,7 +10,7 @@ import time
 import uuid
 from typing import Dict, Any, Optional
 from pathlib import Path
-from .ast import DirectiveType, ReadDirective, RunDirective, ChangeDirective, ReplaceDirective, InsertDirective, SpawnDirective, WaitDirective, FinishDirective
+from .ast import DirectiveType, ReadDirective, RunDirective, ChangeDirective, ScratchDirective, ReplaceDirective, InsertDirective, SpawnDirective, WaitDirective, FinishDirective
 import src
 from src.config import ALLOWED_COMMANDS
 from .parser import parse_directive
@@ -65,6 +65,8 @@ class CoderLanguageInterpreter:
                 self._execute_replace(directive)
             elif isinstance(directive, InsertDirective):
                 self._execute_insert(directive)
+            elif isinstance(directive, ScratchDirective):
+                self._execute_scratch(directive)
             elif isinstance(directive, SpawnDirective):
                 self._execute_spawn(directive)
             elif isinstance(directive, WaitDirective):
@@ -264,6 +266,24 @@ class CoderLanguageInterpreter:
                 prompt = "INSERT failed: This agent has no assigned file."
         except Exception as e:
             self._queue_self_prompt(f"INSERT failed: Could not insert in {self.own_file}: {str(e)}")
+            return
+        self._queue_self_prompt(prompt)
+
+    def _execute_scratch(self, directive: ScratchDirective) -> None:
+        """Execute a SCRATCH directive by writing content to the agent's scratch pad file."""
+        prompt = None
+        try:
+            if self.own_file is not None:
+                main_file_path = (self.base_path / self.own_file).resolve()
+                scratch_path = main_file_path.with_name(f"{main_file_path.stem}_scratch{main_file_path.suffix}")
+                scratch_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(scratch_path, 'w', encoding='utf-8', errors='replace') as f:
+                    f.write(directive.content)
+                prompt = f"SCRATCH succeeded: Updated {scratch_path.name}"
+            else:
+                prompt = "SCRATCH failed: This agent has no assigned file."
+        except Exception as e:
+            self._queue_self_prompt(f"SCRATCH failed: Could not write to scratch file: {str(e)}")
             return
         self._queue_self_prompt(prompt)
 

@@ -1,0 +1,52 @@
+// Phase 3: Master Language Grammar for Lark
+// Implementation Phase - FULL DELEGATION ENABLED
+
+// Comments
+COMMENT: /\/\/.*/
+
+// Directives (FULL SET including DELEGATE)
+directive: delegate | finish | read | run | update_documentation
+
+// Delegate directive (PRIMARY PHASE 3 COMMAND)
+delegate: "DELEGATE" prompt_field
+
+// Finish directive for human interaction
+finish: "FINISH" prompt_field
+
+// Read directive for verification and debugging
+read: "READ" target ("," target)*
+
+// Update documentation directive for progress tracking
+update_documentation: "UPDATE_DOCUMENTATION" "CONTENT" "=" string
+
+// Run directive for testing and verification
+run: "RUN" command
+
+// Targets
+target: "file" filename   -> file
+      | "folder" filename -> folder
+
+// Filename is a quoted string
+filename: string
+
+// Command is a quoted string
+command: string
+
+// Prompt field
+prompt_field: "PROMPT" "=" string
+
+// String literals as a terminal (preserve whitespace and escapes)
+string: STRING
+STRING: /"([^"\\]|\\.)*"/
+
+// Action type tokens (Phase 3 - all commands available)
+DELEGATE: "DELEGATE"
+UPDATE_DOCUMENTATION: "UPDATE_DOCUMENTATION"
+RUN: "RUN"
+FINISH: "FINISH"
+READ: "READ"
+
+// Ignore whitespace and comments
+%import common.WS
+%ignore WS
+%ignore COMMENT

@@ -1,0 +1,26 @@
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q --cov=src --cov-report=term-missing"
+testpaths = [
+    "src",
+    "integration",
+]
+python_files = "test_*.py"
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+ignore = []
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true

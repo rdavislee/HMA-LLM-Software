@@ -1,0 +1,5 @@
+setup.py
+darwin_simulator.egg-info/PKG-INFO
+darwin_simulator.egg-info/SOURCES.txt
+darwin_simulator.egg-info/dependency_links.txt
+darwin_simulator.egg-info/top_level.txt

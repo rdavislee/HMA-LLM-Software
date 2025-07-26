@@ -1,0 +1,48 @@
+// Phase 2: Master Language Grammar for Lark
+// Structural Setup and Development Planning Phase - NO DELEGATION ALLOWED
+
+// Comments
+COMMENT: /\/\/.*/
+
+// Directives (NO DELEGATE in Phase 2)
+directive: finish | read | run | update_documentation
+
+// Finish directive for progress reporting
+finish: "FINISH" prompt_field
+
+// Read directive for verifying structure
+read: "READ" target ("," target)*
+
+// Update documentation directive for development planning
+update_documentation: "UPDATE_DOCUMENTATION" "CONTENT" "=" string
+
+// Run directive for structure creation and setup (PRIMARY PHASE 2 COMMAND)
+run: "RUN" command
+
+// Targets
+target: "file" filename   -> file
+      | "folder" filename -> folder
+
+// Filename is a quoted string
+filename: string
+
+// Command is a quoted string
+command: string
+
+// Prompt field
+prompt_field: "PROMPT" "=" string
+
+// String literals as a terminal (preserve whitespace and escapes)
+string: STRING
+STRING: /"([^"\\]|\\.)*"/
+
+// Action type tokens (Phase 2 only)
+UPDATE_DOCUMENTATION: "UPDATE_DOCUMENTATION"
+RUN: "RUN"
+FINISH: "FINISH"
+READ: "READ"
+
+// Ignore whitespace and comments
+%import common.WS
+%ignore WS
+%ignore COMMENT

@@ -33,12 +33,20 @@ class TesterAgent(EphemeralAgent):
     ) -> None:
         super().__init__(parent, parent_path, llm_client, max_context_size)
         
-        # Create scratch pad file
-        self.personal_file = self._create_scratch_pad()
-        
-        # Add scratch pad to memory
-        if self.personal_file:
-            self.memory[self.personal_file.name] = self.personal_file
+        # Determine scratch-pad strategy based on parent type
+        self.owns_scratch_pad: bool = False  # Track ownership for cleanup
+
+        if parent and hasattr(parent, "is_coder") and parent.is_coder:
+            # Re-use the coder's scratch pad; no creation / deletion
+            self.personal_file = getattr(parent, "scratch_file", None)
+            if self.personal_file:
+                self.memory[self.personal_file.name] = self.personal_file
+        else:
+            # Parent is a manager (or unknown) – create scratch pad in manager's directory
+            self.personal_file = self._create_scratch_pad(base_dir=Path(parent_path))
+            if self.personal_file:
+                self.memory[self.personal_file.name] = self.personal_file
+                self.owns_scratch_pad = True
         
         # Initialize Jinja2 environment – resolve the absolute path to the
         # project-level "prompts" directory so the templates are found
@@ -52,103 +60,42 @@ class TesterAgent(EphemeralAgent):
             lstrip_blocks=True,
         )
 
-    def _create_scratch_pad(self) -> Optional[Path]:
+    def _create_scratch_pad(self, base_dir: Path) -> Optional[Path]:
         """
-        Create a scratch pad file for this tester agent.
-        File is created in ROOT_DIR/scratch_pads/ with name based on parent path.
-        Uses the correct file extension based on the global language setting.
-        Adds a unique number suffix to support multiple testers from the same parent.
+        Create a scratch-pad file inside `base_dir` (used when parent is a manager).
+        The file name is `<manager_name>_tester_scratch.<ext>` with a numeric suffix
+        to avoid collisions when multiple testers are spawned simultaneously.
         """
-        if src.ROOT_DIR is None:
-            print("[TesterAgent] Warning: ROOT_DIR not set, cannot create scratch pad")
-            return None
-        
         try:
-            # Create scratch_pads directory if it doesn't exist
-            scratch_pads_dir = src.ROOT_DIR / "scratch_pads"
-            scratch_pads_dir.mkdir(exist_ok=True)
-            
-            # Convert parent path to scratch pad filename base
-            # Example: src/auth/user.ts -> src.auth.user.ts
-            try:
-                relative_parent_path = Path(self.parent_path).relative_to(src.ROOT_DIR)
-                scratch_pad_base = str(relative_parent_path).replace("/", ".").replace("\\", ".")
-                
-                # If parent path is a directory, add a suffix to distinguish it
-                if Path(self.parent_path).is_dir():
-                    scratch_pad_base += "_manager"
-                
-                # Add appropriate extension based on global language
-                extension = get_language_extension()
-                
-            except ValueError:
-                # Fallback if parent path is not relative to ROOT_DIR
-                scratch_pad_base = "tester"
-                extension = get_language_extension()
-            
-            # Find the lowest available number for the scratch pad file
-            # Start from 0 and increment until we find an available name
-            scratch_pad_number = 0
+            base_dir.mkdir(parents=True, exist_ok=True)
+
+            extension = get_language_extension()
+            manager_stem = base_dir.name
+
+            idx = 0
             while True:
-                scratch_pad_name = f"{scratch_pad_base}_scratch_{scratch_pad_number}{extension}"
-                scratch_pad_path = scratch_pads_dir / scratch_pad_name
-                
-                # If this name doesn't exist, we can use it
-                if not scratch_pad_path.exists():
+                candidate = base_dir / f"{manager_stem}_tester_scratch_{idx}{extension}"
+                if not candidate.exists():
                     break
-                
-                # Increment and try the next number
-                scratch_pad_number += 1
-            
-            # Create the scratch pad file with initial content based on language
-            current_language = get_global_language()
-            if current_language == Language.TYPESCRIPT:
-                initial_content = f"""// Tester Agent Scratch Pad
-// Parent: {self.parent_path}
-// Created for debugging and temporary code
+                idx += 1
 
-// You can write any TypeScript code here for testing purposes
-// This file is ephemeral and will be cleaned up when the tester agent completes
-
-function debugHelper(): void {{
-    // Helper function for debugging
-}}
-
-// Add your debugging code below:
-
-"""
-            else:
-                # Default to Python-style content for backward compatibility
-                initial_content = f"""# Tester Agent Scratch Pad
-# Parent: {self.parent_path}
-# Created for debugging and temporary code
-
-# You can write any code here for testing purposes
-# This file is ephemeral and will be cleaned up when the tester agent completes
-
-def debug_helper():
-    \"\"\"Helper function for debugging.\"\"\"
-    pass
-
-# Add your debugging code below:
-
-"""
-            
-            with open(scratch_pad_path, 'w', encoding='utf-8') as f:
+            # Write an empty file (or initial comment) so it exists for READs
+            initial_content = ""  # Empty – testers will fill as needed
+            with open(candidate, "w", encoding="utf-8", errors="replace") as f:
                 f.write(initial_content)
-            
-            print(f"[TesterAgent] Created scratch pad: {scratch_pad_path}")
-            return scratch_pad_path
-            
+
+            print(f"[TesterAgent] Created manager-local scratch pad: {candidate}")
+            return candidate
         except Exception as e:
-            print(f"[TesterAgent] Failed to create scratch pad: {e}")
+            print(f"[TesterAgent] Failed to create manager scratch pad: {e}")
             return None
 
     def cleanup_scratch_pad(self):
         """
         Clean up the scratch pad file when the tester agent is done.
         """
-        if self.personal_file and self.personal_file.exists():
+        # Only delete if this tester owns its scratch pad (i.e., parent was manager)
+        if self.owns_scratch_pad and self.personal_file and self.personal_file.exists():
             try:
                 self.personal_file.unlink()
                 print(f"[TesterAgent] Cleaned up scratch pad: {self.personal_file}")
