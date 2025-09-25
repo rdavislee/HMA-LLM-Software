@@ -19,7 +19,7 @@ HMA-LLM is a sophisticated system that uses multiple AI agents working in a hier
 - **Intelligent Delegation**: Agents automatically delegate tasks to appropriate children
 - **Context Awareness**: Each agent maintains context about their scope and responsibilities
 
-### 💻 Modern Frontend
+### 💻 Modern Frontend (NOTE: Frontend is not completely integrated yet; functionality is through command line)
 - **Real-time Chat Interface**: Communicate with agents through natural language
 - **Live File Tree**: Watch project structure evolve in real-time
 - **Code Viewer**: Syntax-highlighted code display with live updates
